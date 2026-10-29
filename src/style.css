@@ -418,3 +418,17 @@ h1 { font-size: 2.4rem; margin: 0; letter-spacing: -.02em; }
   .hero h1 { font-size: 1.8rem; }
 }
 @media (max-width: 350px) { .seg button { font-size: .7rem; padding-inline: 0; } .prow { gap: 8px; } }
+
+/* online screens */
+.hero h1.code { font-size: 3rem; letter-spacing: .18em; padding-left: .18em; font-variant-numeric: tabular-nums; }
+.hero .tag { margin: 2px 0 0; }
+.hero .logo + .tag { text-transform: uppercase; letter-spacing: .12em; font-size: .75rem; }
+.seg.three { grid-template-columns: repeat(3, 1fr); }
+.pname { font-weight: 800; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.pmeta { color: var(--muted); font-size: .8rem; }
+.tagpill { background: #ffffff1f; border-radius: 999px; padding: 1px 8px; font-weight: 700; color: var(--muted); }
+.joinrow { display: flex; gap: 10px; }
+.joinrow .codein { flex: 1; min-width: 0; padding: 12px; border: 0; border-radius: 12px; background: #0003; color: var(--ink); font: inherit; font-size: 1.3rem; font-weight: 800; letter-spacing: .3em; text-align: center; text-transform: uppercase; }
+.joinrow .btn { min-width: 88px; }
+.notice { margin: 0; padding: 12px 14px; border-radius: 14px; background: #e5484d33; border: 1px solid #e5484d88; line-height: 1.35; }
+.tag.center { text-align: center; }

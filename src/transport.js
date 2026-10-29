@@ -71,9 +71,12 @@ function statusFeed() {
 /** Rooms held in the host's browser, reached over WebRTC through PeerJS. */
 export function p2pStore(Peer, options, uid, extraIce) {
   const peerOptions = withIce(options, extraIce);
+  // Resolves once the signalling server has accepted us. A blocked or overloaded server can leave this
+  // hanging, so give up after a while instead of leaving the screen waiting forever.
   const open = (peer) => new Promise((resolve, reject) => {
-    peer.on('open', resolve);
-    peer.on('error', (e) => reject(Object.assign(new Error(e.type), { type: e.type })));
+    const timer = setTimeout(() => reject(Object.assign(new Error('timeout'), { type: 'timeout' })), 12000);
+    peer.on('open', (id) => { clearTimeout(timer); resolve(id); });
+    peer.on('error', (e) => { clearTimeout(timer); reject(Object.assign(new Error(e.type), { type: e.type })); });
   });
 
   return {
