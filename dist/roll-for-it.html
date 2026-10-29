@@ -56,45 +56,77 @@ h1 { font-size: 2.4rem; margin: 0; letter-spacing: -.02em; }
 /* scoreboard */
 .score { display: flex; gap: 8px; flex-wrap: wrap; }
 .chip {
-  flex: 1 1 calc(100% / var(--per, 4) - 8px); min-width: 0; padding: 8px 10px; border-radius: 12px; background: #00000030;
-  border: 2px solid transparent; display: flex; flex-direction: column;
+  flex: 1 1 calc(100% / var(--per, 4) - 8px); min-width: 0; padding: 6px 8px; border-radius: 12px; background: #00000030;
+  border: 2px solid transparent; display: flex; align-items: center; gap: 8px;
 }
-.chip.active { border-color: var(--c); background: #00000055; }
+.chip.active { border-color: var(--c); background: #00000055; box-shadow: 0 0 0 2px #ffffff30; }
+.chip .meta { display: flex; flex-direction: column; min-width: 0; }
 .chip .n { font-size: .8rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.chip .n::before { content: ""; display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--c); margin-right: 5px; }
-.chip .s { font-size: 1.4rem; font-weight: 800; }
+.chip .s { font-size: 1.3rem; font-weight: 800; line-height: 1.1; }
 .chip .s small { font-size: .75rem; color: var(--muted); font-weight: 600; }
 
 .status { text-align: center; min-height: 1.4em; font-weight: 600; }
 
-/* cards */
-.cards { display: flex; flex-direction: column; gap: 10px; justify-content: center; min-height: 0; }
-.gcard {
-  background: var(--card); color: var(--card-ink); border-radius: var(--radius);
-  padding: 10px 14px; display: flex; align-items: center; gap: 12px;
-  border: 3px solid transparent; transition: transform .15s;
-  width: 100%; text-align: left;
+/* cards: laid out as a grid of playing cards, sized to whatever room the table has */
+.cards { container-type: size; min-width: 0; min-height: min(38dvh, 260px); }
+.cardgrid {
+  --gap: 10px; --cols: 3; --rows: 1;
+  display: grid; grid-template-columns: repeat(var(--cols), auto); gap: var(--gap);
+  justify-content: center; align-content: center; height: 100%;
 }
-.gcard.accepts { border-color: #ffd34d; transform: scale(1.02); box-shadow: 0 0 0 4px #ffd34d55; }
-.gcard .pts { font-size: clamp(1.4rem, 5.5dvh, 2.2rem); font-weight: 900; min-width: 2.4ch; text-align: center; line-height: 1; }
-.gcard .pts small { display: block; font-size: .6rem; letter-spacing: .1em; color: #8a7a55; }
-.slots { display: flex; gap: 10px; flex-wrap: wrap; flex: 1; justify-content: flex-end; }
-.slot { display: flex; flex-direction: column; align-items: center; gap: 4px; background: none; border: 0; padding: 0; }
-.slot .dots { display: flex; gap: 3px; height: 8px; }
-.slot .dots i { width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
+.cardgrid[data-n="1"] { --cols: 1; }
+.cardgrid[data-n="2"] { --cols: 2; }
+.cardgrid[data-n="4"] { --cols: 4; }
+/* tall tables (portrait phones) use two rows; the free fourth place shows the deck */
+@container (max-aspect-ratio: 15/14) { .cardgrid[data-n="3"] { --cols: 2; --rows: 2; } .cardgrid[data-n="3"] .deckback { display: grid; } }
+@container (max-aspect-ratio: 10/7) { .cardgrid[data-n="4"] { --cols: 2; --rows: 2; } }
 
+.gcard, .deckback {
+  width: min(calc((100cqw - (var(--cols) - 1) * var(--gap)) / var(--cols)), calc((100cqh - (var(--rows) - 1) * var(--gap)) * 5 / (7 * var(--rows))), 200px);
+  aspect-ratio: 5 / 7; border-radius: clamp(8px, 1.2vw + 4px, 14px);
+}
+.gcard {
+  --tier: #5f8a62;
+  container-type: inline-size; position: relative; display: grid; place-items: center; padding: 0;
+  color: var(--card-ink); background: linear-gradient(160deg, #fffdf4, #f4ecd3);
+  border: 1px solid #cdbf93;
+  box-shadow: 0 8px 16px #0006, inset 0 0 0 4px #fffdf4, inset 0 0 0 5px var(--tier);
+  transition: transform .15s, box-shadow .15s; cursor: pointer;
+}
+.gcard[data-tier="2"] { --tier: #3b78c2; }
+.gcard[data-tier="3"] { --tier: #8a3fb0; }
+.gcard[data-tier="4"] { --tier: #b9861f; background: linear-gradient(160deg, #fffbe6, #f0dca6); }
+.gcard.accepts { transform: translateY(-8px) scale(1.04); box-shadow: 0 0 0 3px #ffd34d, 0 16px 24px #000a, inset 0 0 0 4px #fffdf4, inset 0 0 0 5px var(--tier); }
+.corner { position: absolute; display: flex; flex-direction: column; align-items: center; gap: 2cqw; line-height: 1; color: var(--tier); font-weight: 900; }
+.corner b { font-size: clamp(14px, 17cqw, 34px); }
+.corner i { width: 8cqw; height: 8cqw; background: var(--tier); transform: rotate(45deg); }
+.corner.tl { top: 8cqw; left: 9cqw; }
+.corner.br { bottom: 8cqw; right: 9cqw; transform: rotate(180deg); }
+.face { --fc: 1; display: flex; flex-wrap: wrap; gap: 3cqw; justify-content: center; align-content: center; width: 88%; }
+.slot { flex: 0 0 calc(100% / var(--fc) - 3cqw); display: flex; flex-direction: column; align-items: center; gap: 1cqw; }
+.slot .dots { display: flex; gap: 3px; height: 7px; }
+.slot .dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--c); }
+.face .die { --size: max(22px, calc(var(--dz, 30) * 1cqw)); }
+.deckback {
+  display: none; place-items: center; align-content: center; color: #fff; text-align: center; line-height: 1.1;
+  background: repeating-linear-gradient(45deg, #1d4f8f 0 7px, #2a63ad 7px 14px);
+  border: 3px solid #fffdf4; box-shadow: 0 8px 16px #0006;
+}
+.deckback b { font-size: 1.6rem; }
+.deckback span { font-size: .7rem; letter-spacing: .1em; text-transform: uppercase; opacity: .85; }
 /* dice */
 .die {
   --size: var(--cd); --bg: #fff; --pip: #222;
   width: var(--size); height: var(--size); border-radius: calc(var(--size) * .22);
   background: var(--bg); display: grid; grid-template: repeat(3, 1fr) / repeat(3, 1fr);
-  padding: calc(var(--size) * .14); box-shadow: inset 0 -3px 0 #0003, 0 2px 4px #0003;
+  padding: calc(var(--size) * .14); box-shadow: inset 0 -3px 0 #0003, 0 2px 4px #0003, 0 0 0 1px #ffffff26;
   flex: none;
 }
 .die i { border-radius: 50%; margin: 12%; }
 .die i.on { background: var(--pip); }
 .die.ghost { --bg: #e8dfc4; --pip: #8a7a55; box-shadow: inset 0 0 0 2px #c9bc96; }
-.die.mine { --bg: var(--c); --pip: #fff; }
+.die.mine, .die.owned { --bg: var(--c); --pip: var(--pc, #fff); }
+.die.hand { opacity: .55; }
 
 /* tray */
 .tray { background: #00000030; border-radius: var(--radius); padding: 12px; }
@@ -102,11 +134,16 @@ h1 { font-size: 2.4rem; margin: 0; letter-spacing: -.02em; }
 .dice .die { --size: var(--td); }
 .dice button.die { border: 0; }
 .dice button.die.sel { outline: 4px solid #ffd34d; outline-offset: 2px; }
-.dice .die.rolling { animation: tumble .65s ease-out; }
+/* tumbling roll: each die flies in, bounces, and lands upright at its own time */
+.dice .die { position: relative; z-index: 2; }
+.dice .die.rolling { animation: tumble var(--dur) cubic-bezier(.25, .7, .35, 1) var(--d) both; }
 @keyframes tumble {
-  0% { transform: translateY(-40px) rotate(-300deg) scale(.6); opacity: 0; }
-  70% { transform: translateY(4px) rotate(20deg); opacity: 1; }
-  100% { transform: none; }
+  0% { transform: translate(var(--dx), -120px) rotate(0deg) scale(.55); opacity: 0; }
+  12% { opacity: 1; }
+  55% { transform: translate(calc(var(--dx) * .25), 0) rotate(calc(var(--rot) * .75)) scale(1.1); }
+  72% { transform: translate(0, -26px) rotate(calc(var(--rot) * .92)) scale(1.02); }
+  88% { transform: translate(0, 0) rotate(var(--rot)) scale(.96); }
+  100% { transform: translate(0, 0) rotate(var(--rot)) scale(1); }
 }
 .dice .hint { color: var(--muted); }
 .actions { display: flex; gap: 10px; margin-top: 10px; }
@@ -114,10 +151,11 @@ h1 { font-size: 2.4rem; margin: 0; letter-spacing: -.02em; }
 
 /* overlays */
 .toast {
-  position: fixed; left: 50%; bottom: 150px; transform: translateX(-50%);
-  background: #000d; padding: 10px 16px; border-radius: 999px; font-weight: 700;
-  max-width: 90vw; text-align: center; pointer-events: none;
+  position: fixed; left: 50%; top: 80px; transform: translateX(-50%);
+  background: #06130d; padding: 10px 16px; border-radius: 999px; font-weight: 700;
+  max-width: 90vw; text-align: center; pointer-events: none; z-index: 30;
 }
+[hidden] { display: none !important; }
 .modal {
   position: fixed; inset: 0; background: #000a; display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 10;
 }
@@ -131,6 +169,11 @@ h1 { font-size: 2.4rem; margin: 0; letter-spacing: -.02em; }
 .sheet .btn.primary { background: #ffd34d; }
 .winner { text-align: center; }
 .winner .big { font-size: 2.2rem; font-weight: 900; }
+.trophy { display: flex; justify-content: center; margin-bottom: 6px; }
+.scores { display: flex; flex-direction: column; gap: 6px; margin: 10px 0; }
+.srow { display: flex; align-items: center; gap: 10px; text-align: left; }
+.srow span { flex: 1; }
+.sheet .btn.small { width: auto; min-height: 40px; padding: 8px 14px; margin: 0; }
 
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
@@ -143,7 +186,7 @@ h1 { font-size: 2.4rem; margin: 0; letter-spacing: -.02em; }
 .game {
   flex: 1; display: grid; gap: 10px; min-height: 0;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: auto auto minmax(min-content, 1fr) auto;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
   grid-template-areas: "score" "status" "cards" "tray";
 }
 .table { display: contents; }
@@ -163,7 +206,6 @@ h1 { font-size: 2.4rem; margin: 0; letter-spacing: -.02em; }
     column-gap: 16px;
   }
   .tray { align-self: end; }
-  .cards { justify-content: flex-start; }
 }
 
 /* ---- dual-screen, side by side (Surface Duo open like a book): one screen each side of the hinge ---- */
@@ -193,10 +235,43 @@ h1 { font-size: 2.4rem; margin: 0; letter-spacing: -.02em; }
 }
 
 /* ---- very small screens ---- */
-@media (max-height: 640px) { .game { gap: 6px; } .cards { gap: 6px; } .gcard { padding: 5px 12px; } .slot { gap: 2px; } .status { min-height: 0; } .score { gap: 6px; } .chip { padding: 5px 8px; } .chip .s { font-size: 1.1rem; } .tray { padding: 8px; } .btn { min-height: 44px; padding: 10px 14px; } }
+@media (max-height: 640px) { .game { gap: 6px; } .cardgrid { --gap: 6px; } .status { min-height: 0; } .score { gap: 6px; } .chip { padding: 5px 8px; } .chip .s { font-size: 1.1rem; } .chip .av { width: 24px; height: 24px; } .chip { gap: 6px; } .tray { padding: 8px; } .btn { min-height: 44px; padding: 10px 14px; } }
+
+/* ---- player icons and the editor ---- */
+.av {
+  --s: 40px; width: var(--s); height: var(--s); border-radius: 50%; background: var(--c);
+  display: grid; place-items: center; overflow: hidden; flex: none; box-shadow: 0 0 0 2px #ffffff40;
+  box-sizing: border-box;
+}
+.av.pic { background: #fffdf4; border: clamp(2px, calc(var(--s) * .09), 5px) solid var(--c); }
+.av img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.av b { font-size: calc(var(--s) * .5); line-height: 1; }
+.avbtn { position: relative; background: none; border: 0; padding: 0; border-radius: 50%; flex: none; }
+.avbtn::after {
+  content: "✎"; position: absolute; right: -3px; bottom: -3px; width: 18px; height: 18px; border-radius: 50%;
+  background: #ffd34d; color: #3a2a00; font-size: 11px; display: grid; place-items: center;
+}
+.editor .note { margin: 6px 0 0; color: #6b5d3b; font-size: .9rem; }
+.avwrap {
+  width: min(62vw, 240px); aspect-ratio: 1; margin: 10px auto; border-radius: 50%; background: #fffdf4;
+  overflow: hidden; box-shadow: 0 0 0 3px #0003; touch-action: none;
+}
+#avcv { width: 100%; height: 100%; display: block; touch-action: none; cursor: crosshair; }
+.tools { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; align-items: center; margin: 8px 0; }
+.brushes { display: flex; gap: 8px; }
+.ink, .swatch { width: 36px; height: 36px; border-radius: 50%; background: var(--c); border: 3px solid #0003; padding: 0; }
+.ink.on, .swatch.on, .brush.on { outline: 3px solid #2b2417; outline-offset: 2px; }
+.eraser { background: #fff; color: #333; font-weight: 800; }
+.swatch { width: 40px; height: 40px; }
+.swatch:disabled { opacity: .25; cursor: default; }
+.brush { width: 40px; height: 40px; border-radius: 12px; background: #0001; border: 0; display: grid; place-items: center; }
+.brush i { width: var(--w); height: var(--w); border-radius: 50%; background: #2b2417; }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 8px; }
+.row2 .btn { margin: 0; }
+.avbtn:focus-visible, .btn:focus-visible, .ink:focus-visible, .swatch:focus-visible { outline: 3px solid #ffd34d; outline-offset: 2px; }
 
 body { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
-#app { padding-inline: 0; }
+#app { padding: 12px 0; }
 </style>
 <div id="app"></div>
 <script>
@@ -207,16 +282,29 @@ const DICE_PER_PLAYER = 6;
 const TARGET_SCORE = 40;
 const MAX_PLAYERS = 8; // one set plays 2-4; two sets play up to 8
 
-// One 30-card set: [dice required, distinct faces among them, points, how many].
-// Harder combinations are worth more, spanning the 2-15 point range.
+// One 30-card set: [shape, points]. A shape lists how many dice of each distinct face a card
+// needs, so [2, 1] is "a pair plus one other number". Three cards per tier.
+// Points track difficulty: the expected turns to finish each shape (simulated, rolling every free
+// die each turn and placing every match) are shown alongside, so harder cards are worth more.
 const SET_SHAPES = [
-  [1, 1, 2, 4],
-  [2, 2, 5, 6],
-  [2, 1, 7, 4],
-  [3, 3, 10, 6],
-  [3, 2, 12, 6],
-  [3, 1, 15, 4],
+  [[1], 2], //          1.5 turns
+  [[1, 1], 3], //       2.0
+  [[2], 4], //          2.5
+  [[2, 1], 5], //       3.1
+  [[1, 1, 1, 1], 6], // 3.3
+  [[2, 2], 7], //       4.2
+  [[3, 1], 9], //       4.7
+  [[2, 2, 1], 11], //   5.6
+  [[3, 2], 13], //      6.4
+  [[5], 15], //         8.5
 ];
+const CARDS_PER_SHAPE = 3;
+
+const shapeOf = (faces) => {
+  const counts = new Map();
+  for (const f of faces) counts.set(f, (counts.get(f) || 0) + 1);
+  return [...counts.values()].sort((a, b) => b - a).join(',');
+};
 
 function mulberry32(seed) {
   let a = seed >>> 0;
@@ -249,9 +337,11 @@ function multisets(size, min = 1) {
 function buildDeck(rng, sets = 1) {
   const deck = [];
   for (let s = 0; s < sets; s++) {
-    for (const [size, distinct, points, count] of SET_SHAPES) {
-      const pool = multisets(size).filter((m) => new Set(m).size === distinct);
-      for (const need of shuffle(pool, rng).slice(0, count)) deck.push({ points, need });
+    for (const [shape, points] of SET_SHAPES) {
+      const size = shape.reduce((a, b) => a + b, 0);
+      const key = [...shape].sort((a, b) => b - a).join(',');
+      const pool = multisets(size).filter((m) => shapeOf(m) === key);
+      for (const need of shuffle(pool, rng).slice(0, CARDS_PER_SHAPE)) deck.push({ points, need });
     }
   }
   return shuffle(deck, rng);
@@ -400,7 +490,6 @@ function endTurn(state) {
 return { DICE_PER_PLAYER, TARGET_SCORE, MAX_PLAYERS, mulberry32, buildDeck, cardsInPlay, missing, handSize, newGame, takeBack, roll, canPlace, legalMoves, place, endTurn };
 })();
 
-
 /** Decide the CPU's next single action for the current state. */
 function aiNextAction(s, rng = Math.random) {
   const me = s.current;
@@ -430,11 +519,138 @@ function aiNextAction(s, rng = Math.random) {
   return { type: 'place', rolled: best.rolled, card: best.card };
 }
 
+// Player look: dice colours and the little drawing used as a player icon.
+
+const PALETTE = [
+  { name: 'Red', hex: '#e5484d', pip: '#ffffff' },
+  { name: 'Blue', hex: '#3b82f6', pip: '#ffffff' },
+  { name: 'Green', hex: '#2fb36d', pip: '#ffffff' },
+  { name: 'Yellow', hex: '#f2c230', pip: '#2b2417' },
+  { name: 'Purple', hex: '#a855f7', pip: '#ffffff' },
+  { name: 'Teal', hex: '#14b8a6', pip: '#ffffff' },
+  { name: 'Pink', hex: '#ec4899', pip: '#ffffff' },
+  { name: 'Black', hex: '#2a2f3a', pip: '#ffffff' },
+];
+
+/** `wanted` if no one else has it, otherwise the first colour nobody has. */
+function freeColor(taken, wanted) {
+  const used = new Set(taken);
+  if (Number.isInteger(wanted) && wanted >= 0 && wanted < PALETTE.length && !used.has(wanted)) return wanted;
+  const free = PALETTE.findIndex((_, i) => !used.has(i));
+  return free < 0 ? 0 : free;
+}
+
+const AVATAR_PREFIX = 'data:image/png;base64,';
+const AVATAR_MAX = 20000; // characters; icons from other players are untrusted input
+
+/** Only our own small PNG icons are ever shown; anything else from the network is dropped. */
+function safeAvatar(value) {
+  return typeof value === 'string' && value.length <= AVATAR_MAX && value.startsWith(AVATAR_PREFIX) && /^[A-Za-z0-9+/=]+$/.test(value.slice(AVATAR_PREFIX.length))
+    ? value
+    : '';
+}
+
+/* ---- drawing surface (kept off-screen so the editor can be re-rendered without losing the picture) ---- */
+
+// Icons are drawn on opaque paper, so the dice colour only ever appears as the ring around them.
+const PAPER = '#fffdf4';
+const INK = [PALETTE[7].hex, ...PALETTE.slice(0, 7).map((c) => c.hex)];
+const BRUSHES = [4, 8, 14];
+const AVATAR_SIZE = 128;
+const SIZE = AVATAR_SIZE;
+
+function fillPaper(buf) {
+  const ctx = buf.getContext('2d');
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.fillStyle = PAPER;
+  ctx.fillRect(0, 0, SIZE, SIZE);
+}
+
+function makeSketch() {
+  const buf = document.createElement('canvas');
+  buf.width = SIZE;
+  buf.height = SIZE;
+  fillPaper(buf);
+  return { buf, dirty: false, ink: INK[0], width: BRUSHES[1], erase: false };
+}
+
+function paintCanvas(canvas, sketch) {
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, SIZE, SIZE);
+  ctx.drawImage(sketch.buf, 0, 0);
+}
+
+function pointOn(canvas, event) {
+  const r = canvas.getBoundingClientRect();
+  return { x: ((event.clientX - r.left) / r.width) * SIZE, y: ((event.clientY - r.top) / r.height) * SIZE };
+}
+
+function strokeSegment(sketch, from, to) {
+  const ctx = sketch.buf.getContext('2d');
+  const ink = sketch.erase ? PAPER : sketch.ink; // erasing paints the paper back
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.strokeStyle = ink;
+  ctx.lineWidth = sketch.width;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  if (from.x === to.x && from.y === to.y) {
+    // a tap: some browsers draw nothing for a zero-length line, so paint the dot directly
+    ctx.fillStyle = ink;
+    ctx.arc(to.x, to.y, sketch.width / 2, 0, Math.PI * 2);
+    ctx.fill();
+  } else {
+    ctx.moveTo(from.x, from.y);
+    ctx.lineTo(to.x, to.y);
+    ctx.stroke();
+  }
+  sketch.dirty = true;
+}
+
+function clearSketch(sketch) {
+  fillPaper(sketch.buf);
+  sketch.dirty = false;
+}
+
+/** Load a saved icon for editing. Older icons were transparent; those are laid on `legacyBg`. */
+function loadAvatar(sketch, dataUrl, done, legacyBg = PAPER) {
+  if (!safeAvatar(dataUrl)) return;
+  const img = new Image();
+  img.onload = () => {
+    const ctx = sketch.buf.getContext('2d');
+    const probe = document.createElement('canvas');
+    probe.width = probe.height = 1;
+    probe.getContext('2d').drawImage(img, 0, 0, 1, 1);
+    if (probe.getContext('2d').getImageData(0, 0, 1, 1).data[3] < 250) {
+      ctx.fillStyle = legacyBg;
+      ctx.fillRect(0, 0, SIZE, SIZE);
+    }
+    ctx.drawImage(img, 0, 0, SIZE, SIZE);
+    sketch.dirty = true;
+    done();
+  };
+  img.src = dataUrl;
+}
+
+/** The drawing as a small PNG data URL, or '' when nothing was drawn. */
+function exportAvatar(sketch) {
+  if (!sketch.dirty) return '';
+  let url = sketch.buf.toDataURL('image/png');
+  if (url.length > AVATAR_MAX) {
+    const small = document.createElement('canvas');
+    small.width = small.height = 80;
+    small.getContext('2d').drawImage(sketch.buf, 0, 0, 80, 80);
+    url = small.toDataURL('image/png');
+  }
+  return safeAvatar(url);
+}
+
 // Room transports. Both expose the same small "room store" shape to the game:
 //   host(code, {resume}) -> ref     create a room (throws 'taken' if the code is in use)
 //   join(code)           -> ref     connect to a room (throws 'notfound')
 // and a ref has get(), set(room), acquire(), onSnapshot(next, error), close().
 // A snapshot is { exists, data() } where data() is the whole room document.
+
 
 const PEER_PREFIX = 'rollforit-';
 const MAX_SEATS = 8;
@@ -443,6 +659,8 @@ const keyOf = (code) => `rfi-room-${code}`;
 function tryStorage(fn) {
   try { return fn(); } catch { return null; }
 }
+
+const cleanName = (n) => (String(n ?? '').trim() || 'Player').slice(0, 12);
 
 function snapshotOf(room) {
   return { id: 'room', exists: room !== null, data: () => room ?? undefined, metadata: {} };
@@ -501,9 +719,18 @@ function p2pStore(Peer, options, uid) {
         if (msg.t === 'hello') { conn.send({ t: 'room', room }); return; }
         if (msg.t !== 'set' || !msg.room) return;
         if (room.status === 'lobby') {
+          // In the lobby a guest may only add or update their own seat.
           const mine = msg.room.seats?.find((p) => p.uid === sender);
-          if (mine && !room.seats.some((p) => p.uid === sender) && room.seats.length < MAX_SEATS) {
-            publish({ ...room, seats: [...room.seats, { uid: sender, name: String(mine.name).slice(0, 12), cpu: false }] });
+          const at = room.seats.findIndex((p) => p.uid === sender);
+          if (mine && at >= 0) {
+            const others = room.seats.filter((_, i) => i !== at).map((p) => p.color);
+            const look = { name: cleanName(mine.name), color: freeColor(others, mine.color), avatar: safeAvatar(mine.avatar) };
+            publish({ ...room, seats: room.seats.map((p, i) => (i === at ? { ...p, ...look } : p)) });
+            return;
+          }
+          if (mine && room.seats.length < MAX_SEATS) {
+            const look = { name: cleanName(mine.name), color: freeColor(room.seats.map((p) => p.color), mine.color), avatar: safeAvatar(mine.avatar) };
+            publish({ ...room, seats: [...room.seats, { uid: sender, cpu: false, ...look }] });
             return;
           }
         } else if (room.game && msg.room.game) {
@@ -583,7 +810,12 @@ function p2pStore(Peer, options, uid) {
 
       return {
         async get() { return snapshotOf(room); },
-        async set(next) { if (conn?.open) conn.send({ t: 'set', room: JSON.parse(JSON.stringify(next)) }); },
+        async set(next) {
+          if (!conn?.open) return;
+          // A move only needs the game; everything else (seats, icons) is the host's to keep.
+          const room = next.game ? { game: next.game, status: next.status } : next;
+          conn.send({ t: 'set', room: JSON.parse(JSON.stringify(room)) });
+        },
         async acquire() { return { acquired: true }; },
         onSnapshot(next, error) { subs.add(next); if (error) errors.add(error); next(snapshotOf(room)); return () => { subs.delete(next); errors.delete(error); }; },
         close() { closed = true; peer.destroy(); },
@@ -593,16 +825,16 @@ function p2pStore(Peer, options, uid) {
 }
 
 
-
-
-
-const COLORS = ['#e5484d', '#3b82f6', '#2fb36d', '#f5a524', '#a855f7', '#14b8a6', '#ec4899', '#cbd5e1'];
 const MAX_PLAYERS = E.MAX_PLAYERS;
-const CPU_DELAY = 700;
-const ROLL_MS = 650;
+const CPU_DELAY = window.RFI_CPU_DELAY ?? 700;
 const PIPS = { 1: [4], 2: [0, 8], 3: [0, 4, 8], 4: [0, 2, 6, 8], 5: [0, 2, 4, 6, 8], 6: [0, 2, 3, 5, 6, 8] };
+const reducedMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
 const app = document.getElementById('app');
+const toastEl = Object.assign(document.createElement('div'), { className: 'toast', hidden: true });
+toastEl.setAttribute('role', 'status');
+document.body.appendChild(toastEl);
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const store = {
   get: (k) => { try { return localStorage.getItem(k); } catch { return null; } },
@@ -611,48 +843,82 @@ const store = {
 
 // Online play: the host page's shared database when present, otherwise peer-to-peer.
 const net = { store: null, uid: null, ref: null, unsub: null, room: null, mySeat: -1, q: Promise.resolve(), busy: false };
+
+const profile = {
+  name: store.get('rfi-name') || 'Player',
+  color: Number.isInteger(+store.get('rfi-color')) && store.get('rfi-color') !== null ? +store.get('rfi-color') % PALETTE.length : 0,
+  avatar: safeAvatar(store.get('rfi-avatar') || ''),
+};
+const saveProfile = () => { store.set('rfi-name', profile.name); store.set('rfi-color', String(profile.color)); store.set('rfi-avatar', profile.avatar); };
+
 const ui = {
   screen: 'setup', // setup | online | lobby | game
   online: false,
-  name: store.get('rfi-name') || 'Player',
   joinCode: '',
-  setup: [{ name: 'You', cpu: false }, { name: 'Robo', cpu: true }],
+  setup: [
+    { name: 'You', cpu: false, color: profile.color, avatar: profile.avatar },
+    { name: 'Robo', cpu: true, color: freeColor([profile.color], 1), avatar: '' },
+  ],
+  cfg: [], // players of the local game in progress
   game: null,
   selected: null,
   rolling: false,
-  toast: '',
+  fx: [],
   modal: null,
+  ed: null, // icon / colour editor
 };
 let timer = 0;
 let toastTimer = 0;
+let rollTimer = 0;
+let rollClock = 0;
 
-const esc = (s) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const wins = (name) => `${esc(name)} ${name.trim().toLowerCase() === 'you' ? 'win' : 'wins'}!`;
 const isHost = () => net.room?.hostUid === net.uid;
-const color = (p) => COLORS[p % COLORS.length];
+
+/* ---------- players' looks ---------- */
+
+const seats = () => (ui.online ? net.room?.seats : ui.cfg) || [];
+const swatch = (p, i) => PALETTE[Number.isInteger(p?.color) ? p.color % PALETTE.length : i % PALETTE.length];
+const hexOf = (i) => swatch(seats()[i], i).hex;
+const diceVars = (p, i) => { const c = swatch(p, i); return `--c:${c.hex};--pc:${c.pip}`; };
+
+function avatarHtml(p, i, size) {
+  const c = swatch(p, i);
+  const img = safeAvatar(p?.avatar);
+  const inner = img ? `<img src="${img}" alt="">` : `<b style="color:${c.pip}">${esc((p?.name || '?').trim().charAt(0).toUpperCase() || '?')}</b>`;
+  return `<span class="av${img ? ' pic' : ''}" style="--s:${size}px;--c:${c.hex}">${inner}</span>`;
+}
 
 function die(face, cls = '', attrs = '', tag = 'div') {
   const pips = Array.from({ length: 9 }, (_, i) => `<i${PIPS[face].includes(i) ? ' class="on"' : ''}></i>`).join('');
   return `<${tag} class="die ${cls}" aria-label="${face}" ${attrs}>${pips}</${tag}>`;
 }
 
+function setFace(el, face) {
+  el.querySelectorAll('i').forEach((pip, k) => pip.classList.toggle('on', PIPS[face].includes(k)));
+  el.setAttribute('aria-label', String(face));
+}
+
 /* ---------- rendering ---------- */
 
 function render() {
-  app.innerHTML = ({ setup: setupView, online: onlineView, lobby: lobbyView, game: gameView }[ui.screen])() + modalView() + (ui.toast ? `<div class="toast">${esc(ui.toast)}</div>` : '');
+  app.innerHTML = ({ setup: setupView, online: onlineView, lobby: lobbyView, game: gameView }[ui.screen])() + modalView();
+  const cv = document.getElementById('avcv');
+  if (cv && ui.ed) paintCanvas(cv, ui.ed.sk);
 }
 
 function setupView() {
   const rows = ui.setup.map((p, i) => `
     <div class="prow">
-      <span class="dot" style="background:${color(i)}"></span>
+      <button class="avbtn" data-act="editPlayer" data-i="${i}" aria-label="Customize ${esc(p.name)}">${avatarHtml(p, i, 44)}</button>
       <input data-name="${i}" value="${esc(p.name)}" maxlength="12" aria-label="Player ${i + 1} name">
       <button class="btn" data-act="toggleCpu" data-i="${i}">${p.cpu ? 'CPU' : 'Human'}</button>
       ${ui.setup.length > 2 ? `<button class="btn" data-act="removePlayer" data-i="${i}" aria-label="Remove">✕</button>` : ''}
     </div>`).join('');
   return `
     <div class="setup">
-      <div><h1>🎲 Roll for It</h1><p class="tag">Roll dice, match the cards, race to ${E.TARGET_SCORE} points.</p></div>
+      <div><h1>🎲 Roll for It</h1><p class="tag">Roll dice, match the cards, race to ${E.TARGET_SCORE} points. Tap a face to draw your icon and pick your dice colour.</p></div>
       ${rows}
       ${ui.setup.length < MAX_PLAYERS ? '<button class="btn" data-act="addPlayer">+ Add player</button>' : ''}
       <button class="btn primary" data-act="start">Start game</button>
@@ -666,7 +932,10 @@ function onlineView() {
   return `
     <div class="setup">
       <div><h1>Play online</h1><p class="tag">Create a room and send friends the code, or enter theirs.</p></div>
-      <div class="prow"><input id="myname" value="${esc(ui.name)}" maxlength="12" placeholder="Your name" aria-label="Your name"></div>
+      <div class="prow">
+        <button class="avbtn" data-act="editProfile" aria-label="Customize your player">${avatarHtml(profile, 0, 44)}</button>
+        <input id="myname" value="${esc(profile.name)}" maxlength="12" placeholder="Your name" aria-label="Your name">
+      </div>
       <button class="btn primary" data-act="createRoom" ${net.busy ? 'disabled' : ''}>Create room</button>
       <div class="prow">
         <input id="joincode" value="${esc(ui.joinCode)}" maxlength="4" placeholder="Room code" autocapitalize="characters" autocomplete="off" aria-label="Room code" style="text-transform:uppercase;letter-spacing:.2em">
@@ -681,13 +950,15 @@ function lobbyView() {
   if (!room) return '<div class="setup"><p class="tag">Connecting…</p></div>';
   const rows = room.seats.map((p, i) => `
     <div class="prow">
-      <span class="dot" style="background:${color(i)}"></span>
+      ${i === net.mySeat
+        ? `<button class="avbtn" data-act="editMe" aria-label="Customize your player">${avatarHtml(p, i, 44)}</button>`
+        : avatarHtml(p, i, 44)}
       <span style="flex:1">${esc(p.name)}${i === net.mySeat ? ' <small>(you)</small>' : ''}${p.cpu ? ' <small>CPU</small>' : ''}${p.uid === room.hostUid ? ' <small>host</small>' : ''}</span>
       ${isHost() && p.cpu ? `<button class="btn" data-act="removeSeat" data-i="${i}" aria-label="Remove">✕</button>` : ''}
     </div>`).join('');
   return `
     <div class="setup">
-      <div><h1>Room <span class="code">${esc(room.code)}</span></h1><p class="tag">Friends join with this code. ${room.seats.length} of ${MAX_PLAYERS} seats taken.</p></div>
+      <div><h1>Room <span class="code">${esc(room.code)}</span></h1><p class="tag">Friends join with this code. ${room.seats.length} of ${MAX_PLAYERS} seats taken. Tap your face to change your icon and dice colour.</p></div>
       <button class="btn" data-act="invite">Invite friends</button>
       ${rows}
       ${isHost() ? `
@@ -700,56 +971,71 @@ function lobbyView() {
 
 function statusText(s) {
   const cur = s.players[s.current];
+  const deck = s.deck.length ? ` <small>· ${s.deck.length} cards left</small>` : '';
   if (s.phase === 'over') return wins(s.players[s.winner].name);
   if (ui.rolling) return `${esc(cur.name)} rolls…`;
-  if (cur.cpu) return `${esc(cur.name)} is thinking…`;
-  if (ui.online && s.current !== net.mySeat) return net.mySeat < 0 ? `Watching ${esc(cur.name)}…` : `${esc(cur.name)} is playing…`;
+  if (cur.cpu) return `${esc(cur.name)} is thinking…${deck}`;
+  if (ui.online && s.current !== net.mySeat) return (net.mySeat < 0 ? `Watching ${esc(cur.name)}…` : `${esc(cur.name)} is playing…`) + deck;
   if (s.phase === 'start') {
-    return E.handSize(s, s.current) === 0 ? 'All your dice are on cards — take them back to roll' : `${esc(cur.name)}: roll your ${E.handSize(s, s.current)} dice`;
+    return (E.handSize(s, s.current) === 0 ? 'All your dice are on cards. Take them back to roll.' : `${esc(cur.name)}: roll your ${E.handSize(s, s.current)} dice`) + deck;
   }
   if (!s.rolled.length) return 'All dice placed';
   if (!E.legalMoves(s).length) return 'No matches this time';
   return ui.selected === null ? 'Tap a die, then the card it fits' : 'Tap a highlighted card';
 }
 
+const tierOf = (points) => (points >= 13 ? 4 : points >= 9 ? 3 : points >= 5 ? 2 : 1);
+
 function cardView(s, card, ci) {
   const accepts = ui.selected !== null && E.canPlace(s, ui.selected, ci);
   const used = new Map(); // per player, how many of each face already counted
+  const n = card.need.length;
+  const cols = n <= 2 ? 1 : n <= 4 ? 2 : 3;
+  const mineSeat = seats()[s.current];
   const slots = card.need.map((face) => {
     const owners = s.players.map((_, p) => p).filter((p) => {
       const key = `${p}:${face}`;
-      const n = used.get(key) || 0;
+      const c = used.get(key) || 0;
       const has = card.placed[p].filter((f) => f === face).length;
-      used.set(key, n + 1);
-      return has > n;
+      used.set(key, c + 1);
+      return has > c;
     });
     const mine = owners.includes(s.current);
-    const others = owners.filter((p) => p !== s.current);
-    const dots = others.map((p) => `<i style="--c:${color(p)}"></i>`).join('');
+    const dots = owners.filter((p) => p !== s.current).map((p) => `<i style="--c:${hexOf(p)}"></i>`).join('');
     return `<div class="slot ${mine ? 'mine' : ''}">
-      ${die(face, mine ? 'mine' : 'ghost', mine ? `style="--c:${color(s.current)}"` : '')}
+      ${die(face, mine ? 'mine' : 'ghost', mine ? `style="${diceVars(mineSeat, s.current)}"` : '')}
       <span class="dots">${dots}</span></div>`;
   }).join('');
-  return `<div class="gcard ${accepts ? 'accepts' : ''}" data-act="pickCard" data-card="${ci}" role="group">
-    <div class="pts">${card.points}<small>PTS</small></div><div class="slots">${slots}</div></div>`;
+  return `<div class="gcard ${accepts ? 'accepts' : ''}" data-tier="${tierOf(card.points)}" data-act="pickCard" data-card="${ci}" role="group" aria-label="${card.points} point card">
+    <div class="corner tl"><b>${card.points}</b><i></i></div>
+    <div class="face" style="--fc:${cols};--dz:${cols === 1 ? 44 : cols === 2 ? 31 : 24}">${slots}</div>
+    <div class="corner br"><b>${card.points}</b><i></i></div>
+  </div>`;
 }
 
 function gameView() {
   const s = ui.game;
   const human = isMine(s);
+  const mine = seats()[s.current];
   const chips = s.players.map((p, i) => `
-    <div class="chip ${i === s.current && s.phase !== 'over' ? 'active' : ''}" style="--c:${color(i)}">
-      <span class="n">${esc(p.name)}${ui.online && i === net.mySeat ? ' (you)' : ''}</span><span class="s">${p.score}<small> / ${E.TARGET_SCORE}</small></span>
+    <div class="chip ${i === s.current && s.phase !== 'over' ? 'active' : ''}" style="--c:${hexOf(i)}">
+      ${avatarHtml(seats()[i], i, 28)}
+      <span class="meta"><span class="n">${esc(p.name)}${ui.online && i === net.mySeat ? ' (you)' : ''}</span><span class="s">${p.score}<small> / ${E.TARGET_SCORE}</small></span></span>
     </div>`).join('');
 
   let tray;
   if (s.phase === 'placing') {
-    tray = s.rolled.map((f, i) => die(f, `${ui.rolling ? 'rolling' : ''} ${ui.selected === i ? 'sel' : ''}`,
-      human && !ui.rolling ? `data-act="pickRolled" data-i="${i}"` : 'disabled', 'button')).join('')
-      || '<span class="hint">—</span>';
+    tray = s.rolled.map((f, i) => {
+      const fx = ui.fx[i] || { delay: 0, dur: 0, dx: 0, rot: 0 };
+      const spinning = ui.rolling && fx.dur > 0;
+      const style = `${diceVars(mine, s.current)};--d:${fx.delay}ms;--dur:${fx.dur}ms;--dx:${fx.dx}px;--rot:${fx.rot}deg`;
+      const face = spinning ? 1 + Math.floor(Math.random() * 6) : f;
+      return die(face, `owned ${spinning ? 'rolling' : ''} ${ui.selected === i ? 'sel' : ''}`,
+        `style="${style}" data-i="${i}" ${human && !ui.rolling ? `data-act="pickRolled"` : 'disabled'}`, 'button');
+    }).join('') || '<span class="hint">—</span>';
   } else {
     const n = E.handSize(s, s.current);
-    tray = n ? Array.from({ length: n }, () => die(1, 'ghost')).join('').replace(/aria-label="1"/g, 'aria-label="die in hand"') : '<span class="hint">No dice in hand</span>';
+    tray = n ? Array.from({ length: n }, () => die(1, 'owned hand', `style="${diceVars(mine, s.current)}"`)).join('').replace(/aria-label="1"/g, 'aria-label="die in hand"') : '<span class="hint">No dice in hand</span>';
   }
   const onCards = E.DICE_PER_PLAYER - E.handSize(s, s.current);
   const canTakeBack = human && s.phase === 'start' && onCards > 0;
@@ -763,7 +1049,7 @@ function gameView() {
     <div class="table">
     <div class="score" style="--per:${Math.ceil(s.players.length / Math.ceil(s.players.length / 4))}">${chips}</div>
     <div class="status">${statusText(s)}</div>
-    <div class="cards">${s.cards.map((c, i) => cardView(s, c, i)).join('')}</div>
+    <div class="cards"><div class="cardgrid" data-n="${s.cards.length}">${s.cards.map((c, i) => cardView(s, c, i)).join('')}<div class="deckback" aria-hidden="true"><b>${s.deck.length}</b><span>left</span></div></div></div>
     </div>
     <div class="tray">
       <div class="dice">${tray}</div>
@@ -776,18 +1062,37 @@ function gameView() {
     </div>`;
 }
 
+function editorView() {
+  const ed = ui.ed;
+  const taken = new Set(editorTaken());
+  const ink = INK.map((hex) => `<button class="ink ${!ed.sk.erase && ed.sk.ink === hex ? 'on' : ''}" style="--c:${hex}" data-act="ink" data-c="${hex}" aria-label="Ink ${hex}"></button>`).join('')
+    + `<button class="ink eraser ${ed.sk.erase ? 'on' : ''}" data-act="eraser" aria-label="Eraser">⌫</button>`;
+  const brushes = BRUSHES.map((w) => `<button class="brush ${ed.sk.width === w ? 'on' : ''}" data-act="brush" data-w="${w}" aria-label="Brush size ${w}"><i style="--w:${w}px"></i></button>`).join('');
+  const colors = PALETTE.map((c, i) => `<button class="swatch ${ed.color === i ? 'on' : ''}" style="--c:${c.hex}" data-act="pickColor" data-i="${i}" ${taken.has(i) ? 'disabled' : ''} aria-label="${c.name} dice${taken.has(i) ? ' (taken)' : ''}"></button>`).join('');
+  return `<div class="modal"><div class="sheet editor"><h2>Your player</h2>
+    <p class="note">Draw your icon with your finger. Your dice colour becomes its ring.</p>
+    <div class="avwrap"><canvas id="avcv" width="${AVATAR_SIZE}" height="${AVATAR_SIZE}" aria-label="Drawing area"></canvas></div>
+    <div class="tools">${ink}</div>
+    <div class="tools"><span class="brushes">${brushes}</span><button class="btn small" data-act="clearArt">Clear</button></div>
+    <p class="note">Dice colour. Each player needs a different one.</p>
+    <div class="tools">${colors}</div>
+    <div class="row2"><button class="btn" data-act="closeEditor">Cancel</button><button class="btn primary" data-act="saveEditor">Save</button></div>
+  </div></div>`;
+}
+
 function modalView() {
+  if (ui.ed) return editorView();
   if (ui.screen === 'game' && ui.game?.phase === 'over') {
     const s = ui.game;
-    const scores = s.players.map((p) => `<div>${esc(p.name)}: <b>${p.score}</b></div>`).join('');
+    const scores = s.players.map((p, i) => `<div class="srow">${avatarHtml(seats()[i], i, 24)}<span>${esc(p.name)}</span><b>${p.score}</b></div>`).join('');
     return `<div class="modal"><div class="sheet winner">
-      <div>🏆</div><div class="big">${wins(s.players[s.winner].name)}</div>${scores}
+      <div class="trophy">${avatarHtml(seats()[s.winner], s.winner, 72)}</div><div class="big">${wins(s.players[s.winner].name)}</div><div class="scores">${scores}</div>
       ${ui.online && !isHost() ? '<p>Waiting for the host to start a rematch…</p>' : '<button class="btn primary" data-act="rematch">Rematch</button>'}
       <button class="btn" data-act="toSetup">${ui.online ? 'Leave room' : 'Main menu'}</button></div></div>`;
   }
   if (ui.modal === 'rules') {
     return `<div class="modal" data-act="closeModal"><div class="sheet"><h2>How to play</h2>
-      <p>Be the first to score <b>${E.TARGET_SCORE} points</b>. Cards are worth 2–15 points.</p>
+      <p>Be the first to score <b>${E.TARGET_SCORE} points</b>. Cards are worth 2–15 points, and the harder a card is to finish, the more it's worth.</p>
       <ol>
         <li><b>Roll for it!</b> Roll all the dice in your hand (you own ${E.DICE_PER_PLAYER}), once per turn.</li>
         <li><b>Match it!</b> Tap a die, then a card that shows that number. Each die matches one picture on one card. Once placed, a die can't move. You may choose not to place a die; unplaced dice stay in your hand.</li>
@@ -809,17 +1114,123 @@ function modalView() {
   return '';
 }
 
+/* ---------- icon and colour editor ---------- */
+
+/** Dice colours other players already use, for the editor being shown. */
+function editorTaken() {
+  const ed = ui.ed;
+  if (ed.target === 'setup') return ui.setup.filter((_, i) => i !== ed.i).map((p) => p.color);
+  if (ed.target === 'seat') return (net.room?.seats || []).filter((_, i) => i !== net.mySeat).map((p) => p.color);
+  return [];
+}
+
+function openEditor(target, i, current) {
+  const sk = makeSketch();
+  ui.ed = { target, i, color: current.color, sk };
+  loadAvatar(sk, current.avatar, () => { const cv = document.getElementById('avcv'); if (cv) paintCanvas(cv, sk); }, PALETTE[current.color % PALETTE.length].hex);
+  render();
+}
+
+let stroke = null;
+app.addEventListener('pointerdown', (e) => {
+  if (e.target.id !== 'avcv' || !ui.ed) return;
+  e.preventDefault();
+  e.target.setPointerCapture?.(e.pointerId);
+  stroke = pointOn(e.target, e);
+  strokeSegment(ui.ed.sk, stroke, stroke);
+  paintCanvas(e.target, ui.ed.sk);
+});
+app.addEventListener('pointermove', (e) => {
+  if (!stroke || e.target.id !== 'avcv' || !ui.ed) return;
+  const next = pointOn(e.target, e);
+  strokeSegment(ui.ed.sk, stroke, next);
+  stroke = next;
+  paintCanvas(e.target, ui.ed.sk);
+});
+const endStroke = () => { stroke = null; };
+app.addEventListener('pointerup', endStroke);
+app.addEventListener('pointercancel', endStroke);
+
+async function saveEditor() {
+  const ed = ui.ed;
+  const look = { color: ed.color, avatar: exportAvatar(ed.sk) };
+  ui.ed = null;
+  if (ed.target === 'setup') {
+    Object.assign(ui.setup[ed.i], look);
+    if (ed.i === 0) { Object.assign(profile, look); saveProfile(); }
+  } else if (ed.target === 'profile') {
+    Object.assign(profile, look);
+    saveProfile();
+  } else if (ed.target === 'seat') {
+    Object.assign(profile, look);
+    saveProfile();
+    await mutateRoom((room) => {
+      const me = room.seats.find((p) => p.uid === net.uid);
+      if (!me) return null;
+      if (room.seats.some((p) => p !== me && p.color === look.color)) { say('That colour was just taken'); return null; }
+      Object.assign(me, look);
+      return room;
+    });
+  }
+  render();
+}
+
 /* ---------- flow ---------- */
 
 function say(text, ms = 1800) {
-  ui.toast = text;
+  toastEl.textContent = text;
+  // Sit on the status line, which says much the same thing, so the toast never covers the dice or cards.
+  const st = document.querySelector('.status');
+  if (st) {
+    const r = st.getBoundingClientRect();
+    toastEl.style.top = `${Math.max(8, r.top - 8)}px`;
+    toastEl.style.minWidth = `${Math.min(r.width, window.innerWidth - 16)}px`;
+    toastEl.style.left = `${r.left + r.width / 2}px`;
+  } else {
+    toastEl.style.top = '80px';
+    toastEl.style.left = '50%';
+    toastEl.style.minWidth = '';
+  }
+  toastEl.hidden = false;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { ui.toast = ''; render(); }, ms);
+  toastTimer = setTimeout(() => { toastEl.hidden = true; }, ms);
 }
 
 const isMine = (s) => s.phase !== 'over' && (ui.online ? s.current === net.mySeat : !s.players[s.current].cpu);
 const canAct = () => !!ui.game && !ui.rolling && isMine(ui.game);
-let rollTimer = 0;
+
+/** Start the tumbling animation: each die lands at its own time, faces cycling until then. */
+function startRoll(count) {
+  const quick = reducedMotion();
+  ui.fx = Array.from({ length: count }, (_, i) => ({
+    delay: quick ? 0 : i * 70 + Math.floor(Math.random() * 110),
+    dur: quick ? 0 : 650 + Math.floor(Math.random() * 350),
+    dx: Math.floor(Math.random() * 120) - 60,
+    rot: (Math.random() < 0.5 ? -1 : 1) * (720 + 360 * Math.floor(Math.random() * 2)),
+  }));
+  const total = quick ? 150 : Math.max(...ui.fx.map((f) => f.delay + f.dur)) + 80;
+  ui.rolling = true;
+  clearInterval(rollClock);
+  clearTimeout(rollTimer);
+  const t0 = performance.now();
+  if (!quick) {
+    rollClock = setInterval(() => {
+      const now = performance.now() - t0;
+      document.querySelectorAll('.dice .die.rolling').forEach((el) => {
+        const fx = ui.fx[+el.dataset.i];
+        if (!fx) return;
+        if (now >= fx.delay + fx.dur) { setFace(el, ui.game.rolled[+el.dataset.i]); el.classList.remove('rolling'); } else if (now >= fx.delay) setFace(el, 1 + Math.floor(Math.random() * 6));
+      });
+    }, 75);
+  }
+  rollTimer = setTimeout(() => {
+    clearInterval(rollClock);
+    ui.rolling = false;
+    navigator.vibrate?.(12);
+    render();
+    settle();
+  }, total);
+}
 
 /** Apply a game state, whether it came from this device or the network. */
 function receive(next) {
@@ -831,11 +1242,7 @@ function receive(next) {
     const c = next.lastClaim;
     say(`${next.players[c.player].name} claimed ${c.points} points!`);
   }
-  if (prev && prev.gid === next.gid && prev.phase === 'start' && next.phase === 'placing') {
-    ui.rolling = true;
-    clearTimeout(rollTimer);
-    rollTimer = setTimeout(() => { ui.rolling = false; render(); settle(); }, ROLL_MS);
-  }
+  if (prev && prev.gid === next.gid && prev.phase === 'start' && next.phase === 'placing') startRoll(next.rolled.length);
   render();
   settle();
 }
@@ -861,7 +1268,7 @@ function settle() {
   if (s.players[s.current].cpu) {
     if (!ui.online || isHost()) timer = setTimeout(cpuStep, CPU_DELAY);
   } else if (isMine(s) && s.phase === 'placing' && (!s.rolled.length || !E.legalMoves(s).length)) {
-    if (s.rolled.length) say('No matching cards — turn passes');
+    if (s.rolled.length) say('No matching cards. Turn passes.');
     timer = setTimeout(() => { if (ui.game === s) commit(E.endTurn(s)); }, 1300);
   }
 }
@@ -890,7 +1297,8 @@ function startGame() {
   clearTimeout(timer);
   ui.online = false;
   ui.game = null;
-  const g = freshGame(ui.setup);
+  ui.cfg = ui.setup.map((p) => ({ ...p }));
+  const g = freshGame(ui.cfg);
   ui.screen = 'game';
   ui.rolling = false;
   ui.modal = null;
@@ -970,6 +1378,7 @@ function leaveRoom() {
   ui.game = null;
   ui.rolling = false;
   ui.modal = null;
+  ui.ed = null;
   ui.screen = 'setup';
   render();
 }
@@ -990,7 +1399,8 @@ async function mutateRoom(fn) {
   say('The room is busy. Try again.');
 }
 
-const myName = () => (ui.name.trim() || 'Player').slice(0, 12);
+const myName = () => (profile.name.trim() || 'Player').slice(0, 12);
+const mySeatData = (taken) => ({ name: myName(), cpu: false, color: freeColor(taken, profile.color), avatar: profile.avatar });
 
 const failText = (e) => (e.message === 'notfound' ? 'No room with that code' : e.message === 'network' ? 'Could not reach the network. Check your connection.' : 'Could not connect. Try again.');
 
@@ -1006,7 +1416,7 @@ async function createRoom() {
     if (!ref) throw new Error('taken');
     attach(ref);
     saveSession(code, true);
-    await pushRoom({ code, hostUid: net.uid, status: 'lobby', seats: [{ uid: net.uid, name: myName(), cpu: false }], game: null, createdAt: Date.now() });
+    await pushRoom({ code, hostUid: net.uid, status: 'lobby', seats: [{ uid: net.uid, ...mySeatData([]) }], game: null, createdAt: Date.now() });
   } catch (e) { leaveRoom(); ui.screen = 'online'; say(net.store.kind === 'db' ? 'Could not create a room. The page needs to be shared with you as an editor.' : failText(e)); }
   net.busy = false; render();
 }
@@ -1018,7 +1428,7 @@ async function enterRoom(code, { host = false } = {}) {
     await mutateRoom((room) => {
       if (room.seats.some((p) => p.uid === net.uid)) return null; // rejoining
       if (room.status !== 'lobby' || room.seats.length >= MAX_PLAYERS) return null; // watch only
-      room.seats.push({ uid: net.uid, name: myName(), cpu: false });
+      room.seats.push({ uid: net.uid, ...mySeatData(room.seats.map((p) => p.color)) });
       return room;
     });
   }
@@ -1063,8 +1473,22 @@ async function startOnline() {
 
 const actions = {
   toggleCpu: ({ i }) => { ui.setup[i].cpu = !ui.setup[i].cpu; render(); },
-  addPlayer: () => { ui.setup.push({ name: `Player ${ui.setup.length + 1}`, cpu: true }); render(); },
+  addPlayer: () => {
+    const color = freeColor(ui.setup.map((p) => p.color), null);
+    ui.setup.push({ name: `Player ${ui.setup.length + 1}`, cpu: true, color, avatar: '' });
+    render();
+  },
   removePlayer: ({ i }) => { ui.setup.splice(i, 1); render(); },
+  editPlayer: ({ i }) => openEditor('setup', +i, ui.setup[i]),
+  editProfile: () => openEditor('profile', 0, profile),
+  editMe: () => { if (net.mySeat >= 0) openEditor('seat', net.mySeat, net.room.seats[net.mySeat]); },
+  ink: ({ c }) => { ui.ed.sk.ink = c; ui.ed.sk.erase = false; render(); },
+  eraser: () => { ui.ed.sk.erase = true; render(); },
+  brush: ({ w }) => { ui.ed.sk.width = +w; render(); },
+  clearArt: () => { clearSketch(ui.ed.sk); render(); },
+  pickColor: ({ i }) => { ui.ed.color = +i; render(); },
+  saveEditor,
+  closeEditor: () => { ui.ed = null; render(); },
   start: startGame,
   rematch: () => (ui.online ? startOnline() : startGame()),
   goOnline: () => { ui.screen = 'online'; render(); },
@@ -1076,7 +1500,7 @@ const actions = {
   addSeatCpu: () => mutateRoom((room) => {
     if (room.hostUid !== net.uid || room.seats.length >= MAX_PLAYERS) return null;
     const n = room.seats.filter((p) => p.cpu).length + 1;
-    room.seats.push({ uid: null, name: `Robo ${n}`, cpu: true });
+    room.seats.push({ uid: null, name: `Robo ${n}`, cpu: true, color: freeColor(room.seats.map((p) => p.color), null), avatar: '' });
     return room;
   }),
   removeSeat: ({ i }) => mutateRoom((room) => {
@@ -1116,14 +1540,16 @@ const actions = {
 app.addEventListener('click', (e) => {
   const el = e.target.closest('[data-act]');
   if (!el || (el.classList.contains('modal') && e.target !== el)) return;
-  // Slots sit inside cards; the slot's own action wins over the card's.
   actions[el.dataset.act]?.({ ...el.dataset });
 });
 app.addEventListener('input', (e) => {
-  if (e.target.id === 'myname') { ui.name = e.target.value; store.set('rfi-name', ui.name); return; }
+  if (e.target.id === 'myname') { profile.name = e.target.value; saveProfile(); return; }
   if (e.target.id === 'joincode') { ui.joinCode = e.target.value.toUpperCase(); return; }
   const i = e.target.dataset?.name;
-  if (i !== undefined) ui.setup[i].name = e.target.value.trim() || `Player ${+i + 1}`;
+  if (i !== undefined) {
+    ui.setup[i].name = e.target.value.trim() || `Player ${+i + 1}`;
+    if (+i === 0) { profile.name = ui.setup[0].name; saveProfile(); }
+  }
 });
 
 render();

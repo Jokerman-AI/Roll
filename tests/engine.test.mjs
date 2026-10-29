@@ -14,6 +14,18 @@ test('one set is 30 cards worth 2-15 points; 3 are dealt', () => {
   assert.equal(Math.max(...all.map((c) => c.points)), 15);
 });
 
+test('harder cards are worth more points', () => {
+  const all = E.buildDeck(E.mulberry32(11));
+  const ofPoints = (pts) => all.filter((c) => c.points === pts);
+  assert.ok(ofPoints(2).every((c) => c.need.length === 1));
+  assert.ok(ofPoints(15).every((c) => c.need.length === 5 && new Set(c.need).size === 1)); // five of a kind
+  const hard = all.filter((c) => c.points >= 11);
+  assert.ok(hard.length >= 9 && hard.every((c) => c.need.length === 5));
+  const dice = (pts) => ofPoints(pts)[0].need.length;
+  assert.ok(dice(15) > dice(7) && dice(7) > dice(3));
+  assert.deepEqual([...new Set(all.map((c) => c.points))].sort((a, b) => a - b), [2, 3, 4, 5, 6, 7, 9, 11, 13, 15]);
+});
+
 test('5+ players use two sets and four face-up cards', () => {
   const s = E.newGame(Array.from({ length: 6 }, (_, i) => ({ name: `p${i}` })), E.mulberry32(7));
   assert.equal(s.cards.length, 4);
