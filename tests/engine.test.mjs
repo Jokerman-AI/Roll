@@ -251,3 +251,56 @@ test('the computer takes a card that wins it the game', () => {
   assert.equal(a.type, 'place');
   assert.equal(a.card, 0, 'completes the card that wins');
 });
+
+test('no strength of computer player ever spends its last free die on a card it does not finish', () => {
+  for (const level of ['easy', 'normal', 'hard']) {
+    for (let seed = 1; seed <= 15; seed++) {
+      const rng = E.mulberry32(seed * 977);
+      let s = E.newGame([{ name: 'a' }, { name: 'b' }, { name: 'c' }], rng);
+      let steps = 0;
+      while (s.phase !== 'over' && steps++ < 40000) {
+        if (s.phase === 'start') assert.ok(E.handSize(s, s.current) > 0, `${level} seed ${seed}: started a turn with nothing to roll`);
+        const a = aiNextAction(s, { level, rng });
+        if (a.type === 'takeback') s = E.takeBack(s);
+        else if (a.type === 'roll') s = E.roll(s, rng);
+        else if (a.type === 'place') s = E.place(s, a.rolled, a.card);
+        else s = E.endTurn(s);
+      }
+    }
+  }
+});
+
+function craftedPosition(placedOnBig) {
+  const s = E.newGame(cfg, E.mulberry32(8));
+  s.phase = 'placing';
+  const me = s.current;
+  const blank = () => s.players.map(() => []);
+  s.cards = [
+    { id: 901, points: 15, need: [2, 2, 2, 2, 2], placed: blank() },
+    { id: 902, points: 9, need: [1, 1, 3], placed: blank() },
+    { id: 903, points: 3, need: [4, 5], placed: blank() },
+  ];
+  s.cards[0].placed[me] = Array(placedOnBig).fill(2);
+  s.cards[1].placed[me] = [1, 1];
+  s.rolled = [2]; // matches the big card
+  return { s, me };
+}
+
+test('the computer keeps its last free die instead of filling every card', () => {
+  const { s, me } = craftedPosition(3); // five dice on cards, one free die, and the big card would still need one more
+  assert.equal(E.handSize(s, me), 1);
+  for (const level of ['easy', 'normal', 'hard']) {
+    assert.equal(aiNextAction(s, { level }).type, 'end', `${level} keeps its last free die`);
+  }
+});
+
+test('the computer does spend a die when it finishes a card', () => {
+  const { s, me } = craftedPosition(4); // six dice on cards... one free die that completes the 15-point card
+  s.cards[0].placed[me] = [2, 2, 2, 2];
+  s.cards[1].placed[me] = [1]; // five dice on cards, one free
+  assert.equal(E.handSize(s, me), 1);
+  for (const level of ['easy', 'normal', 'hard']) {
+    const a = aiNextAction(s, { level });
+    assert.deepEqual([a.type, a.card], ['place', 0], `${level} finishes the card`);
+  }
+});

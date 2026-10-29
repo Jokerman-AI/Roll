@@ -58,7 +58,7 @@ function put(m, c, face, certain) {
 }
 
 /** Play `turns` turns with a simple policy and return what they were worth. `firstDice` are this turn's dice if already rolled. */
-function rollout(model, rng, firstDice, turns) {
+function rollout(model, rng, firstDice, turns, minFree = 0, nearDone = 0) {
   const m = copyModel(model);
   let gain = 0;
   for (let t = 0; t < turns; t++) {
@@ -70,6 +70,8 @@ function rollout(model, rng, firstDice, turns) {
       for (const c of m.cards) {
         if (!c.alive || c.have[f] >= c.need[f]) continue;
         const missing = c.total - c.placed;
+        const freeAfter = E.DICE_PER_PLAYER - m.onCards - 1;
+        if (missing > 1 && (freeAfter < 1 || (missing - 1 > nearDone && freeAfter < minFree))) continue; // keep dice free, as the floor says
         const v = (missing === 1 ? 1000 : 0) + (c.points * (certain ? 1 : race(missing, c.rival)) * (c.placed + 1)) / c.total;
         if (v > bestV) { bestV = v; best = c; }
       }
@@ -117,22 +119,26 @@ function rankMoves(s) {
   const model = snapshot(s, me);
   const seed = seedOf(s);
   const baseline = average((rng) => rollout(model, rng, [], LOOKAHEAD), seed);
+  const free = E.handSize(s, me);
   const moves = E.legalMoves(s).map((mv) => {
     const m = copyModel(model);
+    // never spend the last free die on a card it does not finish: that leaves nothing to roll next turn
+    const c = model.cards[mv.card];
+    const allowed = free > 1 || c.placed + 1 === c.total;
     const face = s.rolled[mv.rolled];
     const finishes = m.cards[mv.card].placed + 1 === m.cards[mv.card].total;
     const gainedNow = put(m, m.cards[mv.card], face, true);
-    if (m.score >= E.TARGET_SCORE) return { ...mv, value: gainedNow + 1e-3 }; // a winning card ends the game, and beats any other way of winning
+    if (m.score >= E.TARGET_SCORE) return { ...mv, allowed, value: gainedNow + 1e-3 }; // a winning card ends the game, and beats any other way of winning
     const rest = s.rolled.filter((_, i) => i !== mv.rolled);
     // On a tie, finish the card first.
-    return { ...mv, value: gainedNow + average((rng) => rollout(m, rng, rest, LOOKAHEAD), seed) + (finishes ? 1e-6 : 0) };
+    return { ...mv, allowed, value: gainedNow + average((rng) => rollout(m, rng, rest, LOOKAHEAD), seed) + (finishes ? 1e-6 : 0) };
   });
   moves.sort((a, b) => b.value - a.value);
   return { moves, baseline };
 }
 
 /** The simple strategy: finish cards when possible, otherwise favour big cards that are nearly done. */
-function greedyAction(s, rng) {
+function greedyAction(s, rng, minFree = 0, nearDone = 0) {
   const me = s.current;
   if (s.phase === 'start') {
     const hand = E.handSize(s, me);
@@ -142,9 +148,12 @@ function greedyAction(s, rng) {
   }
   let best = null;
   let bestScore = -Infinity;
+  const free = E.handSize(s, me); // dice not on cards, rolled ones included
   for (const m of E.legalMoves(s)) {
     const card = s.cards[m.card];
     const left = E.missing(card, me).length - 1;
+    // Spending a die leaves one fewer to roll next turn: don't go below `minFree` unless this finishes the card.
+    if (left > 0 && (free - 1 < 1 || (left > nearDone && free - 1 < minFree))) continue; // never spend the last free die on a card that stays unfinished
     const score = card.points / (left + 1) + (left === 0 ? 100 : 0) + rng() * 0.1;
     if (score > bestScore) { bestScore = score; best = m; }
   }
@@ -154,22 +163,25 @@ function greedyAction(s, rng) {
 /**
  * Strengths. `smartTakeBack`: decide Take Back by looking ahead. `smartPlace`: how often a placement decision
  * (where to put a die, or whether to place it at all or keep it to roll again) uses the look-ahead.
+ * `minFree`: when not using the look-ahead, don't spend a die that would leave fewer than this many free to roll
+ * next turn unless the die finishes the card, or leaves it one die from done (`nearDone`). A die that would
+ * leave nothing to roll is never spent on a card it does not finish.
  */
 export const LEVELS = {
-  easy: { smartTakeBack: false, smartPlace: 0 },
-  normal: { smartTakeBack: true, smartPlace: 0.1 }, // about two wins in three against the old computer player
-  hard: { smartTakeBack: true, smartPlace: 1 },
+  easy: { smartTakeBack: false, smartPlace: 0, minFree: 1, nearDone: 0 },
+  normal: { smartTakeBack: false, smartPlace: 0, minFree: 2, nearDone: 1 }, // sensible rules of thumb, no look-ahead
+  hard: { smartTakeBack: true, smartPlace: 1, minFree: 0, nearDone: 0 },
 };
 export const DEFAULT_LEVEL = 'normal';
 
 /** Decide the CPU's next single action for the current state. */
 export function aiNextAction(s, { level = DEFAULT_LEVEL, rng = Math.random } = {}) {
-  const { smartTakeBack, smartPlace } = LEVELS[level] || LEVELS[DEFAULT_LEVEL];
-  if (s.phase === 'start') return smartTakeBack ? smartStart(s) : greedyAction(s, rng);
-  return smartPlace >= 1 || rng() < smartPlace ? smartPlacing(s) : greedyAction(s, rng);
+  const { smartTakeBack, smartPlace, minFree, nearDone } = LEVELS[level] || LEVELS[DEFAULT_LEVEL];
+  if (s.phase === 'start') return smartTakeBack ? smartStart(s, minFree, nearDone) : greedyAction(s, rng, minFree, nearDone);
+  return smartPlace >= 1 || rng() < smartPlace ? smartPlacing(s) : greedyAction(s, rng, minFree, nearDone);
 }
 
-function smartStart(s) {
+function smartStart(s, minFree = 0, nearDone = 0) {
   const me = s.current;
   {
     const hand = E.handSize(s, me);
@@ -181,8 +193,8 @@ function smartStart(s) {
     reset.onCards = 0;
     for (const c of reset.cards) { c.have.fill(0); c.placed = 0; }
     const seed = seedOf(s);
-    const keepValue = average((rng) => rollout(keep, rng, null, LOOKAHEAD), seed);
-    const resetValue = average((rng) => rollout(reset, rng, null, LOOKAHEAD), seed);
+    const keepValue = average((rng) => rollout(keep, rng, null, LOOKAHEAD, minFree, nearDone), seed);
+    const resetValue = average((rng) => rollout(reset, rng, null, LOOKAHEAD, minFree, nearDone), seed);
     return resetValue > keepValue + 0.5 ? { type: 'takeback' } : { type: 'roll' };
   }
 }
@@ -190,8 +202,9 @@ function smartStart(s) {
 function smartPlacing(s) {
   if (!E.legalMoves(s).length) return { type: 'end' };
   const { moves, baseline } = rankMoves(s);
+  const best = moves.find((mv) => mv.allowed);
   // Only place a die if doing so beats ending the turn and keeping it to roll again.
-  return moves[0].value > baseline + 0.05 ? { type: 'place', rolled: moves[0].rolled, card: moves[0].card } : { type: 'end' };
+  return best && best.value > baseline + 0.05 ? { type: 'place', rolled: best.rolled, card: best.card } : { type: 'end' };
 }
 
 /** The best legal placement even when ending the turn would be better (or null if nothing fits). */
