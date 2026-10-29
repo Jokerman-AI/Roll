@@ -60,9 +60,10 @@ h1 { font-size: 2.4rem; margin: 0; letter-spacing: -.02em; }
   border: 2px solid transparent; display: flex; align-items: center; gap: 8px;
 }
 .chip.active { border-color: var(--c); background: #00000055; box-shadow: 0 0 0 2px #ffffff30; }
-.chip .meta { display: flex; flex-direction: column; min-width: 0; }
+.chip .meta { display: flex; flex-direction: column; flex: 1 1 0; min-width: 0; }
 .chip .n { font-size: .8rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.chip .s { font-size: 1.3rem; font-weight: 800; line-height: 1.1; }
+.chip .s { font-size: 1.3rem; font-weight: 800; line-height: 1.1; white-space: nowrap; }
+@media (max-width: 360px) { .chip .s small { display: none; } }
 .chip .s small { font-size: .75rem; color: var(--muted); font-weight: 600; }
 
 .status { text-align: center; min-height: 1.4em; font-weight: 600; }
@@ -236,7 +237,7 @@ h1 { font-size: 2.4rem; margin: 0; letter-spacing: -.02em; }
 }
 
 /* ---- very small screens ---- */
-@media (max-height: 640px) { .game { gap: 6px; } .cardgrid { --gap: 6px; } .status { min-height: 0; } .score { gap: 6px; } .chip { padding: 5px 8px; } .chip .s { font-size: 1.1rem; } .chip .av { width: 24px; height: 24px; } .chip { gap: 6px; } .tray { padding: 8px; } .btn { min-height: 44px; padding: 10px 14px; } }
+@media (max-height: 640px) { .pile i { width: 12px; height: 17px; font-size: 8px; line-height: 14px; } .game { gap: 6px; } .cardgrid { --gap: 6px; } .status { min-height: 0; } .score { gap: 6px; } .chip { padding: 5px 8px; } .chip .s { font-size: 1.1rem; } .chip .av { width: 24px; height: 24px; } .chip { gap: 6px; } .tray { padding: 8px; } .btn { min-height: 44px; padding: 10px 14px; } }
 
 /* ---- player icons and the editor ---- */
 .av {
@@ -270,6 +271,56 @@ h1 { font-size: 2.4rem; margin: 0; letter-spacing: -.02em; }
 .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 8px; }
 .row2 .btn { margin: 0; }
 .avbtn:focus-visible, .btn:focus-visible, .ink:focus-visible, .swatch:focus-visible { outline: 3px solid #ffd34d; outline-offset: 2px; }
+
+/* ---- claimed-card piles, celebrations, hints, connection banner ---- */
+.chip .s .num { font-variant-numeric: tabular-nums; display: inline-block; }
+.chip.bump { animation: bump .6s ease-out; }
+@keyframes bump { 30% { transform: scale(1.08); box-shadow: 0 0 0 4px #ffd34d88; } }
+.chip { flex-wrap: wrap; }
+.pile { display: flex; align-items: center; flex: 1 0 100%; margin-top: 1px; padding-left: 2px; min-width: 0; overflow: hidden; }
+.pile i {
+  --tier: #5f8a62; width: 15px; height: 21px; margin-left: -6px; border-radius: 3px; flex: none;
+  background: #fffdf4; border: 1.5px solid var(--tier); color: var(--tier);
+  font: 800 9px/18px system-ui, sans-serif; font-style: normal; text-align: center;
+  box-shadow: -1px 1px 2px #0005; transform: rotate(calc((var(--n, 0) - 2) * 2deg));
+}
+.pile i:first-of-type { margin-left: 0; }
+.pile i[data-tier="2"] { --tier: #3b78c2; }
+.pile i[data-tier="3"] { --tier: #8a3fb0; }
+.pile i[data-tier="4"] { --tier: #b9861f; background: #f6e7b5; }
+.pile em { font-style: normal; font-size: .65rem; color: var(--muted); margin-right: 6px; }
+
+.fly { position: fixed; z-index: 25; pointer-events: none; will-change: transform, opacity; }
+.fly .gcard { width: 100%; height: 100%; aspect-ratio: auto; transform: none; box-shadow: 0 10px 22px #000a; }
+
+.confetti { position: fixed; inset: 0; z-index: 25; pointer-events: none; overflow: hidden; }
+.confetti i {
+  position: absolute; top: -16px; width: 9px; height: 14px; border-radius: 2px;
+  animation: confetti-fall 3s cubic-bezier(.3, .6, .5, 1) forwards;
+}
+@keyframes confetti-fall {
+  0% { transform: translate(0, 0) rotate(0deg); opacity: 1; }
+  100% { transform: translate(var(--dx), 110vh) rotate(var(--spin)); opacity: .9; }
+}
+
+.hinted { animation: hint-glow 0.9s ease-in-out infinite; }
+.dice .die.hinted { outline: 4px solid #ffd34d; outline-offset: 3px; }
+.gcard.hinted { box-shadow: 0 0 0 4px #ffd34d, 0 14px 22px #000a, inset 0 0 0 4px #fffdf4, inset 0 0 0 5px var(--tier); }
+@keyframes hint-glow { 50% { filter: brightness(1.22); transform: translateY(-4px); } }
+
+.btn.icon { flex: 0 0 auto; min-width: 48px; padding: 0 12px; font-size: 1.15rem; }
+.actions .btn.icon { flex: 0 0 auto; }
+
+.conn {
+  position: fixed; left: 50%; top: max(8px, env(safe-area-inset-top)); transform: translateX(-50%); z-index: 20;
+  background: #b9861f; color: #fff; padding: 8px 14px; border-radius: 999px; font-weight: 700; font-size: .9rem; white-space: nowrap;
+}
+.conn.lost { background: #b3382f; }
+.conn button { margin-left: 8px; border: 0; border-radius: 999px; padding: 4px 10px; font-weight: 800; background: #fff; color: #b3382f; }
+
+.stamps { gap: 6px; }
+.stamp { width: 42px; height: 42px; border-radius: 12px; border: 0; background: #0001; font-size: 1.4rem; line-height: 1; padding: 0; }
+.stamp.on { outline: 3px solid #2b2417; outline-offset: 2px; background: #fff; }
 
 body { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
 #app { padding: 12px 0; }
@@ -379,7 +430,7 @@ function rollOff(count, rng) {
 
 function newGame(configs, rng = Math.random) {
   if (configs.length < 2 || configs.length > MAX_PLAYERS) throw new Error('2-8 players');
-  const players = configs.map((c) => ({ name: c.name, cpu: !!c.cpu, score: 0 }));
+  const players = configs.map((c) => ({ name: c.name, cpu: !!c.cpu, score: 0, pile: [] })); // pile: points of cards claimed
   const { first, total } = rollOff(players.length, rng);
   const state = {
     players,
@@ -462,6 +513,7 @@ function place(state, rolledIdx, cardIdx) {
 
   if (missing(card, p).length === 0) {
     s.players[p].score += card.points;
+    s.players[p].pile = [...(s.players[p].pile || []), card.points];
     s.lastClaim = { player: p, points: card.points, need: card.need };
     // Every player's dice on the claimed card go back to their hands.
     s.cards.splice(cardIdx, 1);
@@ -504,9 +556,15 @@ function aiNextAction(s, rng = Math.random) {
     return { type: 'roll' };
   }
 
+  const best = bestPlacement(s, rng);
+  return best ? { type: 'place', ...best } : { type: 'end' };
+}
+
+/** The placement the CPU would choose: finishing a card beats progress, and bigger cards beat smaller ones. */
+function bestPlacement(s, rng = Math.random) {
+  const me = s.current;
   const moves = E.legalMoves(s);
-  if (!moves.length) return { type: 'end' };
-  let best = moves[0];
+  let best = null;
   let bestScore = -Infinity;
   for (const m of moves) {
     const card = s.cards[m.card];
@@ -514,10 +572,10 @@ function aiNextAction(s, rng = Math.random) {
     const score = card.points / (left + 1) + (left === 0 ? 100 : 0) + rng() * 0.1;
     if (score > bestScore) {
       bestScore = score;
-      best = m;
+      best = { rolled: m.rolled, card: m.card };
     }
   }
-  return { type: 'place', rolled: best.rolled, card: best.card };
+  return best;
 }
 
 // Player look: dice colours and the little drawing used as a player icon.
@@ -556,7 +614,8 @@ function safeAvatar(value) {
 // Icons are drawn on opaque paper, so the dice colour only ever appears as the ring around them.
 const PAPER = '#fffdf4';
 const INK = [PALETTE[7].hex, ...PALETTE.slice(0, 7).map((c) => c.hex)];
-const BRUSHES = [4, 8, 14];
+const BRUSHES = [8, 14, 22]; // the middle one is the default, thick enough to read on a small scoreboard icon
+const STAMPS = ['😀', '😎', '🤠', '🥳', '🐱', '🐶', '🦊', '🐸', '🐼', '🦄', '👑', '🔥'];
 const AVATAR_SIZE = 128;
 const SIZE = AVATAR_SIZE;
 
@@ -572,7 +631,7 @@ function makeSketch() {
   buf.width = SIZE;
   buf.height = SIZE;
   fillPaper(buf);
-  return { buf, dirty: false, ink: INK[0], width: BRUSHES[1], erase: false };
+  return { buf, dirty: false, ink: INK[0], width: BRUSHES[1], erase: false, stamp: null };
 }
 
 function paintCanvas(canvas, sketch) {
@@ -605,6 +664,18 @@ function strokeSegment(sketch, from, to) {
     ctx.lineTo(to.x, to.y);
     ctx.stroke();
   }
+  sketch.dirty = true;
+}
+
+/** Press an emoji stamp onto the drawing, sized to the current brush. */
+function stampAt(sketch, at) {
+  const ctx = sketch.buf.getContext('2d');
+  const size = sketch.width * 4;
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.font = `${size}px system-ui, "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(sketch.stamp, at.x, at.y + size * 0.05);
   sketch.dirty = true;
 }
 
@@ -685,8 +756,31 @@ function dbStore(db) {
   };
 }
 
+// PeerJS ships with a STUN server and a free shared TURN relay; these are repeated here so that your
+// own relay (set in config.js as RFI_ICE_SERVERS) is added on top of them rather than replacing them.
+const DEFAULT_ICE = [
+  { urls: 'stun:stun.l.google.com:19302' },
+  { urls: ['turn:eu-0.turn.peerjs.com:3478', 'turn:us-0.turn.peerjs.com:3478'], username: 'peerjs', credential: 'peerjsp' },
+];
+
+function withIce(options, extra) {
+  const custom = Array.isArray(extra) ? extra : [];
+  return { ...options, config: { ...options?.config, iceServers: options?.config?.iceServers ?? [...DEFAULT_ICE, ...custom] } };
+}
+
+/** Small helper: a status value (online / reconnecting / lost) that listeners can follow. */
+function statusFeed() {
+  const subs = new Set();
+  let value = 'online';
+  return {
+    set(next) { if (next !== value) { value = next; subs.forEach((cb) => cb(value)); } },
+    on(cb) { subs.add(cb); cb(value); return () => subs.delete(cb); },
+  };
+}
+
 /** Rooms held in the host's browser, reached over WebRTC through PeerJS. */
-function p2pStore(Peer, options, uid) {
+function p2pStore(Peer, options, uid, extraIce) {
+  const peerOptions = withIce(options, extraIce);
   const open = (peer) => new Promise((resolve, reject) => {
     peer.on('open', resolve);
     peer.on('error', (e) => reject(Object.assign(new Error(e.type), { type: e.type })));
@@ -698,10 +792,11 @@ function p2pStore(Peer, options, uid) {
     async host(code, { resume = false } = {}) {
       let room = resume ? tryStorage(() => JSON.parse(localStorage.getItem(keyOf(code)))) : null;
       if (resume && !room) throw new Error('notfound');
-      const peer = new Peer(PEER_PREFIX + code, options);
+      const peer = new Peer(PEER_PREFIX + code, peerOptions);
       try { await open(peer); } catch (e) { peer.destroy(); throw new Error(e.type === 'unavailable-id' ? 'taken' : 'network'); }
 
       const subs = new Set();
+      const status = statusFeed();
       const conns = new Map(); // peer connection -> player uid
       const broadcast = () => {
         for (const conn of conns.keys()) if (conn.open) conn.send({ t: 'room', room });
@@ -717,6 +812,7 @@ function p2pStore(Peer, options, uid) {
       const onGuestMessage = (conn, msg) => {
         const sender = conns.get(conn);
         if (!room || !sender) return;
+        if (msg.t === 'ping') { conn.send({ t: 'pong' }); return; }
         if (msg.t === 'hello') { conn.send({ t: 'room', room }); return; }
         if (msg.t !== 'set' || !msg.room) return;
         if (room.status === 'lobby') {
@@ -750,26 +846,43 @@ function p2pStore(Peer, options, uid) {
         conn.on('data', (msg) => onGuestMessage(conn, msg));
         conn.on('close', () => conns.delete(conn));
       });
-      peer.on('disconnected', () => peer.reconnect());
+
+      // A locked or backgrounded phone drops its link to the signalling server; get it back.
+      let regain = 0;
+      const regainSignal = () => {
+        if (peer.destroyed || !peer.disconnected) return;
+        status.set('reconnecting');
+        try { peer.reconnect(); } catch { /* not ready yet; the timer tries again */ }
+        clearTimeout(regain);
+        regain = setTimeout(regainSignal, 3000);
+      };
+      peer.on('disconnected', regainSignal);
+      peer.on('open', () => { clearTimeout(regain); status.set('online'); });
+      const onVisible = () => { if (!document.hidden) regainSignal(); };
+      document.addEventListener('visibilitychange', onVisible);
 
       return {
         async get() { return snapshotOf(room); },
         async set(next) { publish(JSON.parse(JSON.stringify(next))); },
         async acquire() { return { acquired: true }; },
         onSnapshot(next) { subs.add(next); next(snapshotOf(room)); return () => subs.delete(next); },
-        close() { peer.destroy(); },
+        onStatus: status.on,
+        retry: regainSignal,
+        close() { clearTimeout(regain); document.removeEventListener('visibilitychange', onVisible); peer.destroy(); },
       };
     },
 
     async join(code) {
-      const peer = new Peer(undefined, options);
+      const peer = new Peer(undefined, peerOptions);
       try { await open(peer); } catch { peer.destroy(); throw new Error('network'); }
 
       let room = null;
       let conn = null;
       let closed = false;
+      let lastSeen = Date.now();
       const subs = new Set();
       const errors = new Set();
+      const status = statusFeed();
 
       const connect = () => new Promise((resolve, reject) => {
         const c = peer.connect(PEER_PREFIX + code, { metadata: { uid }, reliable: true });
@@ -778,23 +891,26 @@ function p2pStore(Peer, options, uid) {
         peer.on('error', onPeerError);
         c.on('open', () => c.send({ t: 'hello' }));
         c.on('data', (msg) => {
+          lastSeen = Date.now();
           if (msg.t !== 'room') return;
           clearTimeout(timer);
           peer.off('error', onPeerError);
           const first = room === null;
           room = msg.room;
-          if (first) { conn = c; resolve(); }
+          if (first) { conn = c; status.set('online'); resolve(); }
           subs.forEach((cb) => cb(snapshotOf(room)));
         });
         c.on('close', () => { if (!closed && conn === c) reconnect(); });
       });
 
+      // Keeps trying for about two minutes, since the host may only have locked their phone for a moment.
       let retrying = false;
       async function reconnect() {
-        if (retrying) return;
+        if (retrying || closed) return;
         retrying = true;
-        for (let i = 0; i < 8 && !closed; i++) {
-          await new Promise((r) => setTimeout(r, 1500));
+        status.set('reconnecting');
+        for (let i = 0; i < 30 && !closed; i++) {
+          await new Promise((r) => setTimeout(r, Math.min(1500 + i * 500, 5000)));
           try {
             if (peer.disconnected) peer.reconnect();
             room = null; // so the first message after reconnecting is treated as fresh
@@ -804,22 +920,37 @@ function p2pStore(Peer, options, uid) {
           } catch { /* try again */ }
         }
         retrying = false;
+        status.set('lost');
         errors.forEach((cb) => cb({ code: 'lost' }));
       }
 
       await connect().catch((e) => { peer.destroy(); throw e; });
 
+      // A phone that was backgrounded can keep a dead link open; ping so it is noticed, and recheck on wake-up.
+      const beat = setInterval(() => {
+        if (closed || retrying || !conn) return;
+        if (Date.now() - lastSeen > 25000) { conn.close(); return; }
+        if (conn.open) conn.send({ t: 'ping' });
+      }, 8000);
+      const onVisible = () => {
+        if (document.hidden || closed || retrying) return;
+        if (!conn?.open || Date.now() - lastSeen > 25000) { try { conn?.close(); } catch { /* already closed */ } reconnect(); }
+      };
+      document.addEventListener('visibilitychange', onVisible);
+
       return {
         async get() { return snapshotOf(room); },
         async set(next) {
-          if (!conn?.open) return;
+          if (!conn?.open) throw new Error('offline');
           // A move only needs the game; everything else (seats, icons) is the host's to keep.
-          const room = next.game ? { game: next.game, status: next.status } : next;
-          conn.send({ t: 'set', room: JSON.parse(JSON.stringify(room)) });
+          const sent = next.game ? { game: next.game, status: next.status } : next;
+          conn.send({ t: 'set', room: JSON.parse(JSON.stringify(sent)) });
         },
         async acquire() { return { acquired: true }; },
         onSnapshot(next, error) { subs.add(next); if (error) errors.add(error); next(snapshotOf(room)); return () => { subs.delete(next); errors.delete(error); }; },
-        close() { closed = true; peer.destroy(); },
+        onStatus: status.on,
+        retry: () => { try { conn?.close(); } catch { /* already closed */ } retrying = false; reconnect(); },
+        close() { closed = true; clearInterval(beat); document.removeEventListener('visibilitychange', onVisible); peer.destroy(); },
       };
     },
   };
@@ -865,6 +996,9 @@ const ui = {
   selected: null,
   rolling: false,
   fx: [],
+  hint: null, // {rolled, card} or {button}
+  undo: [], // game states before this turn's placements
+  conn: 'online',
   modal: null,
   ed: null, // icon / colour editor
 };
@@ -872,6 +1006,7 @@ let timer = 0;
 let toastTimer = 0;
 let rollTimer = 0;
 let rollClock = 0;
+let hintTimer = 0;
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const wins = (name) => `${esc(name)} ${name.trim().toLowerCase() === 'you' ? 'win' : 'wins'}!`;
@@ -904,9 +1039,16 @@ function setFace(el, face) {
 /* ---------- rendering ---------- */
 
 function render() {
-  app.innerHTML = ({ setup: setupView, online: onlineView, lobby: lobbyView, game: gameView }[ui.screen])() + modalView();
+  app.innerHTML = ({ setup: setupView, online: onlineView, lobby: lobbyView, game: gameView }[ui.screen])() + connBanner() + modalView();
   const cv = document.getElementById('avcv');
   if (cv && ui.ed) paintCanvas(cv, ui.ed.sk);
+}
+
+function connBanner() {
+  if (!ui.online || ui.conn === 'online') return '';
+  return ui.conn === 'lost'
+    ? '<div class="conn lost" role="alert">Connection lost. <button data-act="retryConn">Retry</button></div>'
+    : '<div class="conn" role="status">Reconnecting…</div>';
 }
 
 function setupView() {
@@ -985,6 +1127,14 @@ function statusText(s) {
   return ui.selected === null ? 'Tap a die, then the card it fits' : 'Tap a highlighted card';
 }
 
+/** A staggered pile of the cards a player has claimed, with their points showing. */
+function pileHtml(pile = []) {
+  if (!pile.length) return '';
+  const shown = pile.slice(-6);
+  const more = pile.length - shown.length;
+  return `<span class="pile" aria-label="${pile.length} cards claimed">${more ? `<em>+${more}</em>` : ''}${shown.map((pts, k) => `<i data-tier="${tierOf(pts)}" style="--n:${k}">${pts}</i>`).join('')}</span>`;
+}
+
 const tierOf = (points) => (points >= 13 ? 4 : points >= 9 ? 3 : points >= 5 ? 2 : 1);
 
 function cardView(s, card, ci) {
@@ -1007,7 +1157,7 @@ function cardView(s, card, ci) {
       ${die(face, mine ? 'mine' : 'ghost', mine ? `style="${diceVars(mineSeat, s.current)}"` : '')}
       <span class="dots">${dots}</span></div>`;
   }).join('');
-  return `<div class="gcard ${accepts ? 'accepts' : ''}" data-tier="${tierOf(card.points)}" data-act="pickCard" data-card="${ci}" role="group" aria-label="${card.points} point card">
+  return `<div class="gcard ${accepts ? 'accepts' : ''} ${ui.hint?.card === ci ? 'hinted' : ''}" data-tier="${tierOf(card.points)}" data-act="pickCard" data-card="${ci}" role="group" aria-label="${card.points} point card">
     <div class="corner tl"><b>${card.points}</b><i></i></div>
     <div class="face" style="--fc:${cols};--dz:${cols === 1 ? 44 : cols === 2 ? 31 : 24}">${slots}</div>
     <div class="corner br"><b>${card.points}</b><i></i></div>
@@ -1019,9 +1169,10 @@ function gameView() {
   const human = isMine(s);
   const mine = seats()[s.current];
   const chips = s.players.map((p, i) => `
-    <div class="chip ${i === s.current && s.phase !== 'over' ? 'active' : ''}" style="--c:${hexOf(i)}">
+    <div class="chip ${i === s.current && s.phase !== 'over' ? 'active' : ''}" data-p="${i}" style="--c:${hexOf(i)}">
       ${avatarHtml(seats()[i], i, 28)}
-      <span class="meta"><span class="n">${esc(p.name)}${ui.online && i === net.mySeat ? ' (you)' : ''}</span><span class="s">${p.score}<small> / ${E.TARGET_SCORE}</small></span></span>
+      <span class="meta"><span class="n">${esc(p.name)}${ui.online && i === net.mySeat ? ' (you)' : ''}</span><span class="s"><b class="num">${p.score}</b><small> / ${E.TARGET_SCORE}</small></span></span>
+      ${pileHtml(p.pile)}
     </div>`).join('');
 
   let tray;
@@ -1031,7 +1182,7 @@ function gameView() {
       const spinning = ui.rolling && fx.dur > 0;
       const style = `${diceVars(mine, s.current)};--d:${fx.delay}ms;--dur:${fx.dur}ms;--dx:${fx.dx}px;--rot:${fx.rot}deg`;
       const face = spinning ? 1 + Math.floor(Math.random() * 6) : f;
-      return die(face, `owned ${spinning ? 'rolling' : ''} ${ui.selected === i ? 'sel' : ''}`,
+      return die(face, `owned ${spinning ? 'rolling' : ''} ${ui.selected === i ? 'sel' : ''} ${ui.hint?.rolled === i ? 'hinted' : ''}`,
         `style="${style}" data-i="${i}" ${human && !ui.rolling ? `data-act="pickRolled"` : 'disabled'}`, 'button');
     }).join('') || '<span class="hint">—</span>';
   } else {
@@ -1055,9 +1206,13 @@ function gameView() {
     <div class="tray">
       <div class="dice">${tray}</div>
       <div class="actions">
-        <button class="btn primary ${canRoll ? 'pulse' : ''}" data-act="roll" ${canRoll ? '' : 'disabled'}>Roll</button>
-        ${s.phase === 'start' ? `<button class="btn ${mustTakeBack ? 'primary pulse' : ''}" data-act="takeBack" ${canTakeBack ? '' : 'disabled'}>Take back &amp; roll all</button>` : `<button class="btn ${noMoves ? 'primary pulse' : ''}" data-act="end" ${canEnd ? '' : 'disabled'}>End turn</button>`}
-        <button class="btn" data-act="menu" style="flex:0 0 auto" aria-label="Menu">☰</button>
+        ${s.phase === 'start' ? `
+          <button class="btn primary ${canRoll ? 'pulse' : ''} ${ui.hint?.button === 'roll' ? 'hinted' : ''}" data-act="roll" ${canRoll ? '' : 'disabled'}>Roll</button>
+          <button class="btn ${mustTakeBack ? 'primary pulse' : ''} ${ui.hint?.button === 'takeback' ? 'hinted' : ''}" data-act="takeBack" ${canTakeBack ? '' : 'disabled'}>Take back &amp; roll all</button>`
+          : `<button class="btn ${noMoves ? 'primary pulse' : ''}" data-act="end" ${canEnd ? '' : 'disabled'}>End turn</button>
+          ${human && ui.undo.length ? '<button class="btn icon" data-act="undo" aria-label="Undo last placement" title="Undo">↶</button>' : ''}`}
+        <button class="btn icon" data-act="hint" aria-label="Hint" title="Hint" ${human && !ui.rolling ? '' : 'disabled'}>💡</button>
+        <button class="btn icon" data-act="menu" aria-label="Menu">☰</button>
       </div>
     </div>
     </div>`;
@@ -1066,15 +1221,18 @@ function gameView() {
 function editorView() {
   const ed = ui.ed;
   const taken = new Set(editorTaken());
-  const ink = INK.map((hex) => `<button class="ink ${!ed.sk.erase && ed.sk.ink === hex ? 'on' : ''}" style="--c:${hex}" data-act="ink" data-c="${hex}" aria-label="Ink ${hex}"></button>`).join('')
+  const ink = INK.map((hex) => `<button class="ink ${!ed.sk.erase && !ed.sk.stamp && ed.sk.ink === hex ? 'on' : ''}" style="--c:${hex}" data-act="ink" data-c="${hex}" aria-label="Ink ${hex}"></button>`).join('')
     + `<button class="ink eraser ${ed.sk.erase ? 'on' : ''}" data-act="eraser" aria-label="Eraser">⌫</button>`;
   const brushes = BRUSHES.map((w) => `<button class="brush ${ed.sk.width === w ? 'on' : ''}" data-act="brush" data-w="${w}" aria-label="Brush size ${w}"><i style="--w:${w}px"></i></button>`).join('');
+  const stamps = STAMPS.map((g) => `<button class="stamp ${ed.sk.stamp === g ? 'on' : ''}" data-act="stamp" data-g="${g}" aria-label="Stamp ${g}">${g}</button>`).join('');
   const colors = PALETTE.map((c, i) => `<button class="swatch ${ed.color === i ? 'on' : ''}" style="--c:${c.hex}" data-act="pickColor" data-i="${i}" ${taken.has(i) ? 'disabled' : ''} aria-label="${c.name} dice${taken.has(i) ? ' (taken)' : ''}"></button>`).join('');
   return `<div class="modal"><div class="sheet editor"><h2>Your player</h2>
     <p class="note">Draw your icon with your finger. Your dice colour becomes its ring.</p>
     <div class="avwrap"><canvas id="avcv" width="${AVATAR_SIZE}" height="${AVATAR_SIZE}" aria-label="Drawing area"></canvas></div>
     <div class="tools">${ink}</div>
     <div class="tools"><span class="brushes">${brushes}</span><button class="btn small" data-act="clearArt">Clear</button></div>
+    <p class="note">Or press a stamp. The size buttons change stamps too.</p>
+    <div class="tools stamps">${stamps}</div>
     <p class="note">Dice colour. Each player needs a different one.</p>
     <div class="tools">${colors}</div>
     <div class="row2"><button class="btn" data-act="closeEditor">Cancel</button><button class="btn primary" data-act="saveEditor">Save</button></div>
@@ -1137,6 +1295,11 @@ app.addEventListener('pointerdown', (e) => {
   if (e.target.id !== 'avcv' || !ui.ed) return;
   e.preventDefault();
   e.target.setPointerCapture?.(e.pointerId);
+  if (ui.ed.sk.stamp) {
+    stampAt(ui.ed.sk, pointOn(e.target, e));
+    paintCanvas(e.target, ui.ed.sk);
+    return;
+  }
   stroke = pointOn(e.target, e);
   strokeSegment(ui.ed.sk, stroke, stroke);
   paintCanvas(e.target, ui.ed.sk);
@@ -1198,7 +1361,7 @@ function say(text, ms = 1800) {
 }
 
 const isMine = (s) => s.phase !== 'over' && (ui.online ? s.current === net.mySeat : !s.players[s.current].cpu);
-const canAct = () => !!ui.game && !ui.rolling && isMine(ui.game);
+const canAct = () => !!ui.game && !ui.rolling && ui.conn === 'online' && isMine(ui.game);
 
 /** Start the tumbling animation: each die lands at its own time, faces cycling until then. */
 function startRoll(count) {
@@ -1237,15 +1400,75 @@ function startRoll(count) {
 function receive(next) {
   const prev = ui.game;
   if (prev && prev.gid === next.gid && next.rev <= prev.rev) return; // duplicate or stale
+  const sameGame = !!prev && prev.gid === next.gid;
   ui.game = next;
   ui.selected = null;
-  if (next.lastClaim && prev?.rev !== next.rev) {
+  ui.hint = null;
+  if (!sameGame || next.current !== prev.current || next.phase !== 'placing') ui.undo = [];
+
+  // Remember the claimed card on screen before it is re-rendered away, so it can fly to its owner.
+  let flight = null;
+  if (next.lastClaim && sameGame && prev.rev !== next.rev) {
     const c = next.lastClaim;
     say(`${next.players[c.player].name} claimed ${c.points} points!`);
+    const gone = prev.cards.findIndex((card) => !next.cards.some((n) => n.id === card.id));
+    const el = gone >= 0 ? app.querySelector(`.gcard[data-card="${gone}"]`) : null;
+    if (el && !reducedMotion()) flight = { html: el.outerHTML, rect: el.getBoundingClientRect(), player: c.player, from: prev.players[c.player].score, to: next.players[c.player].score };
   }
-  if (prev && prev.gid === next.gid && prev.phase === 'start' && next.phase === 'placing') startRoll(next.rolled.length);
+  if (sameGame && prev.phase === 'start' && next.phase === 'placing') startRoll(next.rolled.length);
+  const justWon = sameGame && next.phase === 'over' && prev.phase !== 'over';
   render();
+  if (flight) flyCard(flight);
+  if (justWon) confetti(next.winner);
   settle();
+}
+
+/** The claimed card shrinks into its owner's scoreboard chip while the score counts up. */
+function flyCard({ html, rect, player, from, to }) {
+  const chip = app.querySelector(`.chip[data-p="${player}"]`);
+  const num = chip?.querySelector('.num');
+  if (!chip || !num) return;
+  const target = chip.getBoundingClientRect();
+  const ghost = document.createElement('div');
+  ghost.className = 'fly';
+  ghost.style.cssText = `left:${rect.left}px;top:${rect.top}px;width:${rect.width}px;height:${rect.height}px`;
+  ghost.innerHTML = html;
+  document.body.appendChild(ghost);
+  num.textContent = String(from);
+  const dx = target.left + target.width / 2 - (rect.left + rect.width / 2);
+  const dy = target.top + target.height / 2 - (rect.top + rect.height / 2);
+  const anim = ghost.animate(
+    [{ transform: 'translate(0, 0) scale(1) rotate(0deg)', opacity: 1 }, { transform: 'translate(0, -14px) scale(1.08) rotate(-3deg)', opacity: 1, offset: 0.2 }, { transform: `translate(${dx}px, ${dy}px) scale(.12) rotate(8deg)`, opacity: 0.25 }],
+    { duration: 700, easing: 'cubic-bezier(.45, 0, .55, 1)', fill: 'forwards' },
+  );
+  anim.onfinish = () => {
+    ghost.remove();
+    chip.classList.add('bump');
+    const t0 = performance.now();
+    const tick = (now) => {
+      const k = Math.min(1, (now - t0) / 550);
+      const cur = chip.querySelector('.num');
+      if (cur) cur.textContent = String(Math.round(from + (to - from) * k));
+      if (k < 1) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+    setTimeout(() => chip.classList.remove('bump'), 700);
+  };
+}
+
+/** Confetti in the winner's colour and the rest of the palette. */
+function confetti(winner) {
+  if (reducedMotion()) return;
+  const layer = document.createElement('div');
+  layer.className = 'confetti';
+  const colors = [hexOf(winner), hexOf(winner), ...PALETTE.map((c) => c.hex)];
+  layer.innerHTML = Array.from({ length: 80 }, () => {
+    const c = colors[Math.floor(Math.random() * colors.length)];
+    const style = `left:${Math.random() * 100}%;background:${c};--dx:${Math.round(Math.random() * 160 - 80)}px;--spin:${Math.round(Math.random() * 900 - 450)}deg;animation-delay:${Math.round(Math.random() * 700)}ms;animation-duration:${2200 + Math.round(Math.random() * 1800)}ms`;
+    return `<i style="${style}"></i>`;
+  }).join('');
+  document.body.appendChild(layer);
+  setTimeout(() => layer.remove(), 5000);
 }
 
 /** A move made on this device: show it now and, online, share it. */
@@ -1270,8 +1493,44 @@ function settle() {
     if (!ui.online || isHost()) timer = setTimeout(cpuStep, CPU_DELAY);
   } else if (isMine(s) && s.phase === 'placing' && (!s.rolled.length || !E.legalMoves(s).length)) {
     if (s.rolled.length) say('No matching cards. Turn passes.');
-    timer = setTimeout(() => { if (ui.game === s) commit(E.endTurn(s)); }, 1300);
+    timer = setTimeout(() => { if (ui.game === s) commit(E.endTurn(s)); }, ui.undo.length ? 2000 : 1300);
   }
+}
+
+/** A person's placement: kept so it can be undone, unless it claimed a card (which draws a new one). */
+function placeDie(rolled, card) {
+  const before = ui.game;
+  const next = E.place(before, rolled, card);
+  if (next.lastClaim) ui.undo = [];
+  else ui.undo = [...ui.undo, before];
+  commit(next);
+}
+
+function undoPlacement() {
+  if (!canAct() || ui.game.phase !== 'placing' || !ui.undo.length) return;
+  clearTimeout(timer);
+  const previous = structuredClone(ui.undo[ui.undo.length - 1]);
+  ui.undo = ui.undo.slice(0, -1);
+  previous.lastClaim = null;
+  commit(previous);
+}
+
+function showHint() {
+  if (!canAct()) return;
+  const s = ui.game;
+  clearTimeout(hintTimer);
+  if (s.phase === 'start') {
+    const a = aiNextAction(s);
+    ui.hint = { button: a.type === 'takeback' ? 'takeback' : 'roll' };
+    say(a.type === 'takeback' ? 'Hint: take back your dice and roll all six' : `Hint: roll your ${E.handSize(s, s.current)} dice`, 3500);
+  } else {
+    const best = bestPlacement(s);
+    if (!best) { say('Hint: nothing fits. End your turn.', 3500); return; }
+    ui.hint = { rolled: best.rolled, card: best.card };
+    say(`Hint: put the ${s.rolled[best.rolled]} on the ${s.cards[best.card].points}-point card`, 3500);
+  }
+  render();
+  hintTimer = setTimeout(() => { ui.hint = null; render(); }, 4000);
 }
 
 function doRoll() { commit(E.roll(ui.game)); }
@@ -1299,6 +1558,7 @@ function startGame() {
   ui.online = false;
   ui.game = null;
   ui.cfg = ui.setup.map((p) => ({ ...p }));
+  keepAwake(true);
   const g = freshGame(ui.cfg);
   ui.screen = 'game';
   ui.rolling = false;
@@ -1323,6 +1583,22 @@ function localUid() {
   return id;
 }
 
+/* Keep the screen on while playing, so a locked phone does not cut the connection. */
+const awake = { lock: null, want: false };
+async function keepAwake(on) {
+  awake.want = on;
+  try {
+    if (on && !awake.lock && !document.hidden) {
+      awake.lock = await navigator.wakeLock?.request('screen');
+      awake.lock?.addEventListener('release', () => { awake.lock = null; });
+    } else if (!on && awake.lock) {
+      await awake.lock.release();
+      awake.lock = null;
+    }
+  } catch { /* not supported or refused */ }
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden && awake.want) keepAwake(true); });
+
 async function initNet() {
   try {
     if (window.claude?.use) {
@@ -1331,7 +1607,7 @@ async function initNet() {
       if (db && uid) { net.store = dbStore(db); net.uid = uid; }
     } else if (window.Peer) {
       net.uid = localUid();
-      net.store = p2pStore(window.Peer, window.RFI_PEER_OPTIONS, net.uid);
+      net.store = p2pStore(window.Peer, window.RFI_PEER_OPTIONS, net.uid, window.RFI_ICE_SERVERS);
     }
   } catch { /* online play unavailable */ }
   const m = /^#([A-Za-z]{4})$/.exec(location.hash);
@@ -1345,7 +1621,21 @@ function attach(ref) {
   net.ref = ref;
   net.room = null;
   net.q = Promise.resolve();
-  net.unsub = ref.onSnapshot(onRoom, () => { say('Lost connection to the room'); leaveRoom(); });
+  ui.conn = 'online';
+  net.offStatus?.();
+  net.offStatus = ref.onStatus?.((state) => {
+    if (state === ui.conn) return;
+    ui.conn = state;
+    if (state === 'online') say('Back online', 1500);
+    render();
+    if (state === 'online') settle();
+  });
+  net.unsub = ref.onSnapshot(onRoom, (e) => {
+    if (e?.code === 'lost') return; // the banner offers Retry
+    say('Lost connection to the room');
+    leaveRoom();
+  });
+  keepAwake(true);
 }
 
 function onRoom(snap) {
@@ -1370,8 +1660,12 @@ function leaveRoom() {
   clearTimeout(timer);
   net.unsub?.();
   net.unsub = null;
+  net.offStatus?.();
+  net.offStatus = null;
   net.ref?.close?.();
   net.ref = null;
+  ui.conn = 'online';
+  keepAwake(false);
   store.set('rfi-session', '');
   net.room = null;
   net.mySeat = -1;
@@ -1483,8 +1777,9 @@ const actions = {
   editPlayer: ({ i }) => openEditor('setup', +i, ui.setup[i]),
   editProfile: () => openEditor('profile', 0, profile),
   editMe: () => { if (net.mySeat >= 0) openEditor('seat', net.mySeat, net.room.seats[net.mySeat]); },
-  ink: ({ c }) => { ui.ed.sk.ink = c; ui.ed.sk.erase = false; render(); },
-  eraser: () => { ui.ed.sk.erase = true; render(); },
+  ink: ({ c }) => { ui.ed.sk.ink = c; ui.ed.sk.erase = false; ui.ed.sk.stamp = null; render(); },
+  eraser: () => { ui.ed.sk.erase = true; ui.ed.sk.stamp = null; render(); },
+  stamp: ({ g }) => { ui.ed.sk.stamp = g; ui.ed.sk.erase = false; render(); },
   brush: ({ w }) => { ui.ed.sk.width = +w; render(); },
   clearArt: () => { clearSketch(ui.ed.sk); render(); },
   pickColor: ({ i }) => { ui.ed.color = +i; render(); },
@@ -1517,24 +1812,27 @@ const actions = {
     ui.modal = null;
     commit(g);
   },
-  toSetup: () => { if (ui.online || net.unsub) { leaveRoom(); return; } clearTimeout(timer); ui.screen = 'setup'; ui.modal = null; ui.game = null; ui.rolling = false; render(); },
+  toSetup: () => { if (ui.online || net.unsub) { leaveRoom(); return; } keepAwake(false); clearTimeout(timer); ui.screen = 'setup'; ui.modal = null; ui.game = null; ui.rolling = false; render(); },
   rules: () => { ui.modal = 'rules'; render(); },
   menu: () => { ui.modal = 'menu'; render(); },
   closeModal: () => { ui.modal = null; render(); },
   roll: () => { if (canAct() && ui.game.phase === 'start' && E.handSize(ui.game, ui.game.current) > 0) doRoll(); },
   end: () => { if (canAct() && ui.game.phase === 'placing') { clearTimeout(timer); commit(E.endTurn(ui.game)); } },
   takeBack: () => { if (canAct() && ui.game.phase === 'start') doTakeBack(); },
+  hint: showHint,
+  undo: undoPlacement,
+  retryConn: () => net.ref?.retry?.(),
   pickRolled: ({ i }) => {
     if (!canAct() || ui.game.phase !== 'placing') return;
     const idx = +i;
     const targets = ui.game.cards.map((_, c) => c).filter((c) => E.canPlace(ui.game, idx, c));
     if (!targets.length) { say('No card needs that number'); return; }
-    if (targets.length === 1) { commit(E.place(ui.game, idx, targets[0])); return; }
+    if (targets.length === 1) { placeDie(idx, targets[0]); return; }
     ui.selected = ui.selected === idx ? null : idx;
     render();
   },
   pickCard: ({ card }) => {
-    if (canAct() && ui.selected !== null && E.canPlace(ui.game, ui.selected, +card)) commit(E.place(ui.game, ui.selected, +card));
+    if (canAct() && ui.selected !== null && E.canPlace(ui.game, ui.selected, +card)) placeDie(ui.selected, +card);
   },
 };
 

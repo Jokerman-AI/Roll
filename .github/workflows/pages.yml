@@ -27,7 +27,7 @@ jobs:
       - name: Assemble site
         run: |
           mkdir site
-          cp -r index.html manifest.webmanifest sw.js src icons vendor site/
+          cp -r index.html manifest.webmanifest sw.js config.js src icons vendor site/
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

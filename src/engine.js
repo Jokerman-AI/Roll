@@ -100,7 +100,7 @@ function rollOff(count, rng) {
 
 export function newGame(configs, rng = Math.random) {
   if (configs.length < 2 || configs.length > MAX_PLAYERS) throw new Error('2-8 players');
-  const players = configs.map((c) => ({ name: c.name, cpu: !!c.cpu, score: 0 }));
+  const players = configs.map((c) => ({ name: c.name, cpu: !!c.cpu, score: 0, pile: [] })); // pile: points of cards claimed
   const { first, total } = rollOff(players.length, rng);
   const state = {
     players,
@@ -183,6 +183,7 @@ export function place(state, rolledIdx, cardIdx) {
 
   if (missing(card, p).length === 0) {
     s.players[p].score += card.points;
+    s.players[p].pile = [...(s.players[p].pile || []), card.points];
     s.lastClaim = { player: p, points: card.points, need: card.need };
     // Every player's dice on the claimed card go back to their hands.
     s.cards.splice(cardIdx, 1);

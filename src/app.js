@@ -1,8 +1,8 @@
 import * as E from './engine.js';
-import { aiNextAction } from './ai.js';
+import { aiNextAction, bestPlacement } from './ai.js';
 import { dbStore, p2pStore } from './transport.js';
 import {
-  PALETTE, INK, BRUSHES, AVATAR_SIZE, freeColor, safeAvatar, makeSketch, paintCanvas, pointOn, strokeSegment, clearSketch, loadAvatar, exportAvatar,
+  PALETTE, INK, BRUSHES, STAMPS, AVATAR_SIZE, freeColor, safeAvatar, makeSketch, paintCanvas, pointOn, strokeSegment, stampAt, clearSketch, loadAvatar, exportAvatar,
 } from './profile.js';
 
 const MAX_PLAYERS = E.MAX_PLAYERS;
@@ -44,6 +44,9 @@ const ui = {
   selected: null,
   rolling: false,
   fx: [],
+  hint: null, // {rolled, card} or {button}
+  undo: [], // game states before this turn's placements
+  conn: 'online',
   modal: null,
   ed: null, // icon / colour editor
 };
@@ -51,6 +54,7 @@ let timer = 0;
 let toastTimer = 0;
 let rollTimer = 0;
 let rollClock = 0;
+let hintTimer = 0;
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const wins = (name) => `${esc(name)} ${name.trim().toLowerCase() === 'you' ? 'win' : 'wins'}!`;
@@ -83,9 +87,16 @@ function setFace(el, face) {
 /* ---------- rendering ---------- */
 
 function render() {
-  app.innerHTML = ({ setup: setupView, online: onlineView, lobby: lobbyView, game: gameView }[ui.screen])() + modalView();
+  app.innerHTML = ({ setup: setupView, online: onlineView, lobby: lobbyView, game: gameView }[ui.screen])() + connBanner() + modalView();
   const cv = document.getElementById('avcv');
   if (cv && ui.ed) paintCanvas(cv, ui.ed.sk);
+}
+
+function connBanner() {
+  if (!ui.online || ui.conn === 'online') return '';
+  return ui.conn === 'lost'
+    ? '<div class="conn lost" role="alert">Connection lost. <button data-act="retryConn">Retry</button></div>'
+    : '<div class="conn" role="status">Reconnecting…</div>';
 }
 
 function setupView() {
@@ -164,6 +175,14 @@ function statusText(s) {
   return ui.selected === null ? 'Tap a die, then the card it fits' : 'Tap a highlighted card';
 }
 
+/** A staggered pile of the cards a player has claimed, with their points showing. */
+function pileHtml(pile = []) {
+  if (!pile.length) return '';
+  const shown = pile.slice(-6);
+  const more = pile.length - shown.length;
+  return `<span class="pile" aria-label="${pile.length} cards claimed">${more ? `<em>+${more}</em>` : ''}${shown.map((pts, k) => `<i data-tier="${tierOf(pts)}" style="--n:${k}">${pts}</i>`).join('')}</span>`;
+}
+
 const tierOf = (points) => (points >= 13 ? 4 : points >= 9 ? 3 : points >= 5 ? 2 : 1);
 
 function cardView(s, card, ci) {
@@ -186,7 +205,7 @@ function cardView(s, card, ci) {
       ${die(face, mine ? 'mine' : 'ghost', mine ? `style="${diceVars(mineSeat, s.current)}"` : '')}
       <span class="dots">${dots}</span></div>`;
   }).join('');
-  return `<div class="gcard ${accepts ? 'accepts' : ''}" data-tier="${tierOf(card.points)}" data-act="pickCard" data-card="${ci}" role="group" aria-label="${card.points} point card">
+  return `<div class="gcard ${accepts ? 'accepts' : ''} ${ui.hint?.card === ci ? 'hinted' : ''}" data-tier="${tierOf(card.points)}" data-act="pickCard" data-card="${ci}" role="group" aria-label="${card.points} point card">
     <div class="corner tl"><b>${card.points}</b><i></i></div>
     <div class="face" style="--fc:${cols};--dz:${cols === 1 ? 44 : cols === 2 ? 31 : 24}">${slots}</div>
     <div class="corner br"><b>${card.points}</b><i></i></div>
@@ -198,9 +217,10 @@ function gameView() {
   const human = isMine(s);
   const mine = seats()[s.current];
   const chips = s.players.map((p, i) => `
-    <div class="chip ${i === s.current && s.phase !== 'over' ? 'active' : ''}" style="--c:${hexOf(i)}">
+    <div class="chip ${i === s.current && s.phase !== 'over' ? 'active' : ''}" data-p="${i}" style="--c:${hexOf(i)}">
       ${avatarHtml(seats()[i], i, 28)}
-      <span class="meta"><span class="n">${esc(p.name)}${ui.online && i === net.mySeat ? ' (you)' : ''}</span><span class="s">${p.score}<small> / ${E.TARGET_SCORE}</small></span></span>
+      <span class="meta"><span class="n">${esc(p.name)}${ui.online && i === net.mySeat ? ' (you)' : ''}</span><span class="s"><b class="num">${p.score}</b><small> / ${E.TARGET_SCORE}</small></span></span>
+      ${pileHtml(p.pile)}
     </div>`).join('');
 
   let tray;
@@ -210,7 +230,7 @@ function gameView() {
       const spinning = ui.rolling && fx.dur > 0;
       const style = `${diceVars(mine, s.current)};--d:${fx.delay}ms;--dur:${fx.dur}ms;--dx:${fx.dx}px;--rot:${fx.rot}deg`;
       const face = spinning ? 1 + Math.floor(Math.random() * 6) : f;
-      return die(face, `owned ${spinning ? 'rolling' : ''} ${ui.selected === i ? 'sel' : ''}`,
+      return die(face, `owned ${spinning ? 'rolling' : ''} ${ui.selected === i ? 'sel' : ''} ${ui.hint?.rolled === i ? 'hinted' : ''}`,
         `style="${style}" data-i="${i}" ${human && !ui.rolling ? `data-act="pickRolled"` : 'disabled'}`, 'button');
     }).join('') || '<span class="hint">—</span>';
   } else {
@@ -234,9 +254,13 @@ function gameView() {
     <div class="tray">
       <div class="dice">${tray}</div>
       <div class="actions">
-        <button class="btn primary ${canRoll ? 'pulse' : ''}" data-act="roll" ${canRoll ? '' : 'disabled'}>Roll</button>
-        ${s.phase === 'start' ? `<button class="btn ${mustTakeBack ? 'primary pulse' : ''}" data-act="takeBack" ${canTakeBack ? '' : 'disabled'}>Take back &amp; roll all</button>` : `<button class="btn ${noMoves ? 'primary pulse' : ''}" data-act="end" ${canEnd ? '' : 'disabled'}>End turn</button>`}
-        <button class="btn" data-act="menu" style="flex:0 0 auto" aria-label="Menu">☰</button>
+        ${s.phase === 'start' ? `
+          <button class="btn primary ${canRoll ? 'pulse' : ''} ${ui.hint?.button === 'roll' ? 'hinted' : ''}" data-act="roll" ${canRoll ? '' : 'disabled'}>Roll</button>
+          <button class="btn ${mustTakeBack ? 'primary pulse' : ''} ${ui.hint?.button === 'takeback' ? 'hinted' : ''}" data-act="takeBack" ${canTakeBack ? '' : 'disabled'}>Take back &amp; roll all</button>`
+          : `<button class="btn ${noMoves ? 'primary pulse' : ''}" data-act="end" ${canEnd ? '' : 'disabled'}>End turn</button>
+          ${human && ui.undo.length ? '<button class="btn icon" data-act="undo" aria-label="Undo last placement" title="Undo">↶</button>' : ''}`}
+        <button class="btn icon" data-act="hint" aria-label="Hint" title="Hint" ${human && !ui.rolling ? '' : 'disabled'}>💡</button>
+        <button class="btn icon" data-act="menu" aria-label="Menu">☰</button>
       </div>
     </div>
     </div>`;
@@ -245,15 +269,18 @@ function gameView() {
 function editorView() {
   const ed = ui.ed;
   const taken = new Set(editorTaken());
-  const ink = INK.map((hex) => `<button class="ink ${!ed.sk.erase && ed.sk.ink === hex ? 'on' : ''}" style="--c:${hex}" data-act="ink" data-c="${hex}" aria-label="Ink ${hex}"></button>`).join('')
+  const ink = INK.map((hex) => `<button class="ink ${!ed.sk.erase && !ed.sk.stamp && ed.sk.ink === hex ? 'on' : ''}" style="--c:${hex}" data-act="ink" data-c="${hex}" aria-label="Ink ${hex}"></button>`).join('')
     + `<button class="ink eraser ${ed.sk.erase ? 'on' : ''}" data-act="eraser" aria-label="Eraser">⌫</button>`;
   const brushes = BRUSHES.map((w) => `<button class="brush ${ed.sk.width === w ? 'on' : ''}" data-act="brush" data-w="${w}" aria-label="Brush size ${w}"><i style="--w:${w}px"></i></button>`).join('');
+  const stamps = STAMPS.map((g) => `<button class="stamp ${ed.sk.stamp === g ? 'on' : ''}" data-act="stamp" data-g="${g}" aria-label="Stamp ${g}">${g}</button>`).join('');
   const colors = PALETTE.map((c, i) => `<button class="swatch ${ed.color === i ? 'on' : ''}" style="--c:${c.hex}" data-act="pickColor" data-i="${i}" ${taken.has(i) ? 'disabled' : ''} aria-label="${c.name} dice${taken.has(i) ? ' (taken)' : ''}"></button>`).join('');
   return `<div class="modal"><div class="sheet editor"><h2>Your player</h2>
     <p class="note">Draw your icon with your finger. Your dice colour becomes its ring.</p>
     <div class="avwrap"><canvas id="avcv" width="${AVATAR_SIZE}" height="${AVATAR_SIZE}" aria-label="Drawing area"></canvas></div>
     <div class="tools">${ink}</div>
     <div class="tools"><span class="brushes">${brushes}</span><button class="btn small" data-act="clearArt">Clear</button></div>
+    <p class="note">Or press a stamp. The size buttons change stamps too.</p>
+    <div class="tools stamps">${stamps}</div>
     <p class="note">Dice colour. Each player needs a different one.</p>
     <div class="tools">${colors}</div>
     <div class="row2"><button class="btn" data-act="closeEditor">Cancel</button><button class="btn primary" data-act="saveEditor">Save</button></div>
@@ -316,6 +343,11 @@ app.addEventListener('pointerdown', (e) => {
   if (e.target.id !== 'avcv' || !ui.ed) return;
   e.preventDefault();
   e.target.setPointerCapture?.(e.pointerId);
+  if (ui.ed.sk.stamp) {
+    stampAt(ui.ed.sk, pointOn(e.target, e));
+    paintCanvas(e.target, ui.ed.sk);
+    return;
+  }
   stroke = pointOn(e.target, e);
   strokeSegment(ui.ed.sk, stroke, stroke);
   paintCanvas(e.target, ui.ed.sk);
@@ -377,7 +409,7 @@ function say(text, ms = 1800) {
 }
 
 const isMine = (s) => s.phase !== 'over' && (ui.online ? s.current === net.mySeat : !s.players[s.current].cpu);
-const canAct = () => !!ui.game && !ui.rolling && isMine(ui.game);
+const canAct = () => !!ui.game && !ui.rolling && ui.conn === 'online' && isMine(ui.game);
 
 /** Start the tumbling animation: each die lands at its own time, faces cycling until then. */
 function startRoll(count) {
@@ -416,15 +448,75 @@ function startRoll(count) {
 function receive(next) {
   const prev = ui.game;
   if (prev && prev.gid === next.gid && next.rev <= prev.rev) return; // duplicate or stale
+  const sameGame = !!prev && prev.gid === next.gid;
   ui.game = next;
   ui.selected = null;
-  if (next.lastClaim && prev?.rev !== next.rev) {
+  ui.hint = null;
+  if (!sameGame || next.current !== prev.current || next.phase !== 'placing') ui.undo = [];
+
+  // Remember the claimed card on screen before it is re-rendered away, so it can fly to its owner.
+  let flight = null;
+  if (next.lastClaim && sameGame && prev.rev !== next.rev) {
     const c = next.lastClaim;
     say(`${next.players[c.player].name} claimed ${c.points} points!`);
+    const gone = prev.cards.findIndex((card) => !next.cards.some((n) => n.id === card.id));
+    const el = gone >= 0 ? app.querySelector(`.gcard[data-card="${gone}"]`) : null;
+    if (el && !reducedMotion()) flight = { html: el.outerHTML, rect: el.getBoundingClientRect(), player: c.player, from: prev.players[c.player].score, to: next.players[c.player].score };
   }
-  if (prev && prev.gid === next.gid && prev.phase === 'start' && next.phase === 'placing') startRoll(next.rolled.length);
+  if (sameGame && prev.phase === 'start' && next.phase === 'placing') startRoll(next.rolled.length);
+  const justWon = sameGame && next.phase === 'over' && prev.phase !== 'over';
   render();
+  if (flight) flyCard(flight);
+  if (justWon) confetti(next.winner);
   settle();
+}
+
+/** The claimed card shrinks into its owner's scoreboard chip while the score counts up. */
+function flyCard({ html, rect, player, from, to }) {
+  const chip = app.querySelector(`.chip[data-p="${player}"]`);
+  const num = chip?.querySelector('.num');
+  if (!chip || !num) return;
+  const target = chip.getBoundingClientRect();
+  const ghost = document.createElement('div');
+  ghost.className = 'fly';
+  ghost.style.cssText = `left:${rect.left}px;top:${rect.top}px;width:${rect.width}px;height:${rect.height}px`;
+  ghost.innerHTML = html;
+  document.body.appendChild(ghost);
+  num.textContent = String(from);
+  const dx = target.left + target.width / 2 - (rect.left + rect.width / 2);
+  const dy = target.top + target.height / 2 - (rect.top + rect.height / 2);
+  const anim = ghost.animate(
+    [{ transform: 'translate(0, 0) scale(1) rotate(0deg)', opacity: 1 }, { transform: 'translate(0, -14px) scale(1.08) rotate(-3deg)', opacity: 1, offset: 0.2 }, { transform: `translate(${dx}px, ${dy}px) scale(.12) rotate(8deg)`, opacity: 0.25 }],
+    { duration: 700, easing: 'cubic-bezier(.45, 0, .55, 1)', fill: 'forwards' },
+  );
+  anim.onfinish = () => {
+    ghost.remove();
+    chip.classList.add('bump');
+    const t0 = performance.now();
+    const tick = (now) => {
+      const k = Math.min(1, (now - t0) / 550);
+      const cur = chip.querySelector('.num');
+      if (cur) cur.textContent = String(Math.round(from + (to - from) * k));
+      if (k < 1) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+    setTimeout(() => chip.classList.remove('bump'), 700);
+  };
+}
+
+/** Confetti in the winner's colour and the rest of the palette. */
+function confetti(winner) {
+  if (reducedMotion()) return;
+  const layer = document.createElement('div');
+  layer.className = 'confetti';
+  const colors = [hexOf(winner), hexOf(winner), ...PALETTE.map((c) => c.hex)];
+  layer.innerHTML = Array.from({ length: 80 }, () => {
+    const c = colors[Math.floor(Math.random() * colors.length)];
+    const style = `left:${Math.random() * 100}%;background:${c};--dx:${Math.round(Math.random() * 160 - 80)}px;--spin:${Math.round(Math.random() * 900 - 450)}deg;animation-delay:${Math.round(Math.random() * 700)}ms;animation-duration:${2200 + Math.round(Math.random() * 1800)}ms`;
+    return `<i style="${style}"></i>`;
+  }).join('');
+  document.body.appendChild(layer);
+  setTimeout(() => layer.remove(), 5000);
 }
 
 /** A move made on this device: show it now and, online, share it. */
@@ -449,8 +541,44 @@ function settle() {
     if (!ui.online || isHost()) timer = setTimeout(cpuStep, CPU_DELAY);
   } else if (isMine(s) && s.phase === 'placing' && (!s.rolled.length || !E.legalMoves(s).length)) {
     if (s.rolled.length) say('No matching cards. Turn passes.');
-    timer = setTimeout(() => { if (ui.game === s) commit(E.endTurn(s)); }, 1300);
+    timer = setTimeout(() => { if (ui.game === s) commit(E.endTurn(s)); }, ui.undo.length ? 2000 : 1300);
   }
+}
+
+/** A person's placement: kept so it can be undone, unless it claimed a card (which draws a new one). */
+function placeDie(rolled, card) {
+  const before = ui.game;
+  const next = E.place(before, rolled, card);
+  if (next.lastClaim) ui.undo = [];
+  else ui.undo = [...ui.undo, before];
+  commit(next);
+}
+
+function undoPlacement() {
+  if (!canAct() || ui.game.phase !== 'placing' || !ui.undo.length) return;
+  clearTimeout(timer);
+  const previous = structuredClone(ui.undo[ui.undo.length - 1]);
+  ui.undo = ui.undo.slice(0, -1);
+  previous.lastClaim = null;
+  commit(previous);
+}
+
+function showHint() {
+  if (!canAct()) return;
+  const s = ui.game;
+  clearTimeout(hintTimer);
+  if (s.phase === 'start') {
+    const a = aiNextAction(s);
+    ui.hint = { button: a.type === 'takeback' ? 'takeback' : 'roll' };
+    say(a.type === 'takeback' ? 'Hint: take back your dice and roll all six' : `Hint: roll your ${E.handSize(s, s.current)} dice`, 3500);
+  } else {
+    const best = bestPlacement(s);
+    if (!best) { say('Hint: nothing fits. End your turn.', 3500); return; }
+    ui.hint = { rolled: best.rolled, card: best.card };
+    say(`Hint: put the ${s.rolled[best.rolled]} on the ${s.cards[best.card].points}-point card`, 3500);
+  }
+  render();
+  hintTimer = setTimeout(() => { ui.hint = null; render(); }, 4000);
 }
 
 function doRoll() { commit(E.roll(ui.game)); }
@@ -478,6 +606,7 @@ function startGame() {
   ui.online = false;
   ui.game = null;
   ui.cfg = ui.setup.map((p) => ({ ...p }));
+  keepAwake(true);
   const g = freshGame(ui.cfg);
   ui.screen = 'game';
   ui.rolling = false;
@@ -502,6 +631,22 @@ function localUid() {
   return id;
 }
 
+/* Keep the screen on while playing, so a locked phone does not cut the connection. */
+const awake = { lock: null, want: false };
+async function keepAwake(on) {
+  awake.want = on;
+  try {
+    if (on && !awake.lock && !document.hidden) {
+      awake.lock = await navigator.wakeLock?.request('screen');
+      awake.lock?.addEventListener('release', () => { awake.lock = null; });
+    } else if (!on && awake.lock) {
+      await awake.lock.release();
+      awake.lock = null;
+    }
+  } catch { /* not supported or refused */ }
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden && awake.want) keepAwake(true); });
+
 async function initNet() {
   try {
     if (window.claude?.use) {
@@ -510,7 +655,7 @@ async function initNet() {
       if (db && uid) { net.store = dbStore(db); net.uid = uid; }
     } else if (window.Peer) {
       net.uid = localUid();
-      net.store = p2pStore(window.Peer, window.RFI_PEER_OPTIONS, net.uid);
+      net.store = p2pStore(window.Peer, window.RFI_PEER_OPTIONS, net.uid, window.RFI_ICE_SERVERS);
     }
   } catch { /* online play unavailable */ }
   const m = /^#([A-Za-z]{4})$/.exec(location.hash);
@@ -524,7 +669,21 @@ function attach(ref) {
   net.ref = ref;
   net.room = null;
   net.q = Promise.resolve();
-  net.unsub = ref.onSnapshot(onRoom, () => { say('Lost connection to the room'); leaveRoom(); });
+  ui.conn = 'online';
+  net.offStatus?.();
+  net.offStatus = ref.onStatus?.((state) => {
+    if (state === ui.conn) return;
+    ui.conn = state;
+    if (state === 'online') say('Back online', 1500);
+    render();
+    if (state === 'online') settle();
+  });
+  net.unsub = ref.onSnapshot(onRoom, (e) => {
+    if (e?.code === 'lost') return; // the banner offers Retry
+    say('Lost connection to the room');
+    leaveRoom();
+  });
+  keepAwake(true);
 }
 
 function onRoom(snap) {
@@ -549,8 +708,12 @@ function leaveRoom() {
   clearTimeout(timer);
   net.unsub?.();
   net.unsub = null;
+  net.offStatus?.();
+  net.offStatus = null;
   net.ref?.close?.();
   net.ref = null;
+  ui.conn = 'online';
+  keepAwake(false);
   store.set('rfi-session', '');
   net.room = null;
   net.mySeat = -1;
@@ -662,8 +825,9 @@ const actions = {
   editPlayer: ({ i }) => openEditor('setup', +i, ui.setup[i]),
   editProfile: () => openEditor('profile', 0, profile),
   editMe: () => { if (net.mySeat >= 0) openEditor('seat', net.mySeat, net.room.seats[net.mySeat]); },
-  ink: ({ c }) => { ui.ed.sk.ink = c; ui.ed.sk.erase = false; render(); },
-  eraser: () => { ui.ed.sk.erase = true; render(); },
+  ink: ({ c }) => { ui.ed.sk.ink = c; ui.ed.sk.erase = false; ui.ed.sk.stamp = null; render(); },
+  eraser: () => { ui.ed.sk.erase = true; ui.ed.sk.stamp = null; render(); },
+  stamp: ({ g }) => { ui.ed.sk.stamp = g; ui.ed.sk.erase = false; render(); },
   brush: ({ w }) => { ui.ed.sk.width = +w; render(); },
   clearArt: () => { clearSketch(ui.ed.sk); render(); },
   pickColor: ({ i }) => { ui.ed.color = +i; render(); },
@@ -696,24 +860,27 @@ const actions = {
     ui.modal = null;
     commit(g);
   },
-  toSetup: () => { if (ui.online || net.unsub) { leaveRoom(); return; } clearTimeout(timer); ui.screen = 'setup'; ui.modal = null; ui.game = null; ui.rolling = false; render(); },
+  toSetup: () => { if (ui.online || net.unsub) { leaveRoom(); return; } keepAwake(false); clearTimeout(timer); ui.screen = 'setup'; ui.modal = null; ui.game = null; ui.rolling = false; render(); },
   rules: () => { ui.modal = 'rules'; render(); },
   menu: () => { ui.modal = 'menu'; render(); },
   closeModal: () => { ui.modal = null; render(); },
   roll: () => { if (canAct() && ui.game.phase === 'start' && E.handSize(ui.game, ui.game.current) > 0) doRoll(); },
   end: () => { if (canAct() && ui.game.phase === 'placing') { clearTimeout(timer); commit(E.endTurn(ui.game)); } },
   takeBack: () => { if (canAct() && ui.game.phase === 'start') doTakeBack(); },
+  hint: showHint,
+  undo: undoPlacement,
+  retryConn: () => net.ref?.retry?.(),
   pickRolled: ({ i }) => {
     if (!canAct() || ui.game.phase !== 'placing') return;
     const idx = +i;
     const targets = ui.game.cards.map((_, c) => c).filter((c) => E.canPlace(ui.game, idx, c));
     if (!targets.length) { say('No card needs that number'); return; }
-    if (targets.length === 1) { commit(E.place(ui.game, idx, targets[0])); return; }
+    if (targets.length === 1) { placeDie(idx, targets[0]); return; }
     ui.selected = ui.selected === idx ? null : idx;
     render();
   },
   pickCard: ({ card }) => {
-    if (canAct() && ui.selected !== null && E.canPlace(ui.game, ui.selected, +card)) commit(E.place(ui.game, ui.selected, +card));
+    if (canAct() && ui.selected !== null && E.canPlace(ui.game, ui.selected, +card)) placeDie(ui.selected, +card);
   },
 };
 

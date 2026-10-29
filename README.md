@@ -12,8 +12,13 @@ enter the 4-letter code (or tap the invite link). There are no accounts. The hos
 server (peer-to-peer over WebRTC via PeerJS), so the host needs to keep the page open. A player who
 reloads can use **Return to room** on the start screen.
 
-Peer-to-peer works on most home and mobile networks. A few strict networks block it because the app
-has no relay (TURN) server.
+Phones connect directly when they can and fall back to PeerJS's free shared relay on networks that block
+direct connections. If someone still can't connect, add your own relay in `config.js` (a free TURN account
+from Cloudflare Calls or Metered works); the game uses it as well as the defaults.
+
+The screen is kept awake while you play so a locked phone does not drop the room. If the connection does
+drop, a banner shows "Reconnecting…" and the game rejoins by itself, including when the host's phone wakes
+up again. Moves are paused until it is back.
 
 ## Cards, dice and players
 
@@ -21,6 +26,10 @@ has no relay (TURN) server.
   card is, and the gold ones are the five-of-a-kind jackpots. The deck of 30 runs from 2 points (one die)
   to 15 (five of a kind). Points follow how long a card takes to finish (simulated), so the hard ones pay more.
 - Dice tumble and land one by one when rolled (reduced-motion settings skip the animation).
+- Each scored card goes into a staggered pile next to the player's score, with its points showing. A claimed
+  card flies to its owner and the score counts up; the winner gets confetti.
+- The 💡 button highlights the best move (the die and the card, or whether to roll or take back), and ↶ undoes
+  your last placement until you end your turn (a placement that claims a card can't be undone).
 - Each player draws their own icon and chooses their dice colour; every player in a game has a different colour.
   Your icon and colour are remembered on your device.
 
@@ -55,7 +64,8 @@ Any static host (Netlify Drop, Cloudflare Pages) also works: upload `index.html`
 - `src/engine.js`: pure rules (deck, rolling, placing, claiming, win check)
 - `src/ai.js`: CPU opponent
 - `src/transport.js`: room back ends (peer-to-peer, or the shared database on claude.ai)
-- `src/profile.js`: dice colours and the icon drawing surface
+- `src/profile.js`: dice colours, emoji stamps and the icon drawing surface
+- `config.js`: optional settings, such as your own relay servers
 - `src/app.js`, `src/style.css`: UI
 - `sw.js`, `manifest.webmanifest`, `icons/`: PWA shell
 - `vendor/peerjs.min.js`: PeerJS 1.5.4 (MIT)

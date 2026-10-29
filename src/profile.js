@@ -34,7 +34,8 @@ export function safeAvatar(value) {
 // Icons are drawn on opaque paper, so the dice colour only ever appears as the ring around them.
 export const PAPER = '#fffdf4';
 export const INK = [PALETTE[7].hex, ...PALETTE.slice(0, 7).map((c) => c.hex)];
-export const BRUSHES = [4, 8, 14];
+export const BRUSHES = [8, 14, 22]; // the middle one is the default, thick enough to read on a small scoreboard icon
+export const STAMPS = ['😀', '😎', '🤠', '🥳', '🐱', '🐶', '🦊', '🐸', '🐼', '🦄', '👑', '🔥'];
 export const AVATAR_SIZE = 128;
 const SIZE = AVATAR_SIZE;
 
@@ -50,7 +51,7 @@ export function makeSketch() {
   buf.width = SIZE;
   buf.height = SIZE;
   fillPaper(buf);
-  return { buf, dirty: false, ink: INK[0], width: BRUSHES[1], erase: false };
+  return { buf, dirty: false, ink: INK[0], width: BRUSHES[1], erase: false, stamp: null };
 }
 
 export function paintCanvas(canvas, sketch) {
@@ -83,6 +84,18 @@ export function strokeSegment(sketch, from, to) {
     ctx.lineTo(to.x, to.y);
     ctx.stroke();
   }
+  sketch.dirty = true;
+}
+
+/** Press an emoji stamp onto the drawing, sized to the current brush. */
+export function stampAt(sketch, at) {
+  const ctx = sketch.buf.getContext('2d');
+  const size = sketch.width * 4;
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.font = `${size}px system-ui, "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(sketch.stamp, at.x, at.y + size * 0.05);
   sketch.dirty = true;
 }
 

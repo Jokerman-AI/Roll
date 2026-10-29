@@ -13,9 +13,15 @@ export function aiNextAction(s, rng = Math.random) {
     return { type: 'roll' };
   }
 
+  const best = bestPlacement(s, rng);
+  return best ? { type: 'place', ...best } : { type: 'end' };
+}
+
+/** The placement the CPU would choose: finishing a card beats progress, and bigger cards beat smaller ones. */
+export function bestPlacement(s, rng = Math.random) {
+  const me = s.current;
   const moves = E.legalMoves(s);
-  if (!moves.length) return { type: 'end' };
-  let best = moves[0];
+  let best = null;
   let bestScore = -Infinity;
   for (const m of moves) {
     const card = s.cards[m.card];
@@ -23,8 +29,8 @@ export function aiNextAction(s, rng = Math.random) {
     const score = card.points / (left + 1) + (left === 0 ? 100 : 0) + rng() * 0.1;
     if (score > bestScore) {
       bestScore = score;
-      best = m;
+      best = { rolled: m.rolled, card: m.card };
     }
   }
-  return { type: 'place', rolled: best.rolled, card: best.card };
+  return best;
 }

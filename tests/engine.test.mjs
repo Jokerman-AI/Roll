@@ -60,6 +60,32 @@ test('only needed faces can be placed; claim scores and refills', () => {
   assert.equal(E.handSize(s, s.current), 6);
 });
 
+test('claimed cards go into the claimer\'s pile', () => {
+  let s = E.newGame(cfg, E.mulberry32(21));
+  const me = s.current;
+  const card = s.cards[0];
+  s.phase = 'placing';
+  s.rolled = [...card.need];
+  for (let i = 0; i < card.need.length; i++) s = E.place(s, 0, 0);
+  assert.deepEqual(s.players[me].pile, [card.points]);
+  assert.deepEqual(s.players[1 - me].pile, []);
+});
+
+test('piles always add up to scores across whole games', () => {
+  for (let seed = 1; seed <= 30; seed++) {
+    const rng = E.mulberry32(seed);
+    let s = E.newGame([{ name: 'a' }, { name: 'b' }, { name: 'c' }], rng);
+    for (let n = 0; s.phase !== 'over' && n < 20000; n++) {
+      const a = aiNextAction(s, rng);
+      if (a.type === 'takeback') s = E.takeBack(s);
+      else if (a.type === 'roll') s = E.roll(s, rng);
+      else if (a.type === 'place') s = E.place(s, a.rolled, a.card);
+      else s = E.endTurn(s);
+    }
+    for (const p of s.players) assert.equal(p.pile.reduce((x, y) => x + y, 0), p.score);
+  }
+});
+
 test('claiming returns opponents dice too', () => {
   let s = E.newGame(cfg, E.mulberry32(5));
   const card = s.cards[0];
