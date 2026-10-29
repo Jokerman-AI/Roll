@@ -23,8 +23,13 @@ body {
   font: clamp(14px, 1.1vw + 10.5px, 18px)/1.35 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   overscroll-behavior: none;
   user-select: none; -webkit-user-select: none;
+  touch-action: manipulation; /* no double-tap zoom delay; pinch zoom still works */
 }
+/* Safari will not let people type in a field inside a user-select:none page unless it opts back in */
+input, textarea { -webkit-user-select: text; user-select: text; }
+/* dice tumbling in from the side must not make the page scroll sideways */
 #app {
+  overflow-x: clip;
   min-height: 100dvh; max-width: 560px; margin: 0 auto;
   display: flex; flex-direction: column;
   padding: max(12px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-left)) max(12px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-right));
@@ -60,12 +65,16 @@ h1 { font-size: 2.4rem; margin: 0; letter-spacing: -.02em; }
   border: 2px solid transparent; display: flex; align-items: center; gap: 8px;
 }
 .chip.active { border-color: var(--c); background: #00000055; box-shadow: 0 0 0 2px #ffffff30; }
-.chip .meta { display: flex; flex-direction: column; min-width: 0; }
+.chip { container-type: inline-size; justify-content: center; }
+@container (max-width: 70px) { .chip .n { display: none; } .chip .av { width: 20px; height: 20px; } .chip .s { font-size: 1rem; } .chip .meta { flex: 0 0 auto; align-items: center; } }
+@container (max-width: 112px) { .chip .s small { display: none; } .chip .av { width: 24px; height: 24px; } .chip .s { font-size: 1.1rem; } }
+.chip .meta { display: flex; flex-direction: column; flex: 1 1 0; min-width: 0; }
 .chip .n { font-size: .8rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.chip .s { font-size: 1.3rem; font-weight: 800; line-height: 1.1; }
+.chip .s { font-size: 1.3rem; font-weight: 800; line-height: 1.1; white-space: nowrap; }
+@media (max-width: 360px) { .chip .s small { display: none; } }
 .chip .s small { font-size: .75rem; color: var(--muted); font-weight: 600; }
 
-.status { text-align: center; min-height: 1.4em; font-weight: 600; }
+.status { text-align: center; font-weight: 600; display: block; height: 1.6em; line-height: 1.6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } /* one fixed line, so a long message never resizes the table; the end is trimmed first */
 
 /* cards: laid out as a grid of playing cards, sized to whatever room the table has */
 .cards { container-type: size; min-width: 0; min-height: min(38dvh, 260px); }
@@ -77,9 +86,10 @@ h1 { font-size: 2.4rem; margin: 0; letter-spacing: -.02em; }
 .cardgrid[data-n="1"] { --cols: 1; }
 .cardgrid[data-n="2"] { --cols: 2; }
 .cardgrid[data-n="4"] { --cols: 4; }
-/* tall tables (portrait phones) use two rows; the free fourth place shows the deck */
-@container (max-aspect-ratio: 15/14) { .cardgrid[data-n="3"] { --cols: 2; --rows: 2; } .cardgrid[data-n="3"] .deckback { display: grid; } }
-@container (max-aspect-ratio: 10/7) { .cardgrid[data-n="4"] { --cols: 2; --rows: 2; } }
+/* Portrait phones tall enough use two rows, and the free fourth place shows the deck.
+   This is chosen from the screen's size only, never from the table's live size, so it cannot flip during a game. */
+@media (orientation: portrait) and (min-height: 700px) { .cardgrid[data-n="3"] { --cols: 2; --rows: 2; } .cardgrid[data-n="3"] .deckback { display: grid; } }
+@media (orientation: portrait) and (min-height: 540px) { .cardgrid[data-n="4"] { --cols: 2; --rows: 2; } }
 
 .gcard, .deckback {
   width: min(calc((100cqw - (var(--cols) - 1) * var(--gap)) / var(--cols)), calc((100cqh - (var(--rows) - 1) * var(--gap)) * 5 / (7 * var(--rows))), 200px);
@@ -87,7 +97,7 @@ h1 { font-size: 2.4rem; margin: 0; letter-spacing: -.02em; }
 }
 .gcard {
   --tier: #5f8a62;
-  container-type: inline-size; position: relative; display: grid; place-items: center; padding: 0;
+  container-type: inline-size; position: relative; padding: 0;
   color: var(--card-ink); background: linear-gradient(160deg, #fffdf4, #f4ecd3);
   border: 1px solid #cdbf93;
   box-shadow: 0 8px 16px #0006, inset 0 0 0 4px #fffdf4, inset 0 0 0 5px var(--tier);
@@ -97,16 +107,27 @@ h1 { font-size: 2.4rem; margin: 0; letter-spacing: -.02em; }
 .gcard[data-tier="3"] { --tier: #8a3fb0; }
 .gcard[data-tier="4"] { --tier: #b9861f; background: linear-gradient(160deg, #fffbe6, #f0dca6); }
 .gcard.accepts { transform: translateY(-8px) scale(1.04); box-shadow: 0 0 0 3px #ffd34d, 0 16px 24px #000a, inset 0 0 0 4px #fffdf4, inset 0 0 0 5px var(--tier); }
-.corner { position: absolute; display: flex; flex-direction: column; align-items: center; gap: 2cqw; line-height: 1; color: var(--tier); font-weight: 900; }
-.corner b { font-size: clamp(14px, 17cqw, 34px); }
-.corner i { width: 8cqw; height: 8cqw; background: var(--tier); transform: rotate(45deg); }
-.corner.tl { top: 8cqw; left: 9cqw; }
-.corner.br { bottom: 8cqw; right: 9cqw; transform: rotate(180deg); }
-.face { --fc: 1; display: flex; flex-wrap: wrap; gap: 3cqw; justify-content: center; align-content: center; width: 88%; }
-.slot { flex: 0 0 calc(100% / var(--fc) - 3cqw); display: flex; flex-direction: column; align-items: center; gap: 1cqw; }
-.slot .dots { display: flex; gap: 3px; height: 7px; }
-.slot .dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--c); }
-.face .die { --size: max(22px, calc(var(--dz, 30) * 1cqw)); }
+.corner { position: absolute; line-height: 1; color: var(--tier); font-weight: 900; }
+.corner b { font-size: clamp(14px, 16cqw, 34px); }
+.corner.tl { top: 6cqw; left: 8cqw; }
+.corner.br { bottom: 6cqw; right: 8cqw; transform: rotate(180deg); }
+/* the dice sit in the band between the two corner numbers, so they can never overlap them */
+.face {
+  --fc: 1; position: absolute; left: 8cqw; right: 8cqw; top: 27cqw; bottom: 27cqw;
+  display: flex; flex-wrap: wrap; gap: 3cqw; justify-content: center; align-content: center;
+}
+.slot { flex: 0 0 calc((100% - (var(--fc) - 1) * 3cqw) / var(--fc)); display: flex; flex-direction: column; align-items: center; }
+.face .die, .face .dwrap { --size: calc(var(--dz, 30) * 1cqw); }
+.slot { background: none; border: 0; padding: 0; font: inherit; color: inherit; cursor: pointer; }
+.dwrap { position: relative; display: block; width: var(--size); height: var(--size); }
+/* count of players covering a die, shown only when it is shared */
+.badge {
+  position: absolute; top: 0; right: 0; transform: translate(45%, -45%); z-index: 2;
+  width: max(14px, calc(var(--size) * .32)); height: max(14px, calc(var(--size) * .32)); border-radius: 50%;
+  display: grid; place-items: center; background: #1d2b24; color: #fff;
+  font: 800 max(9px, calc(var(--size) * .2))/1 system-ui, sans-serif; box-shadow: 0 0 0 2px #fffdf4;
+}
+.slot.peeked .die { outline: 3px solid #ffd34d; outline-offset: 2px; }
 .deckback {
   display: none; place-items: center; align-content: center; color: #fff; text-align: center; line-height: 1.1;
   background: repeating-linear-gradient(45deg, #1d4f8f 0 7px, #2a63ad 7px 14px);
@@ -126,7 +147,11 @@ h1 { font-size: 2.4rem; margin: 0; letter-spacing: -.02em; }
 .die i.on { background: var(--pip); }
 .die.ghost { --bg: #e8dfc4; --pip: #8a7a55; box-shadow: inset 0 0 0 2px #c9bc96; }
 .die.mine, .die.owned { --bg: var(--c); --pip: var(--pc, #fff); }
+/* a die covered by several players is split into slices of their colours; pips get an outline to stay readable */
+.die.shared i.on { box-shadow: 0 0 0 1px #0007; }
 .die.hand { opacity: .55; }
+.die.empty { --bg: transparent; box-shadow: none; border: 2px dashed #ffffff30; }
+.die.empty i { display: none; }
 
 /* tray */
 .tray { background: #00000030; border-radius: var(--radius); padding: 12px; }
@@ -198,7 +223,7 @@ h1 { font-size: 2.4rem; margin: 0; letter-spacing: -.02em; }
 .modal { padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
 
 /* ---- landscape phones, tablets, unfolded foldables: cards left, controls right ---- */
-@media (orientation: landscape) and (min-width: 600px) {
+@media (orientation: landscape) and (min-width: 480px) {
   #app { max-width: 1000px; }
   .game {
     grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
@@ -235,8 +260,24 @@ h1 { font-size: 2.4rem; margin: 0; letter-spacing: -.02em; }
   .tray { align-self: center; width: min(560px, calc(100% - 32px)); }
 }
 
+/* ---- short landscape screens (a small phone on its side): tighter controls ---- */
+@media (orientation: landscape) and (max-height: 430px) {
+  :root { --td: clamp(26px, 9dvh, 56px); }
+  #app { padding-block: 8px; }
+  .game { gap: 6px; }
+  .btn { min-height: 40px; padding: 8px 12px; }
+  .tray { padding: 6px; }
+  .dice { gap: 6px; }
+  .actions { margin-top: 6px; }
+  .status { font-size: .85rem; line-height: 1.2; }
+  .score { gap: 4px; }
+  .chip { padding: 3px 5px; }
+  .actions .btn:not(.icon) { white-space: nowrap; font-size: .85rem; padding-inline: 8px; }
+  .btn.icon { min-width: 40px; padding: 0 8px; }
+}
+
 /* ---- very small screens ---- */
-@media (max-height: 640px) { .game { gap: 6px; } .cardgrid { --gap: 6px; } .status { min-height: 0; } .score { gap: 6px; } .chip { padding: 5px 8px; } .chip .s { font-size: 1.1rem; } .chip .av { width: 24px; height: 24px; } .chip { gap: 6px; } .tray { padding: 8px; } .btn { min-height: 44px; padding: 10px 14px; } }
+@media (max-height: 640px) { .pile i { width: 12px; height: 17px; font-size: 8px; line-height: 14px; } .game { gap: 6px; } .cardgrid { --gap: 6px; } .score { gap: 6px; } .pile { min-height: 17px; } .chip { padding: 5px 8px; } .chip .s { font-size: 1.1rem; } .chip .av { width: 24px; height: 24px; } .chip { gap: 6px; } .tray { padding: 8px; } .btn { min-height: 44px; padding: 10px 14px; } }
 
 /* ---- player icons and the editor ---- */
 .av {
@@ -270,6 +311,85 @@ h1 { font-size: 2.4rem; margin: 0; letter-spacing: -.02em; }
 .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 8px; }
 .row2 .btn { margin: 0; }
 .avbtn:focus-visible, .btn:focus-visible, .ink:focus-visible, .swatch:focus-visible { outline: 3px solid #ffd34d; outline-offset: 2px; }
+
+/* ---- claimed-card piles, celebrations, hints, connection banner ---- */
+.chip .s .num { font-variant-numeric: tabular-nums; display: inline-block; }
+.chip.bump { animation: bump .6s ease-out; }
+@keyframes bump { 30% { transform: scale(1.08); box-shadow: 0 0 0 4px #ffd34d88; } }
+.chip { flex-wrap: wrap; }
+.pile { display: flex; align-items: center; flex: 1 0 100%; margin-top: 1px; padding-left: 2px; min-width: 0; overflow: hidden; min-height: 21px; }
+.pile.blank { visibility: hidden; }
+.score[data-rows="2"] .pile.blank { display: none; } /* tall scoreboards give the space back until a first card is claimed */
+.pile i {
+  --tier: #5f8a62; width: 15px; height: 21px; margin-left: -6px; border-radius: 3px; flex: none;
+  background: #fffdf4; border: 1.5px solid var(--tier); color: var(--tier);
+  font: 800 9px/18px system-ui, sans-serif; font-style: normal; text-align: center;
+  box-shadow: -1px 1px 2px #0005; transform: rotate(calc((var(--n, 0) - 2) * 2deg));
+}
+.pile i:first-of-type { margin-left: 0; }
+.pile i[data-tier="2"] { --tier: #3b78c2; }
+.pile i[data-tier="3"] { --tier: #8a3fb0; }
+.pile i[data-tier="4"] { --tier: #b9861f; background: #f6e7b5; }
+.pile em { font-style: normal; font-size: .65rem; color: var(--muted); margin-right: 6px; }
+
+.fly { position: fixed; z-index: 25; pointer-events: none; will-change: transform, opacity; }
+.fly .gcard { width: 100%; height: 100%; aspect-ratio: auto; transform: none; box-shadow: 0 10px 22px #000a; }
+
+.confetti { position: fixed; inset: 0; z-index: 25; pointer-events: none; overflow: hidden; }
+.confetti i {
+  position: absolute; top: -16px; width: 9px; height: 14px; border-radius: 2px;
+  animation: confetti-fall 3s cubic-bezier(.3, .6, .5, 1) forwards;
+}
+@keyframes confetti-fall {
+  0% { transform: translate(0, 0) rotate(0deg); opacity: 1; }
+  100% { transform: translate(var(--dx), 110vh) rotate(var(--spin)); opacity: .9; }
+}
+
+.hinted { animation: hint-glow 0.9s ease-in-out infinite; }
+.dice .die.hinted { outline: 4px solid #ffd34d; outline-offset: 3px; }
+.gcard.hinted { box-shadow: 0 0 0 4px #ffd34d, 0 14px 22px #000a, inset 0 0 0 4px #fffdf4, inset 0 0 0 5px var(--tier); }
+@keyframes hint-glow { 50% { filter: brightness(1.22); transform: translateY(-4px); } }
+
+.btn.icon { flex: 0 0 auto; min-width: 48px; padding: 0 12px; font-size: 1.15rem; }
+.actions .btn.icon { flex: 0 0 auto; }
+
+.conn {
+  position: fixed; left: 50%; top: max(8px, env(safe-area-inset-top)); transform: translateX(-50%); z-index: 20;
+  background: #b9861f; color: #fff; padding: 8px 14px; border-radius: 999px; font-weight: 700; font-size: .9rem; white-space: nowrap;
+}
+.conn.lost { background: #b3382f; }
+.conn button { margin-left: 8px; border: 0; border-radius: 999px; padding: 4px 10px; font-weight: 800; background: #fff; color: #b3382f; }
+
+.stamps { gap: 6px; }
+.stamp { width: 42px; height: 42px; border-radius: 12px; border: 0; background: #0001; font-size: 1.4rem; line-height: 1; padding: 0; }
+.stamp.on { outline: 3px solid #2b2417; outline-offset: 2px; background: #fff; }
+
+/* ---- who-has-this-die popover ---- */
+.peek {
+  position: fixed; z-index: 15; background: var(--card); color: var(--card-ink); border-radius: 14px; padding: 12px;
+  box-shadow: 0 14px 30px #000a, 0 0 0 1px #0002; font-size: .95rem;
+}
+.peek h3 { margin: 0 0 6px; font-size: .95rem; display: flex; align-items: center; gap: 8px; }
+.peek .orow { display: flex; align-items: center; gap: 8px; padding: 3px 0; }
+.peek .orow > span:not(.av) { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.peek .orow .av { flex: none; }
+.peek .orow small { color: #6b5d3b; }
+.peek .none { color: #6b5d3b; padding: 2px 0; }
+.peek .sum { border-top: 1px solid #0002; margin-top: 8px; padding-top: 6px; }
+.peek .sumh { font-size: .75rem; letter-spacing: .06em; text-transform: uppercase; color: #6b5d3b; margin-bottom: 2px; }
+
+/* two-line label that always fits: the main words, with the rest underneath */
+.actions .btn small { display: block; font-size: .72em; font-weight: 600; opacity: .85; white-space: nowrap; }
+.actions .btn { line-height: 1.15; padding-inline: 8px; }
+@media (max-width: 360px) { .actions { gap: 6px; } .actions .btn { padding-inline: 4px; font-size: .82rem; } .actions .btn.icon { min-width: 42px; } }
+.actions .btn:not(.icon) { white-space: nowrap; }
+.actions .btn[data-act="roll"] { min-width: 60px; }
+
+
+/* The button row has one fixed height in every phase, so swapping between "Take back" and "End turn" never moves the table. */
+.actions .btn { height: 3.4rem; min-height: 0; padding-block: 0; }
+@media (max-height: 640px) { .actions .btn { height: 2.9rem; } }
+@media (orientation: landscape) and (max-height: 430px) { .actions .btn { height: 2.7rem; } }
 
 body { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
 #app { padding: 12px 0; }
@@ -379,7 +499,7 @@ function rollOff(count, rng) {
 
 function newGame(configs, rng = Math.random) {
   if (configs.length < 2 || configs.length > MAX_PLAYERS) throw new Error('2-8 players');
-  const players = configs.map((c) => ({ name: c.name, cpu: !!c.cpu, score: 0 }));
+  const players = configs.map((c) => ({ name: c.name, cpu: !!c.cpu, score: 0, pile: [] })); // pile: points of cards claimed
   const { first, total } = rollOff(players.length, rng);
   const state = {
     players,
@@ -462,6 +582,7 @@ function place(state, rolledIdx, cardIdx) {
 
   if (missing(card, p).length === 0) {
     s.players[p].score += card.points;
+    s.players[p].pile = [...(s.players[p].pile || []), card.points];
     s.lastClaim = { player: p, points: card.points, need: card.need };
     // Every player's dice on the claimed card go back to their hands.
     s.cards.splice(cardIdx, 1);
@@ -491,34 +612,221 @@ function endTurn(state) {
 return { DICE_PER_PLAYER, TARGET_SCORE, MAX_PLAYERS, mulberry32, buildDeck, cardsInPlay, missing, handSize, newGame, takeBack, roll, canPlace, legalMoves, place, endTurn };
 })();
 
-/** Decide the CPU's next single action for the current state. */
-function aiNextAction(s, rng = Math.random) {
-  const me = s.current;
+// The computer player. It only uses what every player can see: the cards, everyone's dice and scores.
+// To judge a choice it plays out the next couple of turns many times (a quick Monte Carlo look-ahead)
+// with a simple "place every die where it helps most" policy, and picks the option that scores best.
+// The simulations use a generator seeded from the position, so the same position always gets the same
+// answer, which also keeps the hint button consistent.
 
+const LOOKAHEAD = 3; // turns to play out, including the current one
+const SIMS = 64; // playouts per option
+
+/** Chance we still get a card first, given how close the nearest rival is. */
+function race(missing, rival) {
+  if (rival < missing) return 0.35;
+  if (rival === missing) return 0.7;
+  return 1;
+}
+
+/** What I know about each card, reduced to counts so playouts are cheap. */
+function snapshot(s, me) {
+  const cards = s.cards.map((card) => {
+    const need = new Array(7).fill(0);
+    const have = new Array(7).fill(0);
+    for (const f of card.need) need[f]++;
+    for (const f of card.placed[me]) have[f]++;
+    let rival = Infinity;
+    s.players.forEach((_, p) => { if (p !== me) rival = Math.min(rival, E.missing(card, p).length); });
+    return { points: card.points, need, have, total: card.need.length, placed: card.placed[me].length, rival, alive: true };
+  });
+  const topRival = Math.max(0, ...s.players.filter((_, p) => p !== me).map((p) => p.score));
+  return { cards, onCards: cards.reduce((n, c) => n + c.placed, 0), score: s.players[me].score, topRival };
+}
+
+const copyModel = (m) => ({ ...m, cards: m.cards.map((c) => ({ ...c, have: c.have.slice() })) });
+
+/** What finishing a card is worth. `certain` means it happens this turn, with dice already rolled. */
+function completionValue(c, certain, score, topRival) {
+  let v = c.points * (certain ? 1 : race(1, c.rival));
+  if (score + c.points >= E.TARGET_SCORE) v += certain ? 1000 : 25 * race(1, c.rival); // winning
+  if (c.rival <= 1) {
+    v += 0.3 * c.points; // taking a card a rival is about to finish
+    if (topRival + c.points >= E.TARGET_SCORE) v += certain ? 10 : 3; // ...especially if it would win them the game
+  }
+  return v;
+}
+
+/** Place one die on a card (the card must need it). Returns the value gained if that finished the card. */
+function put(m, c, face, certain) {
+  c.have[face]++;
+  c.placed++;
+  m.onCards++;
+  if (c.placed < c.total) return 0;
+  const gained = completionValue(c, certain, m.score, m.topRival);
+  m.score += c.points;
+  m.onCards -= c.total; // the dice on a finished card come home
+  c.alive = false;
+  return gained;
+}
+
+/** Play `turns` turns with a simple policy and return what they were worth. `firstDice` are this turn's dice if already rolled. */
+function rollout(model, rng, firstDice, turns, minFree = 0, nearDone = 0) {
+  const m = copyModel(model);
+  let gain = 0;
+  for (let t = 0; t < turns; t++) {
+    const certain = t === 0 && firstDice !== null;
+    const dice = certain ? firstDice : Array.from({ length: Math.max(0, E.DICE_PER_PLAYER - m.onCards) }, () => 1 + Math.floor(rng() * 6));
+    for (const f of dice) {
+      let best = null;
+      let bestV = -1;
+      for (const c of m.cards) {
+        if (!c.alive || c.have[f] >= c.need[f]) continue;
+        const missing = c.total - c.placed;
+        const freeAfter = E.DICE_PER_PLAYER - m.onCards - 1;
+        if (missing > 1 && (freeAfter < 1 || (missing - 1 > nearDone && freeAfter < minFree))) continue; // keep dice free, as the floor says
+        const v = (missing === 1 ? 1000 : 0) + (c.points * (certain ? 1 : race(missing, c.rival)) * (c.placed + 1)) / c.total;
+        if (v > bestV) { bestV = v; best = c; }
+      }
+      if (best) {
+        gain += put(m, best, f, certain);
+        if (certain && m.score >= E.TARGET_SCORE) return gain; // the game is won: nothing after this matters
+      }
+    }
+  }
+  // Unfinished cards count for part of their points, more the closer they are, less if a rival is ahead.
+  for (const c of m.cards) {
+    if (c.alive && c.placed > 0) gain += c.points * race(c.total - c.placed, c.rival) * (c.placed / c.total) ** 2 * 0.5;
+  }
+  return gain;
+}
+
+const average = (fn, seed) => {
+  let sum = 0;
+  for (let i = 0; i < SIMS; i++) sum += fn(mulberry(seed + i * 7919));
+  return sum / SIMS;
+};
+
+function mulberry(seed) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/** A number that depends only on the position, so the same position is always judged the same way. */
+function seedOf(s) {
+  let h = 2166136261;
+  const text = JSON.stringify([s.current, s.rolled, s.players.map((p) => p.score), s.cards.map((c) => [c.id, c.placed])]);
+  for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 16777619);
+  return h >>> 0;
+}
+
+/** Every legal placement, best first, with the value of ending the turn for comparison. */
+function rankMoves(s) {
+  const me = s.current;
+  const model = snapshot(s, me);
+  const seed = seedOf(s);
+  const baseline = average((rng) => rollout(model, rng, [], LOOKAHEAD), seed);
+  const free = E.handSize(s, me);
+  const moves = E.legalMoves(s).map((mv) => {
+    const m = copyModel(model);
+    // never spend the last free die on a card it does not finish: that leaves nothing to roll next turn
+    const c = model.cards[mv.card];
+    const allowed = free > 1 || c.placed + 1 === c.total;
+    const face = s.rolled[mv.rolled];
+    const finishes = m.cards[mv.card].placed + 1 === m.cards[mv.card].total;
+    const gainedNow = put(m, m.cards[mv.card], face, true);
+    if (m.score >= E.TARGET_SCORE) return { ...mv, allowed, value: gainedNow + 1e-3 }; // a winning card ends the game, and beats any other way of winning
+    const rest = s.rolled.filter((_, i) => i !== mv.rolled);
+    // On a tie, finish the card first.
+    return { ...mv, allowed, value: gainedNow + average((rng) => rollout(m, rng, rest, LOOKAHEAD), seed) + (finishes ? 1e-6 : 0) };
+  });
+  moves.sort((a, b) => b.value - a.value);
+  return { moves, baseline };
+}
+
+/** The simple strategy: finish cards when possible, otherwise favour big cards that are nearly done. */
+function greedyAction(s, rng, minFree = 0, nearDone = 0) {
+  const me = s.current;
   if (s.phase === 'start') {
     const hand = E.handSize(s, me);
     if (hand === 0) return { type: 'takeback' };
-    // Take Back resets everything, so only do it when stuck with few dice and no card nearly done.
     const closest = Math.min(...s.cards.map((c) => (c.placed[me].length ? E.missing(c, me).length : Infinity)));
-    if (hand <= 2 && closest > 1 && rng() < 0.6) return { type: 'takeback' };
-    return { type: 'roll' };
+    return hand <= 2 && closest > 1 && rng() < 0.6 ? { type: 'takeback' } : { type: 'roll' };
   }
-
-  const moves = E.legalMoves(s);
-  if (!moves.length) return { type: 'end' };
-  let best = moves[0];
+  let best = null;
   let bestScore = -Infinity;
-  for (const m of moves) {
+  const free = E.handSize(s, me); // dice not on cards, rolled ones included
+  for (const m of E.legalMoves(s)) {
     const card = s.cards[m.card];
     const left = E.missing(card, me).length - 1;
+    // Spending a die leaves one fewer to roll next turn: don't go below `minFree` unless this finishes the card.
+    if (left > 0 && (free - 1 < 1 || (left > nearDone && free - 1 < minFree))) continue; // never spend the last free die on a card that stays unfinished
     const score = card.points / (left + 1) + (left === 0 ? 100 : 0) + rng() * 0.1;
-    if (score > bestScore) {
-      bestScore = score;
-      best = m;
-    }
+    if (score > bestScore) { bestScore = score; best = m; }
   }
-  return { type: 'place', rolled: best.rolled, card: best.card };
+  return best ? { type: 'place', rolled: best.rolled, card: best.card } : { type: 'end' };
 }
+
+/**
+ * Strengths. `smartTakeBack`: decide Take Back by looking ahead. `smartPlace`: how often a placement decision
+ * (where to put a die, or whether to place it at all or keep it to roll again) uses the look-ahead.
+ * `minFree`: when not using the look-ahead, don't spend a die that would leave fewer than this many free to roll
+ * next turn unless the die finishes the card, or leaves it one die from done (`nearDone`). A die that would
+ * leave nothing to roll is never spent on a card it does not finish.
+ */
+const LEVELS = {
+  easy: { smartTakeBack: false, smartPlace: 0, minFree: 1, nearDone: 0 },
+  normal: { smartTakeBack: false, smartPlace: 0, minFree: 2, nearDone: 1 }, // sensible rules of thumb, no look-ahead
+  hard: { smartTakeBack: true, smartPlace: 1, minFree: 0, nearDone: 0 },
+};
+const DEFAULT_LEVEL = 'normal';
+
+/** Decide the CPU's next single action for the current state. */
+function aiNextAction(s, { level = DEFAULT_LEVEL, rng = Math.random } = {}) {
+  const { smartTakeBack, smartPlace, minFree, nearDone } = LEVELS[level] || LEVELS[DEFAULT_LEVEL];
+  if (s.phase === 'start') return smartTakeBack ? smartStart(s, minFree, nearDone) : greedyAction(s, rng, minFree, nearDone);
+  return smartPlace >= 1 || rng() < smartPlace ? smartPlacing(s) : greedyAction(s, rng, minFree, nearDone);
+}
+
+function smartStart(s, minFree = 0, nearDone = 0) {
+  const me = s.current;
+  {
+    const hand = E.handSize(s, me);
+    if (hand === 0) return { type: 'takeback' };
+    if (hand === E.DICE_PER_PLAYER) return { type: 'roll' };
+    // Keep what is on the cards, or take it all back and roll all six: whichever plays out better.
+    const keep = snapshot(s, me);
+    const reset = copyModel(keep);
+    reset.onCards = 0;
+    for (const c of reset.cards) { c.have.fill(0); c.placed = 0; }
+    const seed = seedOf(s);
+    const keepValue = average((rng) => rollout(keep, rng, null, LOOKAHEAD, minFree, nearDone), seed);
+    const resetValue = average((rng) => rollout(reset, rng, null, LOOKAHEAD, minFree, nearDone), seed);
+    return resetValue > keepValue + 0.5 ? { type: 'takeback' } : { type: 'roll' };
+  }
+}
+
+function smartPlacing(s) {
+  if (!E.legalMoves(s).length) return { type: 'end' };
+  const { moves, baseline } = rankMoves(s);
+  const best = moves.find((mv) => mv.allowed);
+  // Only place a die if doing so beats ending the turn and keeping it to roll again.
+  return best && best.value > baseline + 0.05 ? { type: 'place', rolled: best.rolled, card: best.card } : { type: 'end' };
+}
+
+/** The best legal placement even when ending the turn would be better (or null if nothing fits). */
+function bestPlacement(s) {
+  const { moves } = rankMoves(s);
+  return moves.length ? { rolled: moves[0].rolled, card: moves[0].card } : null;
+}
+
+/** For tools and tests: every legal placement with its value, and the value of ending the turn instead. */
+const explain = rankMoves;
 
 // Player look: dice colours and the little drawing used as a player icon.
 
@@ -532,6 +840,25 @@ const PALETTE = [
   { name: 'Pink', hex: '#ec4899', pip: '#ffffff' },
   { name: 'Black', hex: '#2a2f3a', pip: '#ffffff' },
 ];
+
+// Names for computer players, all short enough for a scoreboard chip.
+const CPU_NAMES = [
+  'Dicey', 'Snake Eyes', 'Lucky', 'Boxcars', 'Rollo', 'Pips', 'Tumbler', 'Cubert', 'Ace', 'Jinx',
+  'Gizmo', 'Pixel', 'Turbo', 'Widget', 'Sparky', 'Nova', 'Clank', 'Bolt', 'Dottie', 'Hazard',
+  'Wildcard', 'Roulette', 'Domino', 'Shaker', 'Gambit', 'Fortune', 'Chance', 'Roller', 'Sixer', 'Lucky 7',
+  'Rolo', 'Bones', 'Pebble', 'Tango', 'Zigzag', 'Maverick', 'Dash', 'Echo', 'Fizz', 'Comet',
+];
+
+/** A random computer-player name that nobody at the table already has. */
+function cpuName(taken = []) {
+  const used = new Set(taken.map((n) => String(n).trim().toLowerCase()));
+  const free = CPU_NAMES.filter((n) => !used.has(n.toLowerCase()));
+  if (free.length) return free[Math.floor(Math.random() * free.length)];
+  for (let i = 2; ; i++) {
+    const n = `Robo ${i}`;
+    if (!used.has(n.toLowerCase())) return n;
+  }
+}
 
 /** `wanted` if no one else has it, otherwise the first colour nobody has. */
 function freeColor(taken, wanted) {
@@ -556,7 +883,8 @@ function safeAvatar(value) {
 // Icons are drawn on opaque paper, so the dice colour only ever appears as the ring around them.
 const PAPER = '#fffdf4';
 const INK = [PALETTE[7].hex, ...PALETTE.slice(0, 7).map((c) => c.hex)];
-const BRUSHES = [4, 8, 14];
+const BRUSHES = [8, 14, 22]; // the middle one is the default, thick enough to read on a small scoreboard icon
+const STAMPS = ['😀', '😎', '🤠', '🥳', '🐱', '🐶', '🦊', '🐸', '🐼', '🦄', '👑', '🔥'];
 const AVATAR_SIZE = 128;
 const SIZE = AVATAR_SIZE;
 
@@ -572,7 +900,7 @@ function makeSketch() {
   buf.width = SIZE;
   buf.height = SIZE;
   fillPaper(buf);
-  return { buf, dirty: false, ink: INK[0], width: BRUSHES[1], erase: false };
+  return { buf, dirty: false, ink: INK[0], width: BRUSHES[1], erase: false, stamp: null };
 }
 
 function paintCanvas(canvas, sketch) {
@@ -605,6 +933,18 @@ function strokeSegment(sketch, from, to) {
     ctx.lineTo(to.x, to.y);
     ctx.stroke();
   }
+  sketch.dirty = true;
+}
+
+/** Press an emoji stamp onto the drawing, sized to the current brush. */
+function stampAt(sketch, at) {
+  const ctx = sketch.buf.getContext('2d');
+  const size = sketch.width * 4;
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.font = `${size}px system-ui, "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(sketch.stamp, at.x, at.y + size * 0.05);
   sketch.dirty = true;
 }
 
@@ -670,23 +1010,54 @@ function snapshotOf(room) {
 /** Rooms kept in the host page's shared database (the claude.ai artifact). */
 function dbStore(db) {
   const doc = (code) => db.collection('rooms').doc(code);
+  // Wrap the platform's document reference instead of adding to it, which it may not allow.
+  const wrap = (ref) => ({
+    get: () => ref.get(),
+    set: (data) => ref.set(data),
+    acquire: (options) => ref.acquire(options),
+    onSnapshot: (next, error) => ref.onSnapshot(next, error),
+    close() {},
+  });
   return {
     kind: 'db',
     async host(code, { resume = false } = {}) {
       const ref = doc(code);
       if (!resume && (await ref.get()).exists) throw new Error('taken');
-      return Object.assign(ref, { close() {} });
+      return wrap(ref);
     },
     async join(code) {
       const ref = doc(code);
       if (!(await ref.get()).exists) throw new Error('notfound');
-      return Object.assign(ref, { close() {} });
+      return wrap(ref);
     },
   };
 }
 
+// PeerJS ships with a STUN server and a free shared TURN relay; these are repeated here so that your
+// own relay (set in config.js as RFI_ICE_SERVERS) is added on top of them rather than replacing them.
+const DEFAULT_ICE = [
+  { urls: 'stun:stun.l.google.com:19302' },
+  { urls: ['turn:eu-0.turn.peerjs.com:3478', 'turn:us-0.turn.peerjs.com:3478'], username: 'peerjs', credential: 'peerjsp' },
+];
+
+function withIce(options, extra) {
+  const custom = Array.isArray(extra) ? extra : [];
+  return { ...options, config: { ...options?.config, iceServers: options?.config?.iceServers ?? [...DEFAULT_ICE, ...custom] } };
+}
+
+/** Small helper: a status value (online / reconnecting / lost) that listeners can follow. */
+function statusFeed() {
+  const subs = new Set();
+  let value = 'online';
+  return {
+    set(next) { if (next !== value) { value = next; subs.forEach((cb) => cb(value)); } },
+    on(cb) { subs.add(cb); cb(value); return () => subs.delete(cb); },
+  };
+}
+
 /** Rooms held in the host's browser, reached over WebRTC through PeerJS. */
-function p2pStore(Peer, options, uid) {
+function p2pStore(Peer, options, uid, extraIce) {
+  const peerOptions = withIce(options, extraIce);
   const open = (peer) => new Promise((resolve, reject) => {
     peer.on('open', resolve);
     peer.on('error', (e) => reject(Object.assign(new Error(e.type), { type: e.type })));
@@ -698,10 +1069,11 @@ function p2pStore(Peer, options, uid) {
     async host(code, { resume = false } = {}) {
       let room = resume ? tryStorage(() => JSON.parse(localStorage.getItem(keyOf(code)))) : null;
       if (resume && !room) throw new Error('notfound');
-      const peer = new Peer(PEER_PREFIX + code, options);
+      const peer = new Peer(PEER_PREFIX + code, peerOptions);
       try { await open(peer); } catch (e) { peer.destroy(); throw new Error(e.type === 'unavailable-id' ? 'taken' : 'network'); }
 
       const subs = new Set();
+      const status = statusFeed();
       const conns = new Map(); // peer connection -> player uid
       const broadcast = () => {
         for (const conn of conns.keys()) if (conn.open) conn.send({ t: 'room', room });
@@ -717,6 +1089,7 @@ function p2pStore(Peer, options, uid) {
       const onGuestMessage = (conn, msg) => {
         const sender = conns.get(conn);
         if (!room || !sender) return;
+        if (msg.t === 'ping') { conn.send({ t: 'pong' }); return; }
         if (msg.t === 'hello') { conn.send({ t: 'room', room }); return; }
         if (msg.t !== 'set' || !msg.room) return;
         if (room.status === 'lobby') {
@@ -750,76 +1123,121 @@ function p2pStore(Peer, options, uid) {
         conn.on('data', (msg) => onGuestMessage(conn, msg));
         conn.on('close', () => conns.delete(conn));
       });
-      peer.on('disconnected', () => peer.reconnect());
+
+      // A locked or backgrounded phone drops its link to the signalling server; get it back.
+      let regain = 0;
+      const regainSignal = () => {
+        if (peer.destroyed || !peer.disconnected) return;
+        status.set('reconnecting');
+        try { peer.reconnect(); } catch { /* not ready yet; the timer tries again */ }
+        clearTimeout(regain);
+        regain = setTimeout(regainSignal, 3000);
+      };
+      peer.on('disconnected', regainSignal);
+      peer.on('open', () => { clearTimeout(regain); status.set('online'); });
+      const onVisible = () => { if (!document.hidden) regainSignal(); };
+      document.addEventListener('visibilitychange', onVisible);
 
       return {
         async get() { return snapshotOf(room); },
         async set(next) { publish(JSON.parse(JSON.stringify(next))); },
         async acquire() { return { acquired: true }; },
         onSnapshot(next) { subs.add(next); next(snapshotOf(room)); return () => subs.delete(next); },
-        close() { peer.destroy(); },
+        onStatus: status.on,
+        retry: regainSignal,
+        close() {
+          clearTimeout(regain);
+          document.removeEventListener('visibilitychange', onVisible);
+          for (const conn of conns.keys()) if (conn.open) conn.send({ t: 'bye' }); // so guests leave at once
+          tryStorage(() => localStorage.removeItem(keyOf(code)));
+          setTimeout(() => peer.destroy(), 250);
+        },
       };
     },
 
     async join(code) {
-      const peer = new Peer(undefined, options);
+      const peer = new Peer(undefined, peerOptions);
       try { await open(peer); } catch { peer.destroy(); throw new Error('network'); }
 
-      let room = null;
+      let room = null; // the last room we were sent; kept while reconnecting
+      let fresh = true; // the next room message is the first on a new connection
       let conn = null;
       let closed = false;
+      let lastSeen = Date.now();
       const subs = new Set();
       const errors = new Set();
+      const status = statusFeed();
 
+      let latest = null; // the newest connection attempt; anything from an older one is ignored
       const connect = () => new Promise((resolve, reject) => {
         const c = peer.connect(PEER_PREFIX + code, { metadata: { uid }, reliable: true });
-        const timer = setTimeout(() => reject(new Error('notfound')), 8000);
+        latest = c;
+        const timer = setTimeout(() => reject(new Error('timeout')), 15000); // slow networks can take a while
         const onPeerError = (e) => { if (e.type === 'peer-unavailable') { clearTimeout(timer); reject(new Error('notfound')); } };
         peer.on('error', onPeerError);
         c.on('open', () => c.send({ t: 'hello' }));
         c.on('data', (msg) => {
+          if (c !== latest) return;
+          lastSeen = Date.now();
+          if (msg.t === 'bye') { closed = true; errors.forEach((cb) => cb({ code: 'closed' })); return; }
           if (msg.t !== 'room') return;
           clearTimeout(timer);
           peer.off('error', onPeerError);
-          const first = room === null;
           room = msg.room;
-          if (first) { conn = c; resolve(); }
+          if (fresh) { fresh = false; conn = c; status.set('online'); resolve(); }
           subs.forEach((cb) => cb(snapshotOf(room)));
         });
         c.on('close', () => { if (!closed && conn === c) reconnect(); });
       });
 
+      // Keeps trying for about two minutes, since the host may only have locked their phone for a moment.
       let retrying = false;
       async function reconnect() {
-        if (retrying) return;
+        if (retrying || closed) return;
         retrying = true;
-        for (let i = 0; i < 8 && !closed; i++) {
-          await new Promise((r) => setTimeout(r, 1500));
+        status.set('reconnecting');
+        for (let i = 0; i < 30 && !closed; i++) {
+          await new Promise((r) => setTimeout(r, Math.min(1500 + i * 500, 5000)));
           try {
             if (peer.disconnected) peer.reconnect();
-            room = null; // so the first message after reconnecting is treated as fresh
+            fresh = true; // the first message after reconnecting replaces our connection
             await connect();
             retrying = false;
             return;
           } catch { /* try again */ }
         }
         retrying = false;
+        status.set('lost');
         errors.forEach((cb) => cb({ code: 'lost' }));
       }
 
       await connect().catch((e) => { peer.destroy(); throw e; });
 
+      // A phone that was backgrounded can keep a dead link open; ping so it is noticed, and recheck on wake-up.
+      const beat = setInterval(() => {
+        if (closed || retrying || !conn) return;
+        if (Date.now() - lastSeen > 25000) { conn.close(); return; }
+        if (conn.open) conn.send({ t: 'ping' });
+      }, 8000);
+      const onVisible = () => {
+        if (document.hidden || closed || retrying) return;
+        if (!conn?.open || Date.now() - lastSeen > 25000) { try { conn?.close(); } catch { /* already closed */ } reconnect(); }
+      };
+      document.addEventListener('visibilitychange', onVisible);
+
       return {
         async get() { return snapshotOf(room); },
         async set(next) {
-          if (!conn?.open) return;
+          if (!conn?.open) throw new Error('offline');
           // A move only needs the game; everything else (seats, icons) is the host's to keep.
-          const room = next.game ? { game: next.game, status: next.status } : next;
-          conn.send({ t: 'set', room: JSON.parse(JSON.stringify(room)) });
+          const sent = next.game ? { game: next.game, status: next.status } : next;
+          conn.send({ t: 'set', room: JSON.parse(JSON.stringify(sent)) });
         },
         async acquire() { return { acquired: true }; },
         onSnapshot(next, error) { subs.add(next); if (error) errors.add(error); next(snapshotOf(room)); return () => { subs.delete(next); errors.delete(error); }; },
-        close() { closed = true; peer.destroy(); },
+        onStatus: status.on,
+        retry: () => { try { conn?.close(); } catch { /* already closed */ } retrying = false; reconnect(); },
+        close() { closed = true; clearInterval(beat); document.removeEventListener('visibilitychange', onVisible); peer.destroy(); },
       };
     },
   };
@@ -857,14 +1275,18 @@ const ui = {
   online: false,
   joinCode: '',
   setup: [
-    { name: 'You', cpu: false, color: profile.color, avatar: profile.avatar },
-    { name: 'Robo', cpu: true, color: freeColor([profile.color], 1), avatar: '' },
+    { name: 'You', cpu: false, me: true, color: profile.color, avatar: profile.avatar }, // `me` marks the row that is saved as your profile
+    { name: cpuName(['You']), cpu: true, color: freeColor([profile.color], 1), avatar: '' },
   ],
   cfg: [], // players of the local game in progress
   game: null,
   selected: null,
   rolling: false,
   fx: [],
+  hint: null, // {rolled, card} or {button}
+  peek: null, // {card, slot, id}: the who-has-this-die popover, kept while that card is on the table
+  undo: [], // game states before this turn's placements
+  conn: 'online',
   modal: null,
   ed: null, // icon / colour editor
 };
@@ -872,6 +1294,8 @@ let timer = 0;
 let toastTimer = 0;
 let rollTimer = 0;
 let rollClock = 0;
+let hintTimer = 0;
+let peekTimer = 0;
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const wins = (name) => `${esc(name)} ${name.trim().toLowerCase() === 'you' ? 'win' : 'wins'}!`;
@@ -880,7 +1304,7 @@ const isHost = () => net.room?.hostUid === net.uid;
 /* ---------- players' looks ---------- */
 
 const seats = () => (ui.online ? net.room?.seats : ui.cfg) || [];
-const swatch = (p, i) => PALETTE[Number.isInteger(p?.color) ? p.color % PALETTE.length : i % PALETTE.length];
+const swatch = (p, i) => PALETTE[Number.isInteger(p?.color) ? ((p.color % PALETTE.length) + PALETTE.length) % PALETTE.length : i % PALETTE.length];
 const hexOf = (i) => swatch(seats()[i], i).hex;
 const diceVars = (p, i) => { const c = swatch(p, i); return `--c:${c.hex};--pc:${c.pip}`; };
 
@@ -904,9 +1328,17 @@ function setFace(el, face) {
 /* ---------- rendering ---------- */
 
 function render() {
-  app.innerHTML = ({ setup: setupView, online: onlineView, lobby: lobbyView, game: gameView }[ui.screen])() + modalView();
+  app.innerHTML = ({ setup: setupView, online: onlineView, lobby: lobbyView, game: gameView }[ui.screen])() + connBanner() + modalView() + peekView();
   const cv = document.getElementById('avcv');
   if (cv && ui.ed) paintCanvas(cv, ui.ed.sk);
+  positionPeek();
+}
+
+function connBanner() {
+  if (!ui.online || ui.conn === 'online') return '';
+  return ui.conn === 'lost'
+    ? '<div class="conn lost" role="alert">Connection lost. <button data-act="retryConn">Retry</button></div>'
+    : '<div class="conn" role="status">Reconnecting…</div>';
 }
 
 function setupView() {
@@ -978,39 +1410,67 @@ function statusText(s) {
   if (cur.cpu) return `${esc(cur.name)} is thinking…${deck}`;
   if (ui.online && s.current !== net.mySeat) return (net.mySeat < 0 ? `Watching ${esc(cur.name)}…` : `${esc(cur.name)} is playing…`) + deck;
   if (s.phase === 'start') {
-    return (E.handSize(s, s.current) === 0 ? 'All your dice are on cards. Take them back to roll.' : `${esc(cur.name)}: roll your ${E.handSize(s, s.current)} dice`) + deck;
+    return (E.handSize(s, s.current) === 0 ? 'All your dice are on cards. Take them back.' : `${esc(cur.name)}: roll your ${E.handSize(s, s.current)} dice`) + deck;
   }
   if (!s.rolled.length) return 'All dice placed';
   if (!E.legalMoves(s).length) return 'No matches this time';
   return ui.selected === null ? 'Tap a die, then the card it fits' : 'Tap a highlighted card';
 }
 
+/** A staggered pile of the cards a player has claimed, with their points showing. */
+function pileHtml(pile = []) {
+  if (!pile.length) return '<span class="pile blank" aria-hidden="true"></span>';
+  const shown = pile.slice(-6);
+  const more = pile.length - shown.length;
+  return `<span class="pile" aria-label="${pile.length} cards claimed">${more ? `<em>+${more}</em>` : ''}${shown.map((pts, k) => `<i data-tier="${tierOf(pts)}" style="--n:${k}">${pts}</i>`).join('')}</span>`;
+}
+
 const tierOf = (points) => (points >= 13 ? 4 : points >= 9 ? 3 : points >= 5 ? 2 : 1);
+
+/** A die on a card takes the colour of whoever covers it; several players split it into slices. */
+const ownedClass = (owners) => (owners.length === 0 ? 'ghost' : owners.length === 1 ? 'owned' : 'owned shared');
+function ownedStyle(owners, s) {
+  if (!owners.length) return '';
+  const seat = (p) => swatch(seats()[p], p);
+  if (owners.length === 1) return `--c:${seat(owners[0]).hex};--pc:${seat(owners[0]).pip}`;
+  const shown = owners.slice(0, 4); // a die is only so big
+  const step = 100 / shown.length;
+  const slices = shown.map((p, k) => `${seat(p).hex} ${(k * step).toFixed(1)}% ${((k + 1) * step).toFixed(1)}%`).join(', ');
+  return `--c:${seat(shown[0]).hex};--bg:conic-gradient(${slices});--pc:#fff`;
+}
+
+/** For each die a card needs, the players covering it, in seat order. */
+function slotOwners(s, card) {
+  const used = new Map(); // per player, how many of each face already counted
+  return card.need.map((face) => s.players.map((_, p) => p).filter((p) => {
+    const key = `${p}:${face}`;
+    const c = used.get(key) || 0;
+    const has = card.placed[p].filter((f) => f === face).length;
+    used.set(key, c + 1);
+    return has > c;
+  }));
+}
+
+const nameList = (s, ps) => ps.map((p) => s.players[p].name).join(', ');
 
 function cardView(s, card, ci) {
   const accepts = ui.selected !== null && E.canPlace(s, ui.selected, ci);
-  const used = new Map(); // per player, how many of each face already counted
   const n = card.need.length;
-  const cols = n <= 2 ? 1 : n <= 4 ? 2 : 3;
-  const mineSeat = seats()[s.current];
-  const slots = card.need.map((face) => {
-    const owners = s.players.map((_, p) => p).filter((p) => {
-      const key = `${p}:${face}`;
-      const c = used.get(key) || 0;
-      const has = card.placed[p].filter((f) => f === face).length;
-      used.set(key, c + 1);
-      return has > c;
-    });
-    const mine = owners.includes(s.current);
-    const dots = owners.filter((p) => p !== s.current).map((p) => `<i style="--c:${hexOf(p)}"></i>`).join('');
-    return `<div class="slot ${mine ? 'mine' : ''}">
-      ${die(face, mine ? 'mine' : 'ghost', mine ? `style="${diceVars(mineSeat, s.current)}"` : '')}
-      <span class="dots">${dots}</span></div>`;
+  // [dice per row, die size in % of card width]; sized so the block fits between the two corner numbers.
+  const [cols, dz] = { 1: [1, 50], 2: [2, 40], 3: [3, 26], 4: [2, 40], 5: [3, 26] }[n] || [3, 24];
+  const per = slotOwners(s, card);
+  const slots = card.need.map((face, si) => {
+    const owners = per[si];
+    const peeked = ui.peek && ui.peek.card === ci && ui.peek.slot === si ? ' peeked' : '';
+    const who = owners.length ? `covered by ${nameList(s, owners)}` : 'not covered yet';
+    const badge = owners.length > 1 ? `<span class="badge" aria-hidden="true">${owners.length}</span>` : '';
+    return `<button type="button" class="slot${peeked}" data-act="peek" data-card="${ci}" data-slot="${si}" data-o="${owners.length}" aria-label="Die ${face}, ${esc(who)}">
+      <span class="dwrap">${die(face, ownedClass(owners), `style="${ownedStyle(owners, s)}"`)}${badge}</span></button>`;
   }).join('');
-  return `<div class="gcard ${accepts ? 'accepts' : ''}" data-tier="${tierOf(card.points)}" data-act="pickCard" data-card="${ci}" role="group" aria-label="${card.points} point card">
-    <div class="corner tl"><b>${card.points}</b><i></i></div>
-    <div class="face" style="--fc:${cols};--dz:${cols === 1 ? 44 : cols === 2 ? 31 : 24}">${slots}</div>
-    <div class="corner br"><b>${card.points}</b><i></i></div>
+  return `<div class="gcard ${accepts ? 'accepts' : ''} ${ui.hint?.card === ci ? 'hinted' : ''}" data-tier="${tierOf(card.points)}" data-act="pickCard" data-card="${ci}" role="group" aria-label="${card.points} point card">
+    <div class="corner tl"><b>${card.points}</b></div>
+    <div class="face" style="--fc:${cols};--dz:${dz}">${slots}</div>
+    <div class="corner br"><b>${card.points}</b></div>
   </div>`;
 }
 
@@ -1019,25 +1479,30 @@ function gameView() {
   const human = isMine(s);
   const mine = seats()[s.current];
   const chips = s.players.map((p, i) => `
-    <div class="chip ${i === s.current && s.phase !== 'over' ? 'active' : ''}" style="--c:${hexOf(i)}">
+    <div class="chip ${i === s.current && s.phase !== 'over' ? 'active' : ''}" data-p="${i}" style="--c:${hexOf(i)}">
       ${avatarHtml(seats()[i], i, 28)}
-      <span class="meta"><span class="n">${esc(p.name)}${ui.online && i === net.mySeat ? ' (you)' : ''}</span><span class="s">${p.score}<small> / ${E.TARGET_SCORE}</small></span></span>
+      <span class="meta"><span class="n">${esc(p.name)}${ui.online && i === net.mySeat ? ' (you)' : ''}</span><span class="s"><b class="num">${p.score}</b><small> / ${E.TARGET_SCORE}</small></span></span>
+      ${pileHtml(p.pile)}
     </div>`).join('');
 
   let tray;
+  let live = 0; // dice shown in the tray; the rest of the six are on cards
   if (s.phase === 'placing') {
     tray = s.rolled.map((f, i) => {
       const fx = ui.fx[i] || { delay: 0, dur: 0, dx: 0, rot: 0 };
       const spinning = ui.rolling && fx.dur > 0;
       const style = `${diceVars(mine, s.current)};--d:${fx.delay}ms;--dur:${fx.dur}ms;--dx:${fx.dx}px;--rot:${fx.rot}deg`;
       const face = spinning ? 1 + Math.floor(Math.random() * 6) : f;
-      return die(face, `owned ${spinning ? 'rolling' : ''} ${ui.selected === i ? 'sel' : ''}`,
+      return die(face, `owned ${spinning ? 'rolling' : ''} ${ui.selected === i ? 'sel' : ''} ${ui.hint?.rolled === i ? 'hinted' : ''}`,
         `style="${style}" data-i="${i}" ${human && !ui.rolling ? `data-act="pickRolled"` : 'disabled'}`, 'button');
-    }).join('') || '<span class="hint">—</span>';
+    }).join('');
+    live = s.rolled.length;
   } else {
-    const n = E.handSize(s, s.current);
-    tray = n ? Array.from({ length: n }, () => die(1, 'owned hand', `style="${diceVars(mine, s.current)}"`)).join('').replace(/aria-label="1"/g, 'aria-label="die in hand"') : '<span class="hint">No dice in hand</span>';
+    live = E.handSize(s, s.current);
+    tray = Array.from({ length: live }, () => die(1, 'owned hand', `style="${diceVars(mine, s.current)}"`)).join('').replace(/aria-label="1"/g, 'aria-label="die in hand"');
   }
+  // Always six places, so the tray (and with it the whole table) never changes height from turn to turn.
+  tray += Array.from({ length: Math.max(0, E.DICE_PER_PLAYER - live) }, () => `<div class="die empty" aria-label="die on a card">${'<i></i>'.repeat(9)}</div>`).join('');
   const onCards = E.DICE_PER_PLAYER - E.handSize(s, s.current);
   const canTakeBack = human && s.phase === 'start' && onCards > 0;
   const mustTakeBack = canTakeBack && onCards === E.DICE_PER_PLAYER;
@@ -1048,33 +1513,74 @@ function gameView() {
   return `
     <div class="game">
     <div class="table">
-    <div class="score" style="--per:${Math.ceil(s.players.length / Math.ceil(s.players.length / 4))}">${chips}</div>
-    <div class="status">${statusText(s)}</div>
+    <div class="score" data-rows="${Math.ceil(s.players.length / 4) > 1 ? 2 : 1}" style="--per:${Math.ceil(s.players.length / Math.ceil(s.players.length / 4))}">${chips}</div>
+    <div class="status"><span>${statusText(s)}</span></div>
     <div class="cards"><div class="cardgrid" data-n="${s.cards.length}">${s.cards.map((c, i) => cardView(s, c, i)).join('')}<div class="deckback" aria-hidden="true"><b>${s.deck.length}</b><span>left</span></div></div></div>
     </div>
     <div class="tray">
       <div class="dice">${tray}</div>
       <div class="actions">
-        <button class="btn primary ${canRoll ? 'pulse' : ''}" data-act="roll" ${canRoll ? '' : 'disabled'}>Roll</button>
-        ${s.phase === 'start' ? `<button class="btn ${mustTakeBack ? 'primary pulse' : ''}" data-act="takeBack" ${canTakeBack ? '' : 'disabled'}>Take back &amp; roll all</button>` : `<button class="btn ${noMoves ? 'primary pulse' : ''}" data-act="end" ${canEnd ? '' : 'disabled'}>End turn</button>`}
-        <button class="btn" data-act="menu" style="flex:0 0 auto" aria-label="Menu">☰</button>
+        ${s.phase === 'start' ? `
+          <button class="btn primary ${canRoll ? 'pulse' : ''} ${ui.hint?.button === 'roll' ? 'hinted' : ''}" data-act="roll" ${canRoll ? '' : 'disabled'}>Roll</button>
+          <button class="btn ${mustTakeBack ? 'primary pulse' : ''} ${ui.hint?.button === 'takeback' ? 'hinted' : ''}" data-act="takeBack" ${canTakeBack ? '' : 'disabled'} aria-label="Take back all your dice and roll all six">Take back<small>&amp; roll all</small></button>`
+          : `<button class="btn ${noMoves ? 'primary pulse' : ''}" data-act="end" ${canEnd ? '' : 'disabled'}>End turn</button>
+          ${human && ui.undo.length ? '<button class="btn icon" data-act="undo" aria-label="Undo last placement" title="Undo">↶</button>' : ''}`}
+        <button class="btn icon" data-act="hint" aria-label="Hint" title="Hint" ${human && !ui.rolling ? '' : 'disabled'}>💡</button>
+        <button class="btn icon" data-act="menu" aria-label="Menu">☰</button>
       </div>
     </div>
     </div>`;
 }
 
+/** Who covers the tapped die, and how far along each player is on this card. It follows the live game. */
+function peekView() {
+  const pk = ui.peek;
+  const s = ui.game;
+  const card = pk && s?.cards[pk.card];
+  if (!card || card.id !== pk.id) { ui.peek = null; return ''; } // the card was claimed or replaced
+  const owners = slotOwners(s, card)[pk.slot] || [];
+  const face = card.need[pk.slot];
+  const row = (p, extra = '') => `<div class="orow">${avatarHtml(seats()[p], p, 26)}<span>${esc(s.players[p].name)}${ui.online && p === net.mySeat ? ' <small>(you)</small>' : ''}</span>${extra}</div>`;
+  const who = owners.length ? owners.map((p) => row(p)).join('') : '<div class="none">Nobody has this die yet.</div>';
+  const total = card.need.length;
+  const progress = s.players.map((pl, p) => ({ p, n: card.placed[p].length })).filter((x) => x.n > 0).sort((a, b) => b.n - a.n);
+  const sum = progress.length
+    ? `<div class="sum"><div class="sumh">On this card</div>${progress.map((x) => row(x.p, `<b>${x.n}/${total}</b>`)).join('')}</div>`
+    : '';
+  return `<div class="peek" role="dialog" aria-label="Who has this die">
+    <h3>${die(face, 'ghost', 'style="--size:22px"')}<span>${card.points}-point card</span></h3>${who}${sum}</div>`;
+}
+
+/** Anchor the popover under (or above) the die it is about, wherever the layout has put it. */
+function positionPeek() {
+  const pop = app.querySelector('.peek');
+  const slot = ui.peek && app.querySelector(`.slot[data-card="${ui.peek.card}"][data-slot="${ui.peek.slot}"]`);
+  if (!pop || !slot) return;
+  const r = slot.getBoundingClientRect();
+  const width = Math.min(260, window.innerWidth - 16);
+  const left = Math.max(8, Math.min(window.innerWidth - width - 8, r.left + r.width / 2 - width / 2));
+  const room = window.innerHeight - (r.bottom + 8);
+  pop.style.width = `${width}px`;
+  pop.style.left = `${left}px`;
+  if (room >= pop.offsetHeight || room >= r.top - 8) pop.style.top = `${r.bottom + 8}px`;
+  else { pop.style.top = `${r.top - 8}px`; pop.style.transform = 'translateY(-100%)'; }
+}
+
 function editorView() {
   const ed = ui.ed;
   const taken = new Set(editorTaken());
-  const ink = INK.map((hex) => `<button class="ink ${!ed.sk.erase && ed.sk.ink === hex ? 'on' : ''}" style="--c:${hex}" data-act="ink" data-c="${hex}" aria-label="Ink ${hex}"></button>`).join('')
+  const ink = INK.map((hex) => `<button class="ink ${!ed.sk.erase && !ed.sk.stamp && ed.sk.ink === hex ? 'on' : ''}" style="--c:${hex}" data-act="ink" data-c="${hex}" aria-label="Ink ${hex}"></button>`).join('')
     + `<button class="ink eraser ${ed.sk.erase ? 'on' : ''}" data-act="eraser" aria-label="Eraser">⌫</button>`;
   const brushes = BRUSHES.map((w) => `<button class="brush ${ed.sk.width === w ? 'on' : ''}" data-act="brush" data-w="${w}" aria-label="Brush size ${w}"><i style="--w:${w}px"></i></button>`).join('');
+  const stamps = STAMPS.map((g) => `<button class="stamp ${ed.sk.stamp === g ? 'on' : ''}" data-act="stamp" data-g="${g}" aria-label="Stamp ${g}">${g}</button>`).join('');
   const colors = PALETTE.map((c, i) => `<button class="swatch ${ed.color === i ? 'on' : ''}" style="--c:${c.hex}" data-act="pickColor" data-i="${i}" ${taken.has(i) ? 'disabled' : ''} aria-label="${c.name} dice${taken.has(i) ? ' (taken)' : ''}"></button>`).join('');
   return `<div class="modal"><div class="sheet editor"><h2>Your player</h2>
     <p class="note">Draw your icon with your finger. Your dice colour becomes its ring.</p>
     <div class="avwrap"><canvas id="avcv" width="${AVATAR_SIZE}" height="${AVATAR_SIZE}" aria-label="Drawing area"></canvas></div>
     <div class="tools">${ink}</div>
     <div class="tools"><span class="brushes">${brushes}</span><button class="btn small" data-act="clearArt">Clear</button></div>
+    <p class="note">Or press a stamp. The size buttons change stamps too.</p>
+    <div class="tools stamps">${stamps}</div>
     <p class="note">Dice colour. Each player needs a different one.</p>
     <div class="tools">${colors}</div>
     <div class="row2"><button class="btn" data-act="closeEditor">Cancel</button><button class="btn primary" data-act="saveEditor">Save</button></div>
@@ -1100,7 +1606,7 @@ function modalView() {
         <li><b>Score it!</b> Cover every picture on a card with <i>your own</i> dice to score it. All dice on a scored card go back to their owners, and a new card is flipped. Leftover dice from your roll may go on the new card.</li>
         <li><b>Take Back:</b> at the start of your turn, before rolling, you may take back <b>all</b> your dice from the cards and roll all six.</li>
       </ol>
-      <p>Coloured dots under a number show which opponents already cover it. Other players' dice can't score cards for you, but they can beat you to them!</p>
+      <p>A die on a card is filled with the colour of the player covering it. If two or more players cover the same number, the die is split into slices of their colours and a number shows how many. <b>Tap any die on a card</b> to see who has it and how far along each player is on that card. Other players' dice can't score cards for you, but they can beat you to them!</p>
       <p>Play starts with a two-dice roll-off; 5+ players use two sets (60 cards) and four face-up cards.</p>
       <button class="btn primary" data-act="closeModal">Got it</button></div></div>`;
   }
@@ -1137,6 +1643,11 @@ app.addEventListener('pointerdown', (e) => {
   if (e.target.id !== 'avcv' || !ui.ed) return;
   e.preventDefault();
   e.target.setPointerCapture?.(e.pointerId);
+  if (ui.ed.sk.stamp) {
+    stampAt(ui.ed.sk, pointOn(e.target, e));
+    paintCanvas(e.target, ui.ed.sk);
+    return;
+  }
   stroke = pointOn(e.target, e);
   strokeSegment(ui.ed.sk, stroke, stroke);
   paintCanvas(e.target, ui.ed.sk);
@@ -1158,7 +1669,7 @@ async function saveEditor() {
   ui.ed = null;
   if (ed.target === 'setup') {
     Object.assign(ui.setup[ed.i], look);
-    if (ed.i === 0) { Object.assign(profile, look); saveProfile(); }
+    if (ui.setup[ed.i].me) { Object.assign(profile, look); saveProfile(); }
   } else if (ed.target === 'profile') {
     Object.assign(profile, look);
     saveProfile();
@@ -1198,7 +1709,7 @@ function say(text, ms = 1800) {
 }
 
 const isMine = (s) => s.phase !== 'over' && (ui.online ? s.current === net.mySeat : !s.players[s.current].cpu);
-const canAct = () => !!ui.game && !ui.rolling && isMine(ui.game);
+const canAct = () => !!ui.game && !ui.rolling && ui.conn === 'online' && isMine(ui.game);
 
 /** Start the tumbling animation: each die lands at its own time, faces cycling until then. */
 function startRoll(count) {
@@ -1237,15 +1748,75 @@ function startRoll(count) {
 function receive(next) {
   const prev = ui.game;
   if (prev && prev.gid === next.gid && next.rev <= prev.rev) return; // duplicate or stale
+  const sameGame = !!prev && prev.gid === next.gid;
   ui.game = next;
   ui.selected = null;
-  if (next.lastClaim && prev?.rev !== next.rev) {
+  ui.hint = null;
+  if (!sameGame || next.current !== prev.current || next.phase !== 'placing') ui.undo = [];
+
+  // Remember the claimed card on screen before it is re-rendered away, so it can fly to its owner.
+  let flight = null;
+  if (next.lastClaim && sameGame && prev.rev !== next.rev) {
     const c = next.lastClaim;
     say(`${next.players[c.player].name} claimed ${c.points} points!`);
+    const gone = prev.cards.findIndex((card) => !next.cards.some((n) => n.id === card.id));
+    const el = gone >= 0 ? app.querySelector(`.gcard[data-card="${gone}"]`) : null;
+    if (el && !reducedMotion()) flight = { html: el.outerHTML, rect: el.getBoundingClientRect(), player: c.player, from: prev.players[c.player].score, to: next.players[c.player].score };
   }
-  if (prev && prev.gid === next.gid && prev.phase === 'start' && next.phase === 'placing') startRoll(next.rolled.length);
+  if (sameGame && prev.phase === 'start' && next.phase === 'placing') startRoll(next.rolled.length);
+  const justWon = sameGame && next.phase === 'over' && prev.phase !== 'over';
   render();
+  if (flight) flyCard(flight);
+  if (justWon) confetti(next.winner);
   settle();
+}
+
+/** The claimed card shrinks into its owner's scoreboard chip while the score counts up. */
+function flyCard({ html, rect, player, from, to }) {
+  const chip = app.querySelector(`.chip[data-p="${player}"]`);
+  const num = chip?.querySelector('.num');
+  if (!chip || !num) return;
+  const target = chip.getBoundingClientRect();
+  const ghost = document.createElement('div');
+  ghost.className = 'fly';
+  ghost.style.cssText = `left:${rect.left}px;top:${rect.top}px;width:${rect.width}px;height:${rect.height}px`;
+  ghost.innerHTML = html;
+  document.body.appendChild(ghost);
+  num.textContent = String(from);
+  const dx = target.left + target.width / 2 - (rect.left + rect.width / 2);
+  const dy = target.top + target.height / 2 - (rect.top + rect.height / 2);
+  const anim = ghost.animate(
+    [{ transform: 'translate(0, 0) scale(1) rotate(0deg)', opacity: 1 }, { transform: 'translate(0, -14px) scale(1.08) rotate(-3deg)', opacity: 1, offset: 0.2 }, { transform: `translate(${dx}px, ${dy}px) scale(.12) rotate(8deg)`, opacity: 0.25 }],
+    { duration: 700, easing: 'cubic-bezier(.45, 0, .55, 1)', fill: 'forwards' },
+  );
+  anim.onfinish = () => {
+    ghost.remove();
+    chip.classList.add('bump');
+    const t0 = performance.now();
+    const tick = (now) => {
+      const k = Math.min(1, (now - t0) / 550);
+      const cur = chip.querySelector('.num');
+      if (cur) cur.textContent = String(Math.round(from + (to - from) * k));
+      if (k < 1) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+    setTimeout(() => chip.classList.remove('bump'), 700);
+  };
+}
+
+/** Confetti in the winner's colour and the rest of the palette. */
+function confetti(winner) {
+  if (reducedMotion()) return;
+  const layer = document.createElement('div');
+  layer.className = 'confetti';
+  const colors = [hexOf(winner), hexOf(winner), ...PALETTE.map((c) => c.hex)];
+  layer.innerHTML = Array.from({ length: 80 }, () => {
+    const c = colors[Math.floor(Math.random() * colors.length)];
+    const style = `left:${Math.random() * 100}%;background:${c};--dx:${Math.round(Math.random() * 160 - 80)}px;--spin:${Math.round(Math.random() * 900 - 450)}deg;animation-delay:${Math.round(Math.random() * 700)}ms;animation-duration:${2200 + Math.round(Math.random() * 1800)}ms`;
+    return `<i style="${style}"></i>`;
+  }).join('');
+  document.body.appendChild(layer);
+  setTimeout(() => layer.remove(), 5000);
 }
 
 /** A move made on this device: show it now and, online, share it. */
@@ -1270,8 +1841,47 @@ function settle() {
     if (!ui.online || isHost()) timer = setTimeout(cpuStep, CPU_DELAY);
   } else if (isMine(s) && s.phase === 'placing' && (!s.rolled.length || !E.legalMoves(s).length)) {
     if (s.rolled.length) say('No matching cards. Turn passes.');
-    timer = setTimeout(() => { if (ui.game === s) commit(E.endTurn(s)); }, 1300);
+    timer = setTimeout(() => { if (ui.game === s) commit(E.endTurn(s)); }, ui.undo.length ? 2000 : 1300);
   }
+}
+
+/** A person's placement: kept so it can be undone, unless it claimed a card (which draws a new one). */
+function placeDie(rolled, card) {
+  const before = ui.game;
+  const next = E.place(before, rolled, card);
+  if (next.lastClaim) ui.undo = [];
+  else ui.undo = [...ui.undo, before];
+  commit(next);
+}
+
+function undoPlacement() {
+  if (!canAct() || ui.game.phase !== 'placing' || !ui.undo.length) return;
+  clearTimeout(timer);
+  const previous = structuredClone(ui.undo[ui.undo.length - 1]);
+  ui.undo = ui.undo.slice(0, -1);
+  previous.lastClaim = null;
+  commit(previous);
+}
+
+function showHint() {
+  if (!canAct()) return;
+  const s = ui.game;
+  clearTimeout(hintTimer);
+  if (s.phase === 'start') {
+    const a = aiNextAction(s, { level: 'hard' }); // the best advice available, and the same every time
+    ui.hint = { button: a.type === 'takeback' ? 'takeback' : 'roll' };
+    say(a.type === 'takeback' ? 'Hint: take back your dice and roll all six' : `Hint: roll your ${E.handSize(s, s.current)} dice`, 3500);
+  } else {
+    const a = aiNextAction(s, { level: 'hard' });
+    if (a.type !== 'place') {
+      say(E.legalMoves(s).length ? 'Hint: placing more dice would not help. End your turn.' : 'Hint: nothing fits. End your turn.', 3500);
+      return;
+    }
+    ui.hint = { rolled: a.rolled, card: a.card };
+    say(`Hint: put the ${s.rolled[a.rolled]} on the ${s.cards[a.card].points}-point card`, 3500);
+  }
+  render();
+  hintTimer = setTimeout(() => { ui.hint = null; render(); }, 4000);
 }
 
 function doRoll() { commit(E.roll(ui.game)); }
@@ -1299,6 +1909,7 @@ function startGame() {
   ui.online = false;
   ui.game = null;
   ui.cfg = ui.setup.map((p) => ({ ...p }));
+  keepAwake(true);
   const g = freshGame(ui.cfg);
   ui.screen = 'game';
   ui.rolling = false;
@@ -1323,6 +1934,22 @@ function localUid() {
   return id;
 }
 
+/* Keep the screen on while playing, so a locked phone does not cut the connection. */
+const awake = { lock: null, want: false };
+async function keepAwake(on) {
+  awake.want = on;
+  try {
+    if (on && !awake.lock && !document.hidden) {
+      awake.lock = await navigator.wakeLock?.request('screen');
+      awake.lock?.addEventListener('release', () => { awake.lock = null; });
+    } else if (!on && awake.lock) {
+      await awake.lock.release();
+      awake.lock = null;
+    }
+  } catch { /* not supported or refused */ }
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden && awake.want) keepAwake(true); });
+
 async function initNet() {
   try {
     if (window.claude?.use) {
@@ -1331,7 +1958,7 @@ async function initNet() {
       if (db && uid) { net.store = dbStore(db); net.uid = uid; }
     } else if (window.Peer) {
       net.uid = localUid();
-      net.store = p2pStore(window.Peer, window.RFI_PEER_OPTIONS, net.uid);
+      net.store = p2pStore(window.Peer, window.RFI_PEER_OPTIONS, net.uid, window.RFI_ICE_SERVERS);
     }
   } catch { /* online play unavailable */ }
   const m = /^#([A-Za-z]{4})$/.exec(location.hash);
@@ -1345,7 +1972,22 @@ function attach(ref) {
   net.ref = ref;
   net.room = null;
   net.q = Promise.resolve();
-  net.unsub = ref.onSnapshot(onRoom, () => { say('Lost connection to the room'); leaveRoom(); });
+  ui.conn = 'online';
+  net.offStatus?.();
+  net.offStatus = ref.onStatus?.((state) => {
+    if (state === ui.conn) return;
+    ui.conn = state;
+    if (state === 'online') say('Back online', 1500);
+    render();
+    if (state === 'online') settle();
+  });
+  net.unsub = ref.onSnapshot(onRoom, (e) => {
+    if (e?.code === 'lost') return; // the banner offers Retry
+    if (e?.code === 'closed') { say('The host ended the room'); leaveRoom(); return; }
+    say('Lost connection to the room');
+    leaveRoom();
+  });
+  keepAwake(true);
 }
 
 function onRoom(snap) {
@@ -1370,8 +2012,12 @@ function leaveRoom() {
   clearTimeout(timer);
   net.unsub?.();
   net.unsub = null;
+  net.offStatus?.();
+  net.offStatus = null;
   net.ref?.close?.();
   net.ref = null;
+  ui.conn = 'online';
+  keepAwake(false);
   store.set('rfi-session', '');
   net.room = null;
   net.mySeat = -1;
@@ -1403,7 +2049,7 @@ async function mutateRoom(fn) {
 const myName = () => (profile.name.trim() || 'Player').slice(0, 12);
 const mySeatData = (taken) => ({ name: myName(), cpu: false, color: freeColor(taken, profile.color), avatar: profile.avatar });
 
-const failText = (e) => (e.message === 'notfound' ? 'No room with that code' : e.message === 'network' ? 'Could not reach the network. Check your connection.' : 'Could not connect. Try again.');
+const failText = (e) => (e.message === 'notfound' ? 'No room with that code' : e.message === 'timeout' ? 'Could not reach that room. Check the code and your connection.' : e.message === 'network' ? 'Could not reach the network. Check your connection.' : 'Could not connect. Try again.');
 
 async function createRoom() {
   net.busy = true; render();
@@ -1432,6 +2078,8 @@ async function enterRoom(code, { host = false } = {}) {
       room.seats.push({ uid: net.uid, ...mySeatData(room.seats.map((p) => p.color)) });
       return room;
     });
+    const seated = (await net.ref.get()).data()?.seats?.some((p) => p.uid === net.uid);
+    if (!seated) say('You can watch, but the room is full or the game has started.', 3500);
   }
   saveSession(code, host);
 }
@@ -1448,7 +2096,16 @@ async function resumeRoom() {
   const s = savedSession();
   if (!s) return;
   net.busy = true; render();
-  try { await enterRoom(s.code, { host: s.host }); } catch (e) { leaveRoom(); say(failText(e)); }
+  try {
+    // A host who just reloaded may find the old connection still registered for a short while; keep trying.
+    for (let attempt = 0; ; attempt++) {
+      try { await enterRoom(s.code, { host: s.host }); break; } catch (e) {
+        if (!(s.host && e.message === 'taken' && attempt < 8)) throw e;
+        if (attempt === 0) say('Reconnecting to your room…', 4000);
+        await sleep(4000);
+      }
+    }
+  } catch (e) { leaveRoom(); say(e.message === 'taken' ? 'Your old connection is still closing. Try again in a moment.' : failText(e)); }
   net.busy = false; render();
 }
 
@@ -1456,9 +2113,10 @@ async function invite() {
   const code = net.room?.code;
   const url = `${location.origin}${location.pathname}#${code}`;
   const text = `Join my Roll for It game: room ${code}`;
+  const inFrame = net.store?.kind === 'db'; // the claude.ai page's own address is not a link friends can use
   try {
-    if (navigator.share) { await navigator.share({ title: 'Roll for It', text, url }); return; }
-    await navigator.clipboard.writeText(`${text}\n${url}`);
+    if (navigator.share) { await navigator.share(inFrame ? { title: 'Roll for It', text } : { title: 'Roll for It', text, url }); return; }
+    await navigator.clipboard.writeText(inFrame ? text : `${text}\n${url}`);
     say('Invite copied');
   } catch { say(`Tell friends room code ${code}`); }
 }
@@ -1476,15 +2134,16 @@ const actions = {
   toggleCpu: ({ i }) => { ui.setup[i].cpu = !ui.setup[i].cpu; render(); },
   addPlayer: () => {
     const color = freeColor(ui.setup.map((p) => p.color), null);
-    ui.setup.push({ name: `Player ${ui.setup.length + 1}`, cpu: true, color, avatar: '' });
+    ui.setup.push({ name: cpuName(ui.setup.map((p) => p.name)), cpu: true, color, avatar: '' });
     render();
   },
   removePlayer: ({ i }) => { ui.setup.splice(i, 1); render(); },
   editPlayer: ({ i }) => openEditor('setup', +i, ui.setup[i]),
   editProfile: () => openEditor('profile', 0, profile),
   editMe: () => { if (net.mySeat >= 0) openEditor('seat', net.mySeat, net.room.seats[net.mySeat]); },
-  ink: ({ c }) => { ui.ed.sk.ink = c; ui.ed.sk.erase = false; render(); },
-  eraser: () => { ui.ed.sk.erase = true; render(); },
+  ink: ({ c }) => { ui.ed.sk.ink = c; ui.ed.sk.erase = false; ui.ed.sk.stamp = null; render(); },
+  eraser: () => { ui.ed.sk.erase = true; ui.ed.sk.stamp = null; render(); },
+  stamp: ({ g }) => { ui.ed.sk.stamp = g; ui.ed.sk.erase = false; render(); },
   brush: ({ w }) => { ui.ed.sk.width = +w; render(); },
   clearArt: () => { clearSketch(ui.ed.sk); render(); },
   pickColor: ({ i }) => { ui.ed.color = +i; render(); },
@@ -1500,8 +2159,7 @@ const actions = {
   startOnline,
   addSeatCpu: () => mutateRoom((room) => {
     if (room.hostUid !== net.uid || room.seats.length >= MAX_PLAYERS) return null;
-    const n = room.seats.filter((p) => p.cpu).length + 1;
-    room.seats.push({ uid: null, name: `Robo ${n}`, cpu: true, color: freeColor(room.seats.map((p) => p.color), null), avatar: '' });
+    room.seats.push({ uid: null, name: cpuName(room.seats.map((p) => p.name)), cpu: true, color: freeColor(room.seats.map((p) => p.color), null), avatar: '' });
     return room;
   }),
   removeSeat: ({ i }) => mutateRoom((room) => {
@@ -1517,31 +2175,47 @@ const actions = {
     ui.modal = null;
     commit(g);
   },
-  toSetup: () => { if (ui.online || net.unsub) { leaveRoom(); return; } clearTimeout(timer); ui.screen = 'setup'; ui.modal = null; ui.game = null; ui.rolling = false; render(); },
+  toSetup: () => { if (ui.online || net.unsub) { leaveRoom(); return; } keepAwake(false); clearTimeout(timer); ui.screen = 'setup'; ui.modal = null; ui.game = null; ui.rolling = false; render(); },
   rules: () => { ui.modal = 'rules'; render(); },
   menu: () => { ui.modal = 'menu'; render(); },
   closeModal: () => { ui.modal = null; render(); },
   roll: () => { if (canAct() && ui.game.phase === 'start' && E.handSize(ui.game, ui.game.current) > 0) doRoll(); },
   end: () => { if (canAct() && ui.game.phase === 'placing') { clearTimeout(timer); commit(E.endTurn(ui.game)); } },
   takeBack: () => { if (canAct() && ui.game.phase === 'start') doTakeBack(); },
+  peek: ({ card, slot }, el) => {
+    // With a die selected, tapping a die on a card places it as before; otherwise show who covers it.
+    if (canAct() && ui.selected !== null && E.canPlace(ui.game, ui.selected, +card)) { placeDie(ui.selected, +card); return; }
+    const same = ui.peek && ui.peek.card === +card && ui.peek.slot === +slot;
+    clearTimeout(peekTimer);
+    if (same) ui.peek = null;
+    else {
+      ui.peek = { card: +card, slot: +slot, id: ui.game.cards[+card]?.id };
+      peekTimer = setTimeout(() => { ui.peek = null; render(); }, 8000);
+    }
+    render();
+  },
+  hint: showHint,
+  undo: undoPlacement,
+  retryConn: () => net.ref?.retry?.(),
   pickRolled: ({ i }) => {
     if (!canAct() || ui.game.phase !== 'placing') return;
     const idx = +i;
     const targets = ui.game.cards.map((_, c) => c).filter((c) => E.canPlace(ui.game, idx, c));
     if (!targets.length) { say('No card needs that number'); return; }
-    if (targets.length === 1) { commit(E.place(ui.game, idx, targets[0])); return; }
+    if (targets.length === 1) { placeDie(idx, targets[0]); return; }
     ui.selected = ui.selected === idx ? null : idx;
     render();
   },
   pickCard: ({ card }) => {
-    if (canAct() && ui.selected !== null && E.canPlace(ui.game, ui.selected, +card)) commit(E.place(ui.game, ui.selected, +card));
+    if (canAct() && ui.selected !== null && E.canPlace(ui.game, ui.selected, +card)) placeDie(ui.selected, +card);
   },
 };
 
 app.addEventListener('click', (e) => {
+  if (ui.peek && !e.target.closest('.peek') && !e.target.closest('[data-act="peek"]')) { ui.peek = null; clearTimeout(peekTimer); render(); }
   const el = e.target.closest('[data-act]');
   if (!el || (el.classList.contains('modal') && e.target !== el)) return;
-  actions[el.dataset.act]?.({ ...el.dataset });
+  actions[el.dataset.act]?.({ ...el.dataset }, el);
 });
 app.addEventListener('input', (e) => {
   if (e.target.id === 'myname') { profile.name = e.target.value; saveProfile(); return; }
@@ -1549,7 +2223,7 @@ app.addEventListener('input', (e) => {
   const i = e.target.dataset?.name;
   if (i !== undefined) {
     ui.setup[i].name = e.target.value.trim() || `Player ${+i + 1}`;
-    if (+i === 0) { profile.name = ui.setup[0].name; saveProfile(); }
+    if (ui.setup[i].me) { profile.name = ui.setup[i].name; saveProfile(); }
   }
 });
 

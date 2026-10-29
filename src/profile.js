@@ -11,6 +11,25 @@ export const PALETTE = [
   { name: 'Black', hex: '#2a2f3a', pip: '#ffffff' },
 ];
 
+// Names for computer players, all short enough for a scoreboard chip.
+const CPU_NAMES = [
+  'Dicey', 'Snake Eyes', 'Lucky', 'Boxcars', 'Rollo', 'Pips', 'Tumbler', 'Cubert', 'Ace', 'Jinx',
+  'Gizmo', 'Pixel', 'Turbo', 'Widget', 'Sparky', 'Nova', 'Clank', 'Bolt', 'Dottie', 'Hazard',
+  'Wildcard', 'Roulette', 'Domino', 'Shaker', 'Gambit', 'Fortune', 'Chance', 'Roller', 'Sixer', 'Lucky 7',
+  'Rolo', 'Bones', 'Pebble', 'Tango', 'Zigzag', 'Maverick', 'Dash', 'Echo', 'Fizz', 'Comet',
+];
+
+/** A random computer-player name that nobody at the table already has. */
+export function cpuName(taken = []) {
+  const used = new Set(taken.map((n) => String(n).trim().toLowerCase()));
+  const free = CPU_NAMES.filter((n) => !used.has(n.toLowerCase()));
+  if (free.length) return free[Math.floor(Math.random() * free.length)];
+  for (let i = 2; ; i++) {
+    const n = `Robo ${i}`;
+    if (!used.has(n.toLowerCase())) return n;
+  }
+}
+
 /** `wanted` if no one else has it, otherwise the first colour nobody has. */
 export function freeColor(taken, wanted) {
   const used = new Set(taken);
@@ -34,7 +53,8 @@ export function safeAvatar(value) {
 // Icons are drawn on opaque paper, so the dice colour only ever appears as the ring around them.
 export const PAPER = '#fffdf4';
 export const INK = [PALETTE[7].hex, ...PALETTE.slice(0, 7).map((c) => c.hex)];
-export const BRUSHES = [4, 8, 14];
+export const BRUSHES = [8, 14, 22]; // the middle one is the default, thick enough to read on a small scoreboard icon
+export const STAMPS = ['😀', '😎', '🤠', '🥳', '🐱', '🐶', '🦊', '🐸', '🐼', '🦄', '👑', '🔥'];
 export const AVATAR_SIZE = 128;
 const SIZE = AVATAR_SIZE;
 
@@ -50,7 +70,7 @@ export function makeSketch() {
   buf.width = SIZE;
   buf.height = SIZE;
   fillPaper(buf);
-  return { buf, dirty: false, ink: INK[0], width: BRUSHES[1], erase: false };
+  return { buf, dirty: false, ink: INK[0], width: BRUSHES[1], erase: false, stamp: null };
 }
 
 export function paintCanvas(canvas, sketch) {
@@ -83,6 +103,18 @@ export function strokeSegment(sketch, from, to) {
     ctx.lineTo(to.x, to.y);
     ctx.stroke();
   }
+  sketch.dirty = true;
+}
+
+/** Press an emoji stamp onto the drawing, sized to the current brush. */
+export function stampAt(sketch, at) {
+  const ctx = sketch.buf.getContext('2d');
+  const size = sketch.width * 4;
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.font = `${size}px system-ui, "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(sketch.stamp, at.x, at.y + size * 0.05);
   sketch.dirty = true;
 }
 
