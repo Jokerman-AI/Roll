@@ -279,7 +279,7 @@ function gameView() {
       <div class="actions">
         ${s.phase === 'start' ? `
           <button class="btn primary ${canRoll ? 'pulse' : ''} ${ui.hint?.button === 'roll' ? 'hinted' : ''}" data-act="roll" ${canRoll ? '' : 'disabled'}>Roll</button>
-          <button class="btn ${mustTakeBack ? 'primary pulse' : ''} ${ui.hint?.button === 'takeback' ? 'hinted' : ''}" data-act="takeBack" ${canTakeBack ? '' : 'disabled'}>Take back &amp; roll all</button>`
+          <button class="btn ${mustTakeBack ? 'primary pulse' : ''} ${ui.hint?.button === 'takeback' ? 'hinted' : ''}" data-act="takeBack" ${canTakeBack ? '' : 'disabled'} aria-label="Take back all your dice and roll all six">Take back<small>&amp; roll all</small></button>`
           : `<button class="btn ${noMoves ? 'primary pulse' : ''}" data-act="end" ${canEnd ? '' : 'disabled'}>End turn</button>
           ${human && ui.undo.length ? '<button class="btn icon" data-act="undo" aria-label="Undo last placement" title="Undo">↶</button>' : ''}`}
         <button class="btn icon" data-act="hint" aria-label="Hint" title="Hint" ${human && !ui.rolling ? '' : 'disabled'}>💡</button>

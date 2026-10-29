@@ -361,11 +361,19 @@ h1 { font-size: 2.4rem; margin: 0; letter-spacing: -.02em; }
 }
 .peek h3 { margin: 0 0 6px; font-size: .95rem; display: flex; align-items: center; gap: 8px; }
 .peek .orow { display: flex; align-items: center; gap: 8px; padding: 3px 0; }
-.peek .orow span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.peek .orow > span:not(.av) { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.peek .orow .av { flex: none; }
 .peek .orow small { color: #6b5d3b; }
 .peek .none { color: #6b5d3b; padding: 2px 0; }
 .peek .sum { border-top: 1px solid #0002; margin-top: 8px; padding-top: 6px; }
 .peek .sumh { font-size: .75rem; letter-spacing: .06em; text-transform: uppercase; color: #6b5d3b; margin-bottom: 2px; }
+
+/* two-line label that always fits: the main words, with the rest underneath */
+.actions .btn small { display: block; font-size: .72em; font-weight: 600; opacity: .85; white-space: nowrap; }
+.actions .btn { line-height: 1.15; padding-inline: 8px; }
+@media (max-width: 360px) { .actions { gap: 6px; } .actions .btn { padding-inline: 4px; font-size: .82rem; } .actions .btn.icon { min-width: 42px; } }
+.actions .btn:not(.icon) { white-space: nowrap; }
+.actions .btn[data-act="roll"] { min-width: 60px; }
 
 body { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
 #app { padding: 12px 0; }
@@ -1295,7 +1303,7 @@ function gameView() {
       <div class="actions">
         ${s.phase === 'start' ? `
           <button class="btn primary ${canRoll ? 'pulse' : ''} ${ui.hint?.button === 'roll' ? 'hinted' : ''}" data-act="roll" ${canRoll ? '' : 'disabled'}>Roll</button>
-          <button class="btn ${mustTakeBack ? 'primary pulse' : ''} ${ui.hint?.button === 'takeback' ? 'hinted' : ''}" data-act="takeBack" ${canTakeBack ? '' : 'disabled'}>Take back &amp; roll all</button>`
+          <button class="btn ${mustTakeBack ? 'primary pulse' : ''} ${ui.hint?.button === 'takeback' ? 'hinted' : ''}" data-act="takeBack" ${canTakeBack ? '' : 'disabled'} aria-label="Take back all your dice and roll all six">Take back<small>&amp; roll all</small></button>`
           : `<button class="btn ${noMoves ? 'primary pulse' : ''}" data-act="end" ${canEnd ? '' : 'disabled'}>End turn</button>
           ${human && ui.undo.length ? '<button class="btn icon" data-act="undo" aria-label="Undo last placement" title="Undo">↶</button>' : ''}`}
         <button class="btn icon" data-act="hint" aria-label="Hint" title="Hint" ${human && !ui.rolling ? '' : 'disabled'}>💡</button>
