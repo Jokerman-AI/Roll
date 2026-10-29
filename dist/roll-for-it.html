@@ -1,0 +1,639 @@
+<title>Roll for It</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+:root { color-scheme: dark; }
+:root {
+  --felt: #0f3d2e;
+  --felt-2: #14513d;
+  --ink: #f6f1e1;
+  --muted: #a9c4b8;
+  --card: #fff8e7;
+  --card-ink: #2b2417;
+  --p0: #e5484d; --p1: #3b82f6; --p2: #2fb36d; --p3: #f5a524;
+  --radius: 16px;
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { height: 100%; margin: 0; }
+body {
+  background: radial-gradient(120% 90% at 50% 0%, var(--felt-2), var(--felt));
+  color: var(--ink);
+  font: 16px/1.35 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  overscroll-behavior: none;
+  user-select: none; -webkit-user-select: none;
+}
+#app {
+  min-height: 100%; max-width: 560px; margin: 0 auto;
+  display: flex; flex-direction: column;
+  padding-block: 12px;
+}
+button { font: inherit; color: inherit; cursor: pointer; }
+h1 { font-size: 2.4rem; margin: 0; letter-spacing: -.02em; }
+
+.btn {
+  border: 0; border-radius: 14px; padding: 14px 20px; font-weight: 700;
+  background: #ffffff1f; min-height: 48px;
+}
+.btn.primary { background: #ffd34d; color: #3a2a00; }
+.btn:disabled { opacity: .4; cursor: default; }
+.btn.pulse:not(:disabled) { animation: pulse 1.2s infinite; }
+@keyframes pulse { 50% { box-shadow: 0 0 0 8px #ffd34d44; } }
+
+/* setup */
+.setup { flex: 1; display: flex; flex-direction: column; gap: 14px; justify-content: center; }
+.setup .tag { color: var(--muted); margin: 0 0 8px; }
+.prow { display: flex; gap: 8px; align-items: center; }
+.prow .dot { width: 18px; height: 18px; border-radius: 50%; flex: none; }
+.prow input {
+  flex: 1; min-width: 0; padding: 12px; border-radius: 12px; border: 0;
+  background: #ffffff1f; color: var(--ink); font: inherit;
+}
+.prow .btn { padding: 10px 12px; min-height: 44px; }
+
+/* scoreboard */
+.score { display: flex; gap: 8px; flex-wrap: wrap; }
+.chip {
+  flex: 1 1 22%; min-width: 0; padding: 8px 10px; border-radius: 12px; background: #00000030;
+  border: 2px solid transparent; display: flex; flex-direction: column;
+}
+.chip.active { border-color: var(--c); background: #00000055; }
+.chip .n { font-size: .8rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chip .n::before { content: ""; display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--c); margin-right: 5px; }
+.chip .s { font-size: 1.4rem; font-weight: 800; }
+.chip .s small { font-size: .75rem; color: var(--muted); font-weight: 600; }
+
+.status { text-align: center; margin: 12px 0 8px; min-height: 1.4em; font-weight: 600; }
+
+/* cards */
+.cards { flex: 1; display: flex; flex-direction: column; gap: 10px; justify-content: center; }
+.gcard {
+  background: var(--card); color: var(--card-ink); border-radius: var(--radius);
+  padding: 10px 14px; display: flex; align-items: center; gap: 12px;
+  border: 3px solid transparent; transition: transform .15s;
+  width: 100%; text-align: left;
+}
+.gcard.accepts { border-color: #ffd34d; transform: scale(1.02); box-shadow: 0 0 0 4px #ffd34d55; }
+.gcard .pts { font-size: 2rem; font-weight: 900; min-width: 2.4ch; text-align: center; line-height: 1; }
+.gcard .pts small { display: block; font-size: .6rem; letter-spacing: .1em; color: #8a7a55; }
+.slots { display: flex; gap: 10px; flex-wrap: wrap; flex: 1; justify-content: flex-end; }
+.slot { display: flex; flex-direction: column; align-items: center; gap: 4px; background: none; border: 0; padding: 0; }
+.slot .dots { display: flex; gap: 3px; height: 8px; }
+.slot .dots i { width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
+
+/* dice */
+.die {
+  --size: 44px; --bg: #fff; --pip: #222;
+  width: var(--size); height: var(--size); border-radius: calc(var(--size) * .22);
+  background: var(--bg); display: grid; grid-template: repeat(3, 1fr) / repeat(3, 1fr);
+  padding: calc(var(--size) * .14); box-shadow: inset 0 -3px 0 #0003, 0 2px 4px #0003;
+  flex: none;
+}
+.die i { border-radius: 50%; margin: 12%; }
+.die i.on { background: var(--pip); }
+.die.ghost { --bg: #e8dfc4; --pip: #8a7a55; box-shadow: inset 0 0 0 2px #c9bc96; }
+.die.mine { --bg: var(--c); --pip: #fff; }
+.die.big { --size: 56px; }
+
+/* tray */
+.tray { background: #00000030; border-radius: var(--radius); padding: 12px; margin-top: 10px; }
+.dice { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; min-height: 60px; align-items: center; }
+.dice .die { --size: 52px; }
+.dice button.die { border: 0; }
+.dice button.die.sel { outline: 4px solid #ffd34d; outline-offset: 2px; }
+.dice .die.rolling { animation: tumble .65s ease-out; }
+@keyframes tumble {
+  0% { transform: translateY(-40px) rotate(-300deg) scale(.6); opacity: 0; }
+  70% { transform: translateY(4px) rotate(20deg); opacity: 1; }
+  100% { transform: none; }
+}
+.dice .hint { color: var(--muted); }
+.actions { display: flex; gap: 10px; margin-top: 10px; }
+.actions .btn { flex: 1; }
+
+/* overlays */
+.toast {
+  position: fixed; left: 50%; bottom: 150px; transform: translateX(-50%);
+  background: #000d; padding: 10px 16px; border-radius: 999px; font-weight: 700;
+  max-width: 90vw; text-align: center; pointer-events: none;
+}
+.modal {
+  position: fixed; inset: 0; background: #000a; display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 10;
+}
+.sheet {
+  background: var(--card); color: var(--card-ink); border-radius: 20px; padding: 20px;
+  max-width: 460px; width: 100%; max-height: 85vh; overflow: auto;
+}
+.sheet h2 { margin-top: 0; }
+.sheet ol, .sheet ul { padding-left: 1.2em; }
+.sheet .btn { background: #0001; width: 100%; margin-top: 8px; }
+.sheet .btn.primary { background: #ffd34d; }
+.winner { text-align: center; }
+.winner .big { font-size: 2.2rem; font-weight: 900; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
+
+body { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+#app { padding-inline: 0; }
+</style>
+<div id="app"></div>
+<script>
+const E = (() => {
+// Pure game rules for Roll for It. No DOM access; every transition returns a new state.
+
+const DICE_PER_PLAYER = 6;
+const TARGET_SCORE = 40;
+const MAX_PLAYERS = 8; // one set plays 2-4; two sets play up to 8
+
+// One 30-card set: [dice required, distinct faces among them, points, how many].
+// Harder combinations are worth more, spanning the 2-15 point range.
+const SET_SHAPES = [
+  [1, 1, 2, 4],
+  [2, 2, 5, 6],
+  [2, 1, 7, 4],
+  [3, 3, 10, 6],
+  [3, 2, 12, 6],
+  [3, 1, 15, 4],
+];
+
+function mulberry32(seed) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function shuffle(arr, rng) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+function multisets(size, min = 1) {
+  if (size === 0) return [[]];
+  const out = [];
+  for (let f = min; f <= 6; f++) {
+    for (const rest of multisets(size - 1, f)) out.push([f, ...rest]);
+  }
+  return out;
+}
+
+function buildDeck(rng, sets = 1) {
+  const deck = [];
+  for (let s = 0; s < sets; s++) {
+    for (const [size, distinct, points, count] of SET_SHAPES) {
+      const pool = multisets(size).filter((m) => new Set(m).size === distinct);
+      for (const need of shuffle(pool, rng).slice(0, count)) deck.push({ points, need });
+    }
+  }
+  return shuffle(deck, rng);
+}
+
+const cardsInPlay = (playerCount) => (playerCount >= 5 ? 4 : 3);
+
+/** The faces `player` still needs on `card`. */
+function missing(card, player) {
+  const left = [...card.need];
+  for (const f of card.placed[player]) {
+    const i = left.indexOf(f);
+    if (i >= 0) left.splice(i, 1);
+  }
+  return left;
+}
+
+function handSize(state, player) {
+  const onCards = state.cards.reduce((n, c) => n + c.placed[player].length, 0);
+  return DICE_PER_PLAYER - onCards;
+}
+
+/** Everyone rolls two dice; highest total goes first, ties roll again. */
+function rollOff(count, rng) {
+  let contenders = Array.from({ length: count }, (_, i) => i);
+  let rolls = [];
+  while (contenders.length > 1) {
+    rolls = contenders.map((i) => ({ i, total: 2 + Math.floor(rng() * 6) + Math.floor(rng() * 6) }));
+    const top = Math.max(...rolls.map((r) => r.total));
+    contenders = rolls.filter((r) => r.total === top).map((r) => r.i);
+  }
+  return { first: contenders[0], total: rolls.length ? rolls.find((r) => r.i === contenders[0]).total : 0 };
+}
+
+function newGame(configs, rng = Math.random) {
+  if (configs.length < 2 || configs.length > MAX_PLAYERS) throw new Error('2-8 players');
+  const players = configs.map((c) => ({ name: c.name, cpu: !!c.cpu, score: 0 }));
+  const { first, total } = rollOff(players.length, rng);
+  const state = {
+    players,
+    deck: buildDeck(rng, players.length > 4 ? 2 : 1),
+    cards: [],
+    current: first,
+    firstRoll: total,
+    phase: 'start', // start -> placing -> (next player's) start ... -> over
+    rolled: [],
+    winner: null,
+    lastClaim: null,
+    nextId: 1,
+  };
+  for (let i = 0; i < cardsInPlay(players.length); i++) draw(state);
+  return state;
+}
+
+function draw(state) {
+  const base = state.deck.shift();
+  if (!base) return false;
+  state.cards.push({
+    id: state.nextId++,
+    points: base.points,
+    need: base.need,
+    placed: state.players.map(() => []),
+  });
+  return true;
+}
+
+function assertPhase(state, phase) {
+  if (state.phase !== phase) throw new Error(`Expected phase ${phase}, got ${state.phase}`);
+}
+
+/** Take Back: before rolling, return ALL of your dice from the trays to your hand. */
+function takeBack(state) {
+  assertPhase(state, 'start');
+  const s = structuredClone(state);
+  s.lastClaim = null;
+  for (const c of s.cards) c.placed[s.current] = [];
+  return s;
+}
+
+function roll(state, rng = Math.random) {
+  assertPhase(state, 'start');
+  const n = handSize(state, state.current);
+  if (n <= 0) throw new Error('No dice in hand; take them back first');
+  const s = structuredClone(state);
+  s.lastClaim = null;
+  s.rolled = Array.from({ length: n }, () => 1 + Math.floor(rng() * 6));
+  s.phase = 'placing';
+  return s;
+}
+
+function canPlace(state, rolledIdx, cardIdx) {
+  if (state.phase !== 'placing') return false;
+  const face = state.rolled[rolledIdx];
+  const card = state.cards[cardIdx];
+  return face !== undefined && !!card && missing(card, state.current).includes(face);
+}
+
+function legalMoves(state) {
+  const moves = [];
+  if (state.phase !== 'placing') return moves;
+  state.rolled.forEach((_, r) => {
+    state.cards.forEach((_, c) => {
+      if (canPlace(state, r, c)) moves.push({ rolled: r, card: c });
+    });
+  });
+  return moves;
+}
+
+function place(state, rolledIdx, cardIdx) {
+  if (!canPlace(state, rolledIdx, cardIdx)) throw new Error('Illegal placement');
+  const s = structuredClone(state);
+  s.lastClaim = null;
+  const p = s.current;
+  const card = s.cards[cardIdx];
+  card.placed[p].push(s.rolled[rolledIdx]);
+  s.rolled.splice(rolledIdx, 1);
+
+  if (missing(card, p).length === 0) {
+    s.players[p].score += card.points;
+    s.lastClaim = { player: p, points: card.points, need: card.need };
+    // Every player's dice on the claimed card go back to their hands.
+    s.cards.splice(cardIdx, 1);
+    draw(s);
+    if (s.players[p].score >= TARGET_SCORE) {
+      s.phase = 'over';
+      s.winner = p;
+    } else if (s.cards.length === 0) {
+      s.phase = 'over';
+      s.winner = s.players.reduce((best, pl, i) => (pl.score > s.players[best].score ? i : best), 0);
+    }
+  }
+  return s;
+}
+
+/** Leftover rolled dice return to hand; play passes on. */
+function endTurn(state) {
+  assertPhase(state, 'placing');
+  const s = structuredClone(state);
+  s.lastClaim = null;
+  s.rolled = [];
+  s.current = (s.current + 1) % s.players.length;
+  s.phase = 'start';
+  return s;
+}
+
+return { DICE_PER_PLAYER, TARGET_SCORE, MAX_PLAYERS, mulberry32, buildDeck, cardsInPlay, missing, handSize, newGame, takeBack, roll, canPlace, legalMoves, place, endTurn };
+})();
+
+
+/** Decide the CPU's next single action for the current state. */
+function aiNextAction(s, rng = Math.random) {
+  const me = s.current;
+
+  if (s.phase === 'start') {
+    const hand = E.handSize(s, me);
+    if (hand === 0) return { type: 'takeback' };
+    // Take Back resets everything, so only do it when stuck with few dice and no card nearly done.
+    const closest = Math.min(...s.cards.map((c) => (c.placed[me].length ? E.missing(c, me).length : Infinity)));
+    if (hand <= 2 && closest > 1 && rng() < 0.6) return { type: 'takeback' };
+    return { type: 'roll' };
+  }
+
+  const moves = E.legalMoves(s);
+  if (!moves.length) return { type: 'end' };
+  let best = moves[0];
+  let bestScore = -Infinity;
+  for (const m of moves) {
+    const card = s.cards[m.card];
+    const left = E.missing(card, me).length - 1;
+    const score = card.points / (left + 1) + (left === 0 ? 100 : 0) + rng() * 0.1;
+    if (score > bestScore) {
+      bestScore = score;
+      best = m;
+    }
+  }
+  return { type: 'place', rolled: best.rolled, card: best.card };
+}
+
+
+
+
+const COLORS = ['#e5484d', '#3b82f6', '#2fb36d', '#f5a524', '#a855f7', '#14b8a6', '#ec4899', '#cbd5e1'];
+const MAX_PLAYERS = E.MAX_PLAYERS;
+const CPU_DELAY = 700;
+const ROLL_MS = 650;
+const PIPS = { 1: [4], 2: [0, 8], 3: [0, 4, 8], 4: [0, 2, 6, 8], 5: [0, 2, 4, 6, 8], 6: [0, 2, 3, 5, 6, 8] };
+
+const app = document.getElementById('app');
+const ui = {
+  screen: 'setup',
+  setup: [{ name: 'You', cpu: false }, { name: 'Robo', cpu: true }],
+  game: null,
+  selected: null,
+  rolling: false,
+  toast: '',
+  modal: null,
+};
+let timer = 0;
+let toastTimer = 0;
+
+const esc = (s) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const wins = (name) => `${esc(name)} ${name.trim().toLowerCase() === 'you' ? 'win' : 'wins'}!`;
+const color = (p) => COLORS[p % COLORS.length];
+
+function die(face, cls = '', attrs = '', tag = 'div') {
+  const pips = Array.from({ length: 9 }, (_, i) => `<i${PIPS[face].includes(i) ? ' class="on"' : ''}></i>`).join('');
+  return `<${tag} class="die ${cls}" aria-label="${face}" ${attrs}>${pips}</${tag}>`;
+}
+
+/* ---------- rendering ---------- */
+
+function render() {
+  app.innerHTML = (ui.screen === 'setup' ? setupView() : gameView()) + modalView() + (ui.toast ? `<div class="toast">${esc(ui.toast)}</div>` : '');
+}
+
+function setupView() {
+  const rows = ui.setup.map((p, i) => `
+    <div class="prow">
+      <span class="dot" style="background:${color(i)}"></span>
+      <input data-name="${i}" value="${esc(p.name)}" maxlength="12" aria-label="Player ${i + 1} name">
+      <button class="btn" data-act="toggleCpu" data-i="${i}">${p.cpu ? 'CPU' : 'Human'}</button>
+      ${ui.setup.length > 2 ? `<button class="btn" data-act="removePlayer" data-i="${i}" aria-label="Remove">✕</button>` : ''}
+    </div>`).join('');
+  return `
+    <div class="setup">
+      <div><h1>🎲 Roll for It</h1><p class="tag">Roll dice, match the cards, race to ${E.TARGET_SCORE} points.</p></div>
+      ${rows}
+      ${ui.setup.length < MAX_PLAYERS ? '<button class="btn" data-act="addPlayer">+ Add player</button>' : ''}
+      <button class="btn primary" data-act="start">Start game</button>
+      <button class="btn" data-act="rules">How to play</button>
+    </div>`;
+}
+
+function statusText(s) {
+  const cur = s.players[s.current];
+  if (s.phase === 'over') return wins(s.players[s.winner].name);
+  if (ui.rolling) return `${esc(cur.name)} rolls…`;
+  if (cur.cpu) return `${esc(cur.name)} is thinking…`;
+  if (s.phase === 'start') {
+    return E.handSize(s, s.current) === 0 ? 'All your dice are on cards — take them back to roll' : `${esc(cur.name)}: roll your ${E.handSize(s, s.current)} dice`;
+  }
+  if (!s.rolled.length) return 'All dice placed';
+  if (!E.legalMoves(s).length) return 'No matches this time';
+  return ui.selected === null ? 'Tap a die, then the card it fits' : 'Tap a highlighted card';
+}
+
+function cardView(s, card, ci) {
+  const accepts = ui.selected !== null && E.canPlace(s, ui.selected, ci);
+  const used = new Map(); // per player, how many of each face already counted
+  const slots = card.need.map((face) => {
+    const owners = s.players.map((_, p) => p).filter((p) => {
+      const key = `${p}:${face}`;
+      const n = used.get(key) || 0;
+      const has = card.placed[p].filter((f) => f === face).length;
+      used.set(key, n + 1);
+      return has > n;
+    });
+    const mine = owners.includes(s.current);
+    const others = owners.filter((p) => p !== s.current);
+    const dots = others.map((p) => `<i style="--c:${color(p)}"></i>`).join('');
+    return `<div class="slot ${mine ? 'mine' : ''}">
+      ${die(face, mine ? 'mine' : 'ghost', mine ? `style="--c:${color(s.current)}"` : '')}
+      <span class="dots">${dots}</span></div>`;
+  }).join('');
+  return `<div class="gcard ${accepts ? 'accepts' : ''}" data-act="pickCard" data-card="${ci}" role="group">
+    <div class="pts">${card.points}<small>PTS</small></div><div class="slots">${slots}</div></div>`;
+}
+
+function gameView() {
+  const s = ui.game;
+  const human = !s.players[s.current].cpu && s.phase !== 'over';
+  const chips = s.players.map((p, i) => `
+    <div class="chip ${i === s.current && s.phase !== 'over' ? 'active' : ''}" style="--c:${color(i)}">
+      <span class="n">${esc(p.name)}</span><span class="s">${p.score}<small> / ${E.TARGET_SCORE}</small></span>
+    </div>`).join('');
+
+  let tray;
+  if (s.phase === 'placing') {
+    tray = s.rolled.map((f, i) => die(f, `${ui.rolling ? 'rolling' : ''} ${ui.selected === i ? 'sel' : ''}`,
+      human && !ui.rolling ? `data-act="pickRolled" data-i="${i}"` : 'disabled', 'button')).join('')
+      || '<span class="hint">—</span>';
+  } else {
+    const n = E.handSize(s, s.current);
+    tray = n ? Array.from({ length: n }, () => die(1, 'ghost')).join('').replace(/aria-label="1"/g, 'aria-label="die in hand"') : '<span class="hint">No dice in hand</span>';
+  }
+  const onCards = E.DICE_PER_PLAYER - E.handSize(s, s.current);
+  const canTakeBack = human && s.phase === 'start' && onCards > 0;
+  const mustTakeBack = canTakeBack && onCards === E.DICE_PER_PLAYER;
+  const canRoll = human && s.phase === 'start' && E.handSize(s, s.current) > 0;
+  const canEnd = human && s.phase === 'placing' && !ui.rolling;
+  const noMoves = canEnd && !E.legalMoves(s).length;
+
+  return `
+    <div class="score">${chips}</div>
+    <div class="status">${statusText(s)}</div>
+    <div class="cards">${s.cards.map((c, i) => cardView(s, c, i)).join('')}</div>
+    <div class="tray">
+      <div class="dice">${tray}</div>
+      <div class="actions">
+        <button class="btn primary ${canRoll ? 'pulse' : ''}" data-act="roll" ${canRoll ? '' : 'disabled'}>Roll</button>
+        ${s.phase === 'start' ? `<button class="btn ${mustTakeBack ? 'primary pulse' : ''}" data-act="takeBack" ${canTakeBack ? '' : 'disabled'}>Take back &amp; roll all</button>` : `<button class="btn ${noMoves ? 'primary pulse' : ''}" data-act="end" ${canEnd ? '' : 'disabled'}>End turn</button>`}
+        <button class="btn" data-act="menu" style="flex:0 0 auto" aria-label="Menu">☰</button>
+      </div>
+    </div>`;
+}
+
+function modalView() {
+  if (ui.screen === 'game' && ui.game?.phase === 'over') {
+    const s = ui.game;
+    const scores = s.players.map((p) => `<div>${esc(p.name)}: <b>${p.score}</b></div>`).join('');
+    return `<div class="modal"><div class="sheet winner">
+      <div>🏆</div><div class="big">${wins(s.players[s.winner].name)}</div>${scores}
+      <button class="btn primary" data-act="rematch">Rematch</button>
+      <button class="btn" data-act="toSetup">Main menu</button></div></div>`;
+  }
+  if (ui.modal === 'rules') {
+    return `<div class="modal" data-act="closeModal"><div class="sheet"><h2>How to play</h2>
+      <p>Be the first to score <b>${E.TARGET_SCORE} points</b>. Cards are worth 2–15 points.</p>
+      <ol>
+        <li><b>Roll for it!</b> Roll all the dice in your hand (you own ${E.DICE_PER_PLAYER}), once per turn.</li>
+        <li><b>Match it!</b> Tap a die, then a card that shows that number. Each die matches one picture on one card. Once placed, a die can't move. You may choose not to place a die; unplaced dice stay in your hand.</li>
+        <li><b>Score it!</b> Cover every picture on a card with <i>your own</i> dice to score it. All dice on a scored card go back to their owners, and a new card is flipped. Leftover dice from your roll may go on the new card.</li>
+        <li><b>Take Back:</b> at the start of your turn, before rolling, you may take back <b>all</b> your dice from the cards and roll all six.</li>
+      </ol>
+      <p>Coloured dots under a number show which opponents already cover it. Other players' dice can't score cards for you, but they can beat you to them!</p>
+      <p>Play starts with a two-dice roll-off; 5+ players use two sets (60 cards) and four face-up cards.</p>
+      <button class="btn primary" data-act="closeModal">Got it</button></div></div>`;
+  }
+  if (ui.modal === 'menu') {
+    return `<div class="modal" data-act="closeModal"><div class="sheet"><h2>Menu</h2>
+      <button class="btn" data-act="rules">How to play</button>
+      <button class="btn" data-act="rematch">Restart game</button>
+      <button class="btn" data-act="toSetup">Main menu</button>
+      <button class="btn primary" data-act="closeModal">Resume</button></div></div>`;
+  }
+  return '';
+}
+
+/* ---------- flow ---------- */
+
+function say(text, ms = 1800) {
+  ui.toast = text;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { ui.toast = ''; render(); }, ms);
+}
+
+function commit(next) {
+  ui.game = next;
+  ui.selected = null;
+  if (next.lastClaim) {
+    const c = next.lastClaim;
+    say(`${next.players[c.player].name} claimed ${c.points} points!`);
+  }
+  render();
+  settle();
+}
+
+function settle() {
+  clearTimeout(timer);
+  const s = ui.game;
+  if (!s || s.phase === 'over' || ui.rolling) return;
+  if (s.players[s.current].cpu) {
+    timer = setTimeout(cpuStep, CPU_DELAY);
+  } else if (s.phase === 'placing' && (!s.rolled.length || !E.legalMoves(s).length)) {
+    if (s.rolled.length) say('No matching cards — turn passes');
+    timer = setTimeout(() => commit(E.endTurn(ui.game)), 1300);
+  }
+}
+
+function doRoll() {
+  ui.game = E.roll(ui.game);
+  ui.rolling = true;
+  render();
+  timer = setTimeout(() => { ui.rolling = false; render(); settle(); }, ROLL_MS);
+}
+
+function doTakeBack() {
+  ui.game = E.takeBack(ui.game);
+  doRoll();
+}
+
+function cpuStep() {
+  const s = ui.game;
+  if (!s || s.phase === 'over' || !s.players[s.current].cpu) return;
+  const a = aiNextAction(s);
+  if (a.type === 'takeback') { ui.game = E.takeBack(s); render(); timer = setTimeout(cpuStep, CPU_DELAY); }
+  else if (a.type === 'roll') doRoll();
+  else if (a.type === 'place') commit(E.place(s, a.rolled, a.card));
+  else commit(E.endTurn(s));
+}
+
+function startGame() {
+  clearTimeout(timer);
+  ui.game = E.newGame(ui.setup);
+  ui.screen = 'game';
+  ui.selected = null;
+  ui.rolling = false;
+  ui.modal = null;
+  const first = ui.game.players[ui.game.current];
+  say(`${first.name} goes first (rolled ${ui.game.firstRoll})`, 2500);
+  settle();
+}
+
+const humanTurn = () => ui.game && !ui.game.players[ui.game.current].cpu && ui.game.phase !== 'over' && !ui.rolling;
+
+const actions = {
+  toggleCpu: ({ i }) => { ui.setup[i].cpu = !ui.setup[i].cpu; render(); },
+  addPlayer: () => { ui.setup.push({ name: `Player ${ui.setup.length + 1}`, cpu: true }); render(); },
+  removePlayer: ({ i }) => { ui.setup.splice(i, 1); render(); },
+  start: startGame,
+  rematch: startGame,
+  toSetup: () => { clearTimeout(timer); ui.screen = 'setup'; ui.modal = null; ui.game = null; ui.rolling = false; render(); },
+  rules: () => { ui.modal = 'rules'; render(); },
+  menu: () => { ui.modal = 'menu'; render(); },
+  closeModal: () => { ui.modal = null; render(); },
+  roll: () => { if (humanTurn() && ui.game.phase === 'start' && E.handSize(ui.game, ui.game.current) > 0) doRoll(); },
+  end: () => { if (humanTurn() && ui.game.phase === 'placing') { clearTimeout(timer); commit(E.endTurn(ui.game)); } },
+  takeBack: () => { if (humanTurn() && ui.game.phase === 'start') doTakeBack(); },
+  pickRolled: ({ i }) => {
+    if (!humanTurn() || ui.game.phase !== 'placing') return;
+    const idx = +i;
+    const targets = ui.game.cards.map((_, c) => c).filter((c) => E.canPlace(ui.game, idx, c));
+    if (!targets.length) { say('No card needs that number'); return; }
+    if (targets.length === 1) { commit(E.place(ui.game, idx, targets[0])); return; }
+    ui.selected = ui.selected === idx ? null : idx;
+    render();
+  },
+  pickCard: ({ card }) => {
+    if (humanTurn() && ui.selected !== null && E.canPlace(ui.game, ui.selected, +card)) commit(E.place(ui.game, ui.selected, +card));
+  },
+};
+
+app.addEventListener('click', (e) => {
+  const el = e.target.closest('[data-act]');
+  if (!el || (el.classList.contains('modal') && e.target !== el)) return;
+  // Slots sit inside cards; the slot's own action wins over the card's.
+  actions[el.dataset.act]?.({ ...el.dataset });
+});
+app.addEventListener('input', (e) => {
+  const i = e.target.dataset?.name;
+  if (i !== undefined) ui.setup[i].name = e.target.value.trim() || `Player ${+i + 1}`;
+});
+
+render();
+
+
+</script>
