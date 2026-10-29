@@ -59,7 +59,7 @@ function statusText(s) {
   if (ui.rolling) return `${esc(cur.name)} rolls…`;
   if (cur.cpu) return `${esc(cur.name)} is thinking…`;
   if (s.phase === 'start') {
-    return E.handSize(s, s.current) === 0 ? 'All dice are on cards — tap one of yours to take it back' : `${cur.name}: roll your ${E.handSize(s, s.current)} dice`;
+    return E.handSize(s, s.current) === 0 ? 'All dice are on cards — tap one of yours to take it back' : `${esc(cur.name)}: roll your ${E.handSize(s, s.current)} dice`;
   }
   if (!s.rolled.length) return 'All dice placed';
   if (!E.legalMoves(s).length) return 'No matches this time';
