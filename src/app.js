@@ -6,7 +6,7 @@ import {
 } from './profile.js';
 
 const MAX_PLAYERS = E.MAX_PLAYERS;
-const CPU_DELAY = 700;
+const CPU_DELAY = window.RFI_CPU_DELAY ?? 700;
 const PIPS = { 1: [4], 2: [0, 8], 3: [0, 4, 8], 4: [0, 2, 6, 8], 5: [0, 2, 4, 6, 8], 6: [0, 2, 3, 5, 6, 8] };
 const reducedMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
