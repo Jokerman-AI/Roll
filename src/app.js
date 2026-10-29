@@ -1,14 +1,20 @@
 import * as E from './engine.js';
 import { aiNextAction } from './ai.js';
 import { dbStore, p2pStore } from './transport.js';
+import {
+  PALETTE, INK, BRUSHES, AVATAR_SIZE, freeColor, safeAvatar, makeSketch, paintCanvas, pointOn, strokeSegment, clearSketch, loadAvatar, exportAvatar,
+} from './profile.js';
 
-const COLORS = ['#e5484d', '#3b82f6', '#2fb36d', '#f5a524', '#a855f7', '#14b8a6', '#ec4899', '#cbd5e1'];
 const MAX_PLAYERS = E.MAX_PLAYERS;
 const CPU_DELAY = 700;
-const ROLL_MS = 650;
 const PIPS = { 1: [4], 2: [0, 8], 3: [0, 4, 8], 4: [0, 2, 6, 8], 5: [0, 2, 4, 6, 8], 6: [0, 2, 3, 5, 6, 8] };
+const reducedMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
 const app = document.getElementById('app');
+const toastEl = Object.assign(document.createElement('div'), { className: 'toast', hidden: true });
+toastEl.setAttribute('role', 'status');
+document.body.appendChild(toastEl);
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const store = {
   get: (k) => { try { return localStorage.getItem(k); } catch { return null; } },
@@ -17,48 +23,82 @@ const store = {
 
 // Online play: the host page's shared database when present, otherwise peer-to-peer.
 const net = { store: null, uid: null, ref: null, unsub: null, room: null, mySeat: -1, q: Promise.resolve(), busy: false };
+
+const profile = {
+  name: store.get('rfi-name') || 'Player',
+  color: Number.isInteger(+store.get('rfi-color')) && store.get('rfi-color') !== null ? +store.get('rfi-color') % PALETTE.length : 0,
+  avatar: safeAvatar(store.get('rfi-avatar') || ''),
+};
+const saveProfile = () => { store.set('rfi-name', profile.name); store.set('rfi-color', String(profile.color)); store.set('rfi-avatar', profile.avatar); };
+
 const ui = {
   screen: 'setup', // setup | online | lobby | game
   online: false,
-  name: store.get('rfi-name') || 'Player',
   joinCode: '',
-  setup: [{ name: 'You', cpu: false }, { name: 'Robo', cpu: true }],
+  setup: [
+    { name: 'You', cpu: false, color: profile.color, avatar: profile.avatar },
+    { name: 'Robo', cpu: true, color: freeColor([profile.color], 1), avatar: '' },
+  ],
+  cfg: [], // players of the local game in progress
   game: null,
   selected: null,
   rolling: false,
-  toast: '',
+  fx: [],
   modal: null,
+  ed: null, // icon / colour editor
 };
 let timer = 0;
 let toastTimer = 0;
+let rollTimer = 0;
+let rollClock = 0;
 
-const esc = (s) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const wins = (name) => `${esc(name)} ${name.trim().toLowerCase() === 'you' ? 'win' : 'wins'}!`;
 const isHost = () => net.room?.hostUid === net.uid;
-const color = (p) => COLORS[p % COLORS.length];
+
+/* ---------- players' looks ---------- */
+
+const seats = () => (ui.online ? net.room?.seats : ui.cfg) || [];
+const swatch = (p, i) => PALETTE[Number.isInteger(p?.color) ? p.color % PALETTE.length : i % PALETTE.length];
+const hexOf = (i) => swatch(seats()[i], i).hex;
+const diceVars = (p, i) => { const c = swatch(p, i); return `--c:${c.hex};--pc:${c.pip}`; };
+
+function avatarHtml(p, i, size) {
+  const c = swatch(p, i);
+  const img = safeAvatar(p?.avatar);
+  const inner = img ? `<img src="${img}" alt="">` : `<b style="color:${c.pip}">${esc((p?.name || '?').trim().charAt(0).toUpperCase() || '?')}</b>`;
+  return `<span class="av" style="--s:${size}px;--c:${c.hex}">${inner}</span>`;
+}
 
 function die(face, cls = '', attrs = '', tag = 'div') {
   const pips = Array.from({ length: 9 }, (_, i) => `<i${PIPS[face].includes(i) ? ' class="on"' : ''}></i>`).join('');
   return `<${tag} class="die ${cls}" aria-label="${face}" ${attrs}>${pips}</${tag}>`;
 }
 
+function setFace(el, face) {
+  el.querySelectorAll('i').forEach((pip, k) => pip.classList.toggle('on', PIPS[face].includes(k)));
+  el.setAttribute('aria-label', String(face));
+}
+
 /* ---------- rendering ---------- */
 
 function render() {
-  app.innerHTML = ({ setup: setupView, online: onlineView, lobby: lobbyView, game: gameView }[ui.screen])() + modalView() + (ui.toast ? `<div class="toast">${esc(ui.toast)}</div>` : '');
+  app.innerHTML = ({ setup: setupView, online: onlineView, lobby: lobbyView, game: gameView }[ui.screen])() + modalView();
+  const cv = document.getElementById('avcv');
+  if (cv && ui.ed) paintCanvas(cv, ui.ed.sk);
 }
 
 function setupView() {
   const rows = ui.setup.map((p, i) => `
     <div class="prow">
-      <span class="dot" style="background:${color(i)}"></span>
+      <button class="avbtn" data-act="editPlayer" data-i="${i}" aria-label="Customize ${esc(p.name)}">${avatarHtml(p, i, 44)}</button>
       <input data-name="${i}" value="${esc(p.name)}" maxlength="12" aria-label="Player ${i + 1} name">
       <button class="btn" data-act="toggleCpu" data-i="${i}">${p.cpu ? 'CPU' : 'Human'}</button>
       ${ui.setup.length > 2 ? `<button class="btn" data-act="removePlayer" data-i="${i}" aria-label="Remove">✕</button>` : ''}
     </div>`).join('');
   return `
     <div class="setup">
-      <div><h1>🎲 Roll for It</h1><p class="tag">Roll dice, match the cards, race to ${E.TARGET_SCORE} points.</p></div>
+      <div><h1>🎲 Roll for It</h1><p class="tag">Roll dice, match the cards, race to ${E.TARGET_SCORE} points. Tap a face to draw your icon and pick your dice colour.</p></div>
       ${rows}
       ${ui.setup.length < MAX_PLAYERS ? '<button class="btn" data-act="addPlayer">+ Add player</button>' : ''}
       <button class="btn primary" data-act="start">Start game</button>
@@ -72,7 +112,10 @@ function onlineView() {
   return `
     <div class="setup">
       <div><h1>Play online</h1><p class="tag">Create a room and send friends the code, or enter theirs.</p></div>
-      <div class="prow"><input id="myname" value="${esc(ui.name)}" maxlength="12" placeholder="Your name" aria-label="Your name"></div>
+      <div class="prow">
+        <button class="avbtn" data-act="editProfile" aria-label="Customize your player">${avatarHtml(profile, 0, 44)}</button>
+        <input id="myname" value="${esc(profile.name)}" maxlength="12" placeholder="Your name" aria-label="Your name">
+      </div>
       <button class="btn primary" data-act="createRoom" ${net.busy ? 'disabled' : ''}>Create room</button>
       <div class="prow">
         <input id="joincode" value="${esc(ui.joinCode)}" maxlength="4" placeholder="Room code" autocapitalize="characters" autocomplete="off" aria-label="Room code" style="text-transform:uppercase;letter-spacing:.2em">
@@ -87,13 +130,15 @@ function lobbyView() {
   if (!room) return '<div class="setup"><p class="tag">Connecting…</p></div>';
   const rows = room.seats.map((p, i) => `
     <div class="prow">
-      <span class="dot" style="background:${color(i)}"></span>
+      ${i === net.mySeat
+        ? `<button class="avbtn" data-act="editMe" aria-label="Customize your player">${avatarHtml(p, i, 44)}</button>`
+        : avatarHtml(p, i, 44)}
       <span style="flex:1">${esc(p.name)}${i === net.mySeat ? ' <small>(you)</small>' : ''}${p.cpu ? ' <small>CPU</small>' : ''}${p.uid === room.hostUid ? ' <small>host</small>' : ''}</span>
       ${isHost() && p.cpu ? `<button class="btn" data-act="removeSeat" data-i="${i}" aria-label="Remove">✕</button>` : ''}
     </div>`).join('');
   return `
     <div class="setup">
-      <div><h1>Room <span class="code">${esc(room.code)}</span></h1><p class="tag">Friends join with this code. ${room.seats.length} of ${MAX_PLAYERS} seats taken.</p></div>
+      <div><h1>Room <span class="code">${esc(room.code)}</span></h1><p class="tag">Friends join with this code. ${room.seats.length} of ${MAX_PLAYERS} seats taken. Tap your face to change your icon and dice colour.</p></div>
       <button class="btn" data-act="invite">Invite friends</button>
       ${rows}
       ${isHost() ? `
@@ -106,56 +151,71 @@ function lobbyView() {
 
 function statusText(s) {
   const cur = s.players[s.current];
+  const deck = s.deck.length ? ` <small>· ${s.deck.length} cards left</small>` : '';
   if (s.phase === 'over') return wins(s.players[s.winner].name);
   if (ui.rolling) return `${esc(cur.name)} rolls…`;
-  if (cur.cpu) return `${esc(cur.name)} is thinking…`;
-  if (ui.online && s.current !== net.mySeat) return net.mySeat < 0 ? `Watching ${esc(cur.name)}…` : `${esc(cur.name)} is playing…`;
+  if (cur.cpu) return `${esc(cur.name)} is thinking…${deck}`;
+  if (ui.online && s.current !== net.mySeat) return (net.mySeat < 0 ? `Watching ${esc(cur.name)}…` : `${esc(cur.name)} is playing…`) + deck;
   if (s.phase === 'start') {
-    return E.handSize(s, s.current) === 0 ? 'All your dice are on cards — take them back to roll' : `${esc(cur.name)}: roll your ${E.handSize(s, s.current)} dice`;
+    return (E.handSize(s, s.current) === 0 ? 'All your dice are on cards. Take them back to roll.' : `${esc(cur.name)}: roll your ${E.handSize(s, s.current)} dice`) + deck;
   }
   if (!s.rolled.length) return 'All dice placed';
   if (!E.legalMoves(s).length) return 'No matches this time';
   return ui.selected === null ? 'Tap a die, then the card it fits' : 'Tap a highlighted card';
 }
 
+const tierOf = (points) => (points >= 13 ? 4 : points >= 9 ? 3 : points >= 5 ? 2 : 1);
+
 function cardView(s, card, ci) {
   const accepts = ui.selected !== null && E.canPlace(s, ui.selected, ci);
   const used = new Map(); // per player, how many of each face already counted
+  const n = card.need.length;
+  const cols = n <= 2 ? 1 : n <= 4 ? 2 : 3;
+  const mineSeat = seats()[s.current];
   const slots = card.need.map((face) => {
     const owners = s.players.map((_, p) => p).filter((p) => {
       const key = `${p}:${face}`;
-      const n = used.get(key) || 0;
+      const c = used.get(key) || 0;
       const has = card.placed[p].filter((f) => f === face).length;
-      used.set(key, n + 1);
-      return has > n;
+      used.set(key, c + 1);
+      return has > c;
     });
     const mine = owners.includes(s.current);
-    const others = owners.filter((p) => p !== s.current);
-    const dots = others.map((p) => `<i style="--c:${color(p)}"></i>`).join('');
+    const dots = owners.filter((p) => p !== s.current).map((p) => `<i style="--c:${hexOf(p)}"></i>`).join('');
     return `<div class="slot ${mine ? 'mine' : ''}">
-      ${die(face, mine ? 'mine' : 'ghost', mine ? `style="--c:${color(s.current)}"` : '')}
+      ${die(face, mine ? 'mine' : 'ghost', mine ? `style="${diceVars(mineSeat, s.current)}"` : '')}
       <span class="dots">${dots}</span></div>`;
   }).join('');
-  return `<div class="gcard ${accepts ? 'accepts' : ''}" data-act="pickCard" data-card="${ci}" role="group">
-    <div class="pts">${card.points}<small>PTS</small></div><div class="slots">${slots}</div></div>`;
+  return `<div class="gcard ${accepts ? 'accepts' : ''}" data-tier="${tierOf(card.points)}" data-act="pickCard" data-card="${ci}" role="group" aria-label="${card.points} point card">
+    <div class="corner tl"><b>${card.points}</b><i></i></div>
+    <div class="face" style="--fc:${cols};--dz:${cols === 1 ? 44 : cols === 2 ? 31 : 24}">${slots}</div>
+    <div class="corner br"><b>${card.points}</b><i></i></div>
+  </div>`;
 }
 
 function gameView() {
   const s = ui.game;
   const human = isMine(s);
+  const mine = seats()[s.current];
   const chips = s.players.map((p, i) => `
-    <div class="chip ${i === s.current && s.phase !== 'over' ? 'active' : ''}" style="--c:${color(i)}">
-      <span class="n">${esc(p.name)}${ui.online && i === net.mySeat ? ' (you)' : ''}</span><span class="s">${p.score}<small> / ${E.TARGET_SCORE}</small></span>
+    <div class="chip ${i === s.current && s.phase !== 'over' ? 'active' : ''}" style="--c:${hexOf(i)}">
+      ${avatarHtml(seats()[i], i, 28)}
+      <span class="meta"><span class="n">${esc(p.name)}${ui.online && i === net.mySeat ? ' (you)' : ''}</span><span class="s">${p.score}<small> / ${E.TARGET_SCORE}</small></span></span>
     </div>`).join('');
 
   let tray;
   if (s.phase === 'placing') {
-    tray = s.rolled.map((f, i) => die(f, `${ui.rolling ? 'rolling' : ''} ${ui.selected === i ? 'sel' : ''}`,
-      human && !ui.rolling ? `data-act="pickRolled" data-i="${i}"` : 'disabled', 'button')).join('')
-      || '<span class="hint">—</span>';
+    tray = s.rolled.map((f, i) => {
+      const fx = ui.fx[i] || { delay: 0, dur: 0, dx: 0, rot: 0 };
+      const spinning = ui.rolling && fx.dur > 0;
+      const style = `${diceVars(mine, s.current)};--d:${fx.delay}ms;--dur:${fx.dur}ms;--dx:${fx.dx}px;--rot:${fx.rot}deg`;
+      const face = spinning ? 1 + Math.floor(Math.random() * 6) : f;
+      return die(face, `owned ${spinning ? 'rolling' : ''} ${ui.selected === i ? 'sel' : ''}`,
+        `style="${style}" data-i="${i}" ${human && !ui.rolling ? `data-act="pickRolled"` : 'disabled'}`, 'button');
+    }).join('') || '<span class="hint">—</span>';
   } else {
     const n = E.handSize(s, s.current);
-    tray = n ? Array.from({ length: n }, () => die(1, 'ghost')).join('').replace(/aria-label="1"/g, 'aria-label="die in hand"') : '<span class="hint">No dice in hand</span>';
+    tray = n ? Array.from({ length: n }, () => die(1, 'owned hand', `style="${diceVars(mine, s.current)}"`)).join('').replace(/aria-label="1"/g, 'aria-label="die in hand"') : '<span class="hint">No dice in hand</span>';
   }
   const onCards = E.DICE_PER_PLAYER - E.handSize(s, s.current);
   const canTakeBack = human && s.phase === 'start' && onCards > 0;
@@ -169,7 +229,7 @@ function gameView() {
     <div class="table">
     <div class="score" style="--per:${Math.ceil(s.players.length / Math.ceil(s.players.length / 4))}">${chips}</div>
     <div class="status">${statusText(s)}</div>
-    <div class="cards">${s.cards.map((c, i) => cardView(s, c, i)).join('')}</div>
+    <div class="cards"><div class="cardgrid" data-n="${s.cards.length}">${s.cards.map((c, i) => cardView(s, c, i)).join('')}<div class="deckback" aria-hidden="true"><b>${s.deck.length}</b><span>left</span></div></div></div>
     </div>
     <div class="tray">
       <div class="dice">${tray}</div>
@@ -182,18 +242,37 @@ function gameView() {
     </div>`;
 }
 
+function editorView() {
+  const ed = ui.ed;
+  const taken = new Set(editorTaken());
+  const ink = INK.map((hex) => `<button class="ink ${!ed.sk.erase && ed.sk.ink === hex ? 'on' : ''}" style="--c:${hex}" data-act="ink" data-c="${hex}" aria-label="Ink ${hex}"></button>`).join('')
+    + `<button class="ink eraser ${ed.sk.erase ? 'on' : ''}" data-act="eraser" aria-label="Eraser">⌫</button>`;
+  const brushes = BRUSHES.map((w) => `<button class="brush ${ed.sk.width === w ? 'on' : ''}" data-act="brush" data-w="${w}" aria-label="Brush size ${w}"><i style="--w:${w}px"></i></button>`).join('');
+  const colors = PALETTE.map((c, i) => `<button class="swatch ${ed.color === i ? 'on' : ''}" style="--c:${c.hex}" data-act="pickColor" data-i="${i}" ${taken.has(i) ? 'disabled' : ''} aria-label="${c.name} dice${taken.has(i) ? ' (taken)' : ''}"></button>`).join('');
+  return `<div class="modal"><div class="sheet editor"><h2>Your player</h2>
+    <p class="note">Draw your icon with your finger.</p>
+    <div class="avwrap" style="--c:${PALETTE[ed.color].hex}"><canvas id="avcv" width="${AVATAR_SIZE}" height="${AVATAR_SIZE}" aria-label="Drawing area"></canvas></div>
+    <div class="tools">${ink}</div>
+    <div class="tools"><span class="brushes">${brushes}</span><button class="btn small" data-act="clearArt">Clear</button></div>
+    <p class="note">Dice colour. Each player needs a different one.</p>
+    <div class="tools">${colors}</div>
+    <div class="row2"><button class="btn" data-act="closeEditor">Cancel</button><button class="btn primary" data-act="saveEditor">Save</button></div>
+  </div></div>`;
+}
+
 function modalView() {
+  if (ui.ed) return editorView();
   if (ui.screen === 'game' && ui.game?.phase === 'over') {
     const s = ui.game;
-    const scores = s.players.map((p) => `<div>${esc(p.name)}: <b>${p.score}</b></div>`).join('');
+    const scores = s.players.map((p, i) => `<div class="srow">${avatarHtml(seats()[i], i, 24)}<span>${esc(p.name)}</span><b>${p.score}</b></div>`).join('');
     return `<div class="modal"><div class="sheet winner">
-      <div>🏆</div><div class="big">${wins(s.players[s.winner].name)}</div>${scores}
+      <div class="trophy">${avatarHtml(seats()[s.winner], s.winner, 72)}</div><div class="big">${wins(s.players[s.winner].name)}</div><div class="scores">${scores}</div>
       ${ui.online && !isHost() ? '<p>Waiting for the host to start a rematch…</p>' : '<button class="btn primary" data-act="rematch">Rematch</button>'}
       <button class="btn" data-act="toSetup">${ui.online ? 'Leave room' : 'Main menu'}</button></div></div>`;
   }
   if (ui.modal === 'rules') {
     return `<div class="modal" data-act="closeModal"><div class="sheet"><h2>How to play</h2>
-      <p>Be the first to score <b>${E.TARGET_SCORE} points</b>. Cards are worth 2–15 points.</p>
+      <p>Be the first to score <b>${E.TARGET_SCORE} points</b>. Cards are worth 2–15 points, and the harder a card is to finish, the more it's worth.</p>
       <ol>
         <li><b>Roll for it!</b> Roll all the dice in your hand (you own ${E.DICE_PER_PLAYER}), once per turn.</li>
         <li><b>Match it!</b> Tap a die, then a card that shows that number. Each die matches one picture on one card. Once placed, a die can't move. You may choose not to place a die; unplaced dice stay in your hand.</li>
@@ -215,17 +294,123 @@ function modalView() {
   return '';
 }
 
+/* ---------- icon and colour editor ---------- */
+
+/** Dice colours other players already use, for the editor being shown. */
+function editorTaken() {
+  const ed = ui.ed;
+  if (ed.target === 'setup') return ui.setup.filter((_, i) => i !== ed.i).map((p) => p.color);
+  if (ed.target === 'seat') return (net.room?.seats || []).filter((_, i) => i !== net.mySeat).map((p) => p.color);
+  return [];
+}
+
+function openEditor(target, i, current) {
+  const sk = makeSketch();
+  ui.ed = { target, i, color: current.color, sk };
+  loadAvatar(sk, current.avatar, () => { const cv = document.getElementById('avcv'); if (cv) paintCanvas(cv, sk); });
+  render();
+}
+
+let stroke = null;
+app.addEventListener('pointerdown', (e) => {
+  if (e.target.id !== 'avcv' || !ui.ed) return;
+  e.preventDefault();
+  e.target.setPointerCapture?.(e.pointerId);
+  stroke = pointOn(e.target, e);
+  strokeSegment(ui.ed.sk, stroke, stroke);
+  paintCanvas(e.target, ui.ed.sk);
+});
+app.addEventListener('pointermove', (e) => {
+  if (!stroke || e.target.id !== 'avcv' || !ui.ed) return;
+  const next = pointOn(e.target, e);
+  strokeSegment(ui.ed.sk, stroke, next);
+  stroke = next;
+  paintCanvas(e.target, ui.ed.sk);
+});
+const endStroke = () => { stroke = null; };
+app.addEventListener('pointerup', endStroke);
+app.addEventListener('pointercancel', endStroke);
+
+async function saveEditor() {
+  const ed = ui.ed;
+  const look = { color: ed.color, avatar: exportAvatar(ed.sk) };
+  ui.ed = null;
+  if (ed.target === 'setup') {
+    Object.assign(ui.setup[ed.i], look);
+    if (ed.i === 0) { Object.assign(profile, look); saveProfile(); }
+  } else if (ed.target === 'profile') {
+    Object.assign(profile, look);
+    saveProfile();
+  } else if (ed.target === 'seat') {
+    Object.assign(profile, look);
+    saveProfile();
+    await mutateRoom((room) => {
+      const me = room.seats.find((p) => p.uid === net.uid);
+      if (!me) return null;
+      if (room.seats.some((p) => p !== me && p.color === look.color)) { say('That colour was just taken'); return null; }
+      Object.assign(me, look);
+      return room;
+    });
+  }
+  render();
+}
+
 /* ---------- flow ---------- */
 
 function say(text, ms = 1800) {
-  ui.toast = text;
+  toastEl.textContent = text;
+  // Sit on the status line, which says much the same thing, so the toast never covers the dice or cards.
+  const st = document.querySelector('.status');
+  if (st) {
+    const r = st.getBoundingClientRect();
+    toastEl.style.top = `${Math.max(8, r.top - 8)}px`;
+    toastEl.style.minWidth = `${Math.min(r.width, window.innerWidth - 16)}px`;
+    toastEl.style.left = `${r.left + r.width / 2}px`;
+  } else {
+    toastEl.style.top = '80px';
+    toastEl.style.left = '50%';
+    toastEl.style.minWidth = '';
+  }
+  toastEl.hidden = false;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { ui.toast = ''; render(); }, ms);
+  toastTimer = setTimeout(() => { toastEl.hidden = true; }, ms);
 }
 
 const isMine = (s) => s.phase !== 'over' && (ui.online ? s.current === net.mySeat : !s.players[s.current].cpu);
 const canAct = () => !!ui.game && !ui.rolling && isMine(ui.game);
-let rollTimer = 0;
+
+/** Start the tumbling animation: each die lands at its own time, faces cycling until then. */
+function startRoll(count) {
+  const quick = reducedMotion();
+  ui.fx = Array.from({ length: count }, (_, i) => ({
+    delay: quick ? 0 : i * 70 + Math.floor(Math.random() * 110),
+    dur: quick ? 0 : 650 + Math.floor(Math.random() * 350),
+    dx: Math.floor(Math.random() * 120) - 60,
+    rot: (Math.random() < 0.5 ? -1 : 1) * (720 + 360 * Math.floor(Math.random() * 2)),
+  }));
+  const total = quick ? 150 : Math.max(...ui.fx.map((f) => f.delay + f.dur)) + 80;
+  ui.rolling = true;
+  clearInterval(rollClock);
+  clearTimeout(rollTimer);
+  const t0 = performance.now();
+  if (!quick) {
+    rollClock = setInterval(() => {
+      const now = performance.now() - t0;
+      document.querySelectorAll('.dice .die.rolling').forEach((el) => {
+        const fx = ui.fx[+el.dataset.i];
+        if (!fx) return;
+        if (now >= fx.delay + fx.dur) { setFace(el, ui.game.rolled[+el.dataset.i]); el.classList.remove('rolling'); } else if (now >= fx.delay) setFace(el, 1 + Math.floor(Math.random() * 6));
+      });
+    }, 75);
+  }
+  rollTimer = setTimeout(() => {
+    clearInterval(rollClock);
+    ui.rolling = false;
+    navigator.vibrate?.(12);
+    render();
+    settle();
+  }, total);
+}
 
 /** Apply a game state, whether it came from this device or the network. */
 function receive(next) {
@@ -237,11 +422,7 @@ function receive(next) {
     const c = next.lastClaim;
     say(`${next.players[c.player].name} claimed ${c.points} points!`);
   }
-  if (prev && prev.gid === next.gid && prev.phase === 'start' && next.phase === 'placing') {
-    ui.rolling = true;
-    clearTimeout(rollTimer);
-    rollTimer = setTimeout(() => { ui.rolling = false; render(); settle(); }, ROLL_MS);
-  }
+  if (prev && prev.gid === next.gid && prev.phase === 'start' && next.phase === 'placing') startRoll(next.rolled.length);
   render();
   settle();
 }
@@ -267,7 +448,7 @@ function settle() {
   if (s.players[s.current].cpu) {
     if (!ui.online || isHost()) timer = setTimeout(cpuStep, CPU_DELAY);
   } else if (isMine(s) && s.phase === 'placing' && (!s.rolled.length || !E.legalMoves(s).length)) {
-    if (s.rolled.length) say('No matching cards — turn passes');
+    if (s.rolled.length) say('No matching cards. Turn passes.');
     timer = setTimeout(() => { if (ui.game === s) commit(E.endTurn(s)); }, 1300);
   }
 }
@@ -296,7 +477,8 @@ function startGame() {
   clearTimeout(timer);
   ui.online = false;
   ui.game = null;
-  const g = freshGame(ui.setup);
+  ui.cfg = ui.setup.map((p) => ({ ...p }));
+  const g = freshGame(ui.cfg);
   ui.screen = 'game';
   ui.rolling = false;
   ui.modal = null;
@@ -376,6 +558,7 @@ function leaveRoom() {
   ui.game = null;
   ui.rolling = false;
   ui.modal = null;
+  ui.ed = null;
   ui.screen = 'setup';
   render();
 }
@@ -396,7 +579,8 @@ async function mutateRoom(fn) {
   say('The room is busy. Try again.');
 }
 
-const myName = () => (ui.name.trim() || 'Player').slice(0, 12);
+const myName = () => (profile.name.trim() || 'Player').slice(0, 12);
+const mySeatData = (taken) => ({ name: myName(), cpu: false, color: freeColor(taken, profile.color), avatar: profile.avatar });
 
 const failText = (e) => (e.message === 'notfound' ? 'No room with that code' : e.message === 'network' ? 'Could not reach the network. Check your connection.' : 'Could not connect. Try again.');
 
@@ -412,7 +596,7 @@ async function createRoom() {
     if (!ref) throw new Error('taken');
     attach(ref);
     saveSession(code, true);
-    await pushRoom({ code, hostUid: net.uid, status: 'lobby', seats: [{ uid: net.uid, name: myName(), cpu: false }], game: null, createdAt: Date.now() });
+    await pushRoom({ code, hostUid: net.uid, status: 'lobby', seats: [{ uid: net.uid, ...mySeatData([]) }], game: null, createdAt: Date.now() });
   } catch (e) { leaveRoom(); ui.screen = 'online'; say(net.store.kind === 'db' ? 'Could not create a room. The page needs to be shared with you as an editor.' : failText(e)); }
   net.busy = false; render();
 }
@@ -424,7 +608,7 @@ async function enterRoom(code, { host = false } = {}) {
     await mutateRoom((room) => {
       if (room.seats.some((p) => p.uid === net.uid)) return null; // rejoining
       if (room.status !== 'lobby' || room.seats.length >= MAX_PLAYERS) return null; // watch only
-      room.seats.push({ uid: net.uid, name: myName(), cpu: false });
+      room.seats.push({ uid: net.uid, ...mySeatData(room.seats.map((p) => p.color)) });
       return room;
     });
   }
@@ -469,8 +653,22 @@ async function startOnline() {
 
 const actions = {
   toggleCpu: ({ i }) => { ui.setup[i].cpu = !ui.setup[i].cpu; render(); },
-  addPlayer: () => { ui.setup.push({ name: `Player ${ui.setup.length + 1}`, cpu: true }); render(); },
+  addPlayer: () => {
+    const color = freeColor(ui.setup.map((p) => p.color), null);
+    ui.setup.push({ name: `Player ${ui.setup.length + 1}`, cpu: true, color, avatar: '' });
+    render();
+  },
   removePlayer: ({ i }) => { ui.setup.splice(i, 1); render(); },
+  editPlayer: ({ i }) => openEditor('setup', +i, ui.setup[i]),
+  editProfile: () => openEditor('profile', 0, profile),
+  editMe: () => { if (net.mySeat >= 0) openEditor('seat', net.mySeat, net.room.seats[net.mySeat]); },
+  ink: ({ c }) => { ui.ed.sk.ink = c; ui.ed.sk.erase = false; render(); },
+  eraser: () => { ui.ed.sk.erase = true; render(); },
+  brush: ({ w }) => { ui.ed.sk.width = +w; render(); },
+  clearArt: () => { clearSketch(ui.ed.sk); render(); },
+  pickColor: ({ i }) => { ui.ed.color = +i; render(); },
+  saveEditor,
+  closeEditor: () => { ui.ed = null; render(); },
   start: startGame,
   rematch: () => (ui.online ? startOnline() : startGame()),
   goOnline: () => { ui.screen = 'online'; render(); },
@@ -482,7 +680,7 @@ const actions = {
   addSeatCpu: () => mutateRoom((room) => {
     if (room.hostUid !== net.uid || room.seats.length >= MAX_PLAYERS) return null;
     const n = room.seats.filter((p) => p.cpu).length + 1;
-    room.seats.push({ uid: null, name: `Robo ${n}`, cpu: true });
+    room.seats.push({ uid: null, name: `Robo ${n}`, cpu: true, color: freeColor(room.seats.map((p) => p.color), null), avatar: '' });
     return room;
   }),
   removeSeat: ({ i }) => mutateRoom((room) => {
@@ -522,14 +720,16 @@ const actions = {
 app.addEventListener('click', (e) => {
   const el = e.target.closest('[data-act]');
   if (!el || (el.classList.contains('modal') && e.target !== el)) return;
-  // Slots sit inside cards; the slot's own action wins over the card's.
   actions[el.dataset.act]?.({ ...el.dataset });
 });
 app.addEventListener('input', (e) => {
-  if (e.target.id === 'myname') { ui.name = e.target.value; store.set('rfi-name', ui.name); return; }
+  if (e.target.id === 'myname') { profile.name = e.target.value; saveProfile(); return; }
   if (e.target.id === 'joincode') { ui.joinCode = e.target.value.toUpperCase(); return; }
   const i = e.target.dataset?.name;
-  if (i !== undefined) ui.setup[i].name = e.target.value.trim() || `Player ${+i + 1}`;
+  if (i !== undefined) {
+    ui.setup[i].name = e.target.value.trim() || `Player ${+i + 1}`;
+    if (+i === 0) { profile.name = ui.setup[0].name; saveProfile(); }
+  }
 });
 
 render();

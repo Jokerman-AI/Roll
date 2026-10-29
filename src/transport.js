@@ -4,6 +4,8 @@
 // and a ref has get(), set(room), acquire(), onSnapshot(next, error), close().
 // A snapshot is { exists, data() } where data() is the whole room document.
 
+import { freeColor, safeAvatar } from './profile.js';
+
 const PEER_PREFIX = 'rollforit-';
 const MAX_SEATS = 8;
 const keyOf = (code) => `rfi-room-${code}`;
@@ -11,6 +13,8 @@ const keyOf = (code) => `rfi-room-${code}`;
 function tryStorage(fn) {
   try { return fn(); } catch { return null; }
 }
+
+const cleanName = (n) => (String(n ?? '').trim() || 'Player').slice(0, 12);
 
 function snapshotOf(room) {
   return { id: 'room', exists: room !== null, data: () => room ?? undefined, metadata: {} };
@@ -69,9 +73,18 @@ export function p2pStore(Peer, options, uid) {
         if (msg.t === 'hello') { conn.send({ t: 'room', room }); return; }
         if (msg.t !== 'set' || !msg.room) return;
         if (room.status === 'lobby') {
+          // In the lobby a guest may only add or update their own seat.
           const mine = msg.room.seats?.find((p) => p.uid === sender);
-          if (mine && !room.seats.some((p) => p.uid === sender) && room.seats.length < MAX_SEATS) {
-            publish({ ...room, seats: [...room.seats, { uid: sender, name: String(mine.name).slice(0, 12), cpu: false }] });
+          const at = room.seats.findIndex((p) => p.uid === sender);
+          if (mine && at >= 0) {
+            const others = room.seats.filter((_, i) => i !== at).map((p) => p.color);
+            const look = { name: cleanName(mine.name), color: freeColor(others, mine.color), avatar: safeAvatar(mine.avatar) };
+            publish({ ...room, seats: room.seats.map((p, i) => (i === at ? { ...p, ...look } : p)) });
+            return;
+          }
+          if (mine && room.seats.length < MAX_SEATS) {
+            const look = { name: cleanName(mine.name), color: freeColor(room.seats.map((p) => p.color), mine.color), avatar: safeAvatar(mine.avatar) };
+            publish({ ...room, seats: [...room.seats, { uid: sender, cpu: false, ...look }] });
             return;
           }
         } else if (room.game && msg.room.game) {
@@ -151,7 +164,12 @@ export function p2pStore(Peer, options, uid) {
 
       return {
         async get() { return snapshotOf(room); },
-        async set(next) { if (conn?.open) conn.send({ t: 'set', room: JSON.parse(JSON.stringify(next)) }); },
+        async set(next) {
+          if (!conn?.open) return;
+          // A move only needs the game; everything else (seats, icons) is the host's to keep.
+          const room = next.game ? { game: next.game, status: next.status } : next;
+          conn.send({ t: 'set', room: JSON.parse(JSON.stringify(room)) });
+        },
         async acquire() { return { acquired: true }; },
         onSnapshot(next, error) { subs.add(next); if (error) errors.add(error); next(snapshotOf(room)); return () => { subs.delete(next); errors.delete(error); }; },
         close() { closed = true; peer.destroy(); },

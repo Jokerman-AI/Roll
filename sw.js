@@ -1,7 +1,7 @@
-const CACHE = 'roll-for-it-v2';
+const CACHE = 'roll-for-it-v3';
 const ASSETS = [
   './', './index.html', './manifest.webmanifest',
-  './src/style.css', './src/app.js', './src/engine.js', './src/ai.js', './src/transport.js', './vendor/peerjs.min.js',
+  './src/style.css', './src/app.js', './src/engine.js', './src/ai.js', './src/transport.js', './src/profile.js', './vendor/peerjs.min.js',
   './icons/icon.svg', './icons/icon-192.png', './icons/icon-512.png',
 ];
 

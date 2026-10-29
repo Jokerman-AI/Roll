@@ -15,6 +15,15 @@ reloads can use **Return to room** on the start screen.
 Peer-to-peer works on most home and mobile networks. A few strict networks block it because the app
 has no relay (TURN) server.
 
+## Cards, dice and players
+
+- Cards look like playing cards: the points are the corner index, the frame colour shows how hard the
+  card is, and the gold ones are the five-of-a-kind jackpots. The deck of 30 runs from 2 points (one die)
+  to 15 (five of a kind). Points follow how long a card takes to finish (simulated), so the hard ones pay more.
+- Dice tumble and land one by one when rolled (reduced-motion settings skip the animation).
+- Each player draws their own icon and chooses their dice colour; every player in a game has a different colour.
+  Your icon and colour are remembered on your device.
+
 ## Screens
 
 The layout adapts to small phones, large phones, tablets, landscape, notches, and dual-screen devices
@@ -46,6 +55,7 @@ Any static host (Netlify Drop, Cloudflare Pages) also works: upload `index.html`
 - `src/engine.js`: pure rules (deck, rolling, placing, claiming, win check)
 - `src/ai.js`: CPU opponent
 - `src/transport.js`: room back ends (peer-to-peer, or the shared database on claude.ai)
+- `src/profile.js`: dice colours and the icon drawing surface
 - `src/app.js`, `src/style.css`: UI
 - `sw.js`, `manifest.webmanifest`, `icons/`: PWA shell
 - `vendor/peerjs.min.js`: PeerJS 1.5.4 (MIT)

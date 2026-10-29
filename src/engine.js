@@ -4,16 +4,29 @@ export const DICE_PER_PLAYER = 6;
 export const TARGET_SCORE = 40;
 export const MAX_PLAYERS = 8; // one set plays 2-4; two sets play up to 8
 
-// One 30-card set: [dice required, distinct faces among them, points, how many].
-// Harder combinations are worth more, spanning the 2-15 point range.
+// One 30-card set: [shape, points]. A shape lists how many dice of each distinct face a card
+// needs, so [2, 1] is "a pair plus one other number". Three cards per tier.
+// Points track difficulty: the expected turns to finish each shape (simulated, rolling every free
+// die each turn and placing every match) are shown alongside, so harder cards are worth more.
 const SET_SHAPES = [
-  [1, 1, 2, 4],
-  [2, 2, 5, 6],
-  [2, 1, 7, 4],
-  [3, 3, 10, 6],
-  [3, 2, 12, 6],
-  [3, 1, 15, 4],
+  [[1], 2], //          1.5 turns
+  [[1, 1], 3], //       2.0
+  [[2], 4], //          2.5
+  [[2, 1], 5], //       3.1
+  [[1, 1, 1, 1], 6], // 3.3
+  [[2, 2], 7], //       4.2
+  [[3, 1], 9], //       4.7
+  [[2, 2, 1], 11], //   5.6
+  [[3, 2], 13], //      6.4
+  [[5], 15], //         8.5
 ];
+const CARDS_PER_SHAPE = 3;
+
+const shapeOf = (faces) => {
+  const counts = new Map();
+  for (const f of faces) counts.set(f, (counts.get(f) || 0) + 1);
+  return [...counts.values()].sort((a, b) => b - a).join(',');
+};
 
 export function mulberry32(seed) {
   let a = seed >>> 0;
@@ -46,9 +59,11 @@ function multisets(size, min = 1) {
 export function buildDeck(rng, sets = 1) {
   const deck = [];
   for (let s = 0; s < sets; s++) {
-    for (const [size, distinct, points, count] of SET_SHAPES) {
-      const pool = multisets(size).filter((m) => new Set(m).size === distinct);
-      for (const need of shuffle(pool, rng).slice(0, count)) deck.push({ points, need });
+    for (const [shape, points] of SET_SHAPES) {
+      const size = shape.reduce((a, b) => a + b, 0);
+      const key = [...shape].sort((a, b) => b - a).join(',');
+      const pool = multisets(size).filter((m) => shapeOf(m) === key);
+      for (const need of shuffle(pool, rng).slice(0, CARDS_PER_SHAPE)) deck.push({ points, need });
     }
   }
   return shuffle(deck, rng);
