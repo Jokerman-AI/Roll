@@ -112,7 +112,7 @@ function setupView() {
     </div>`).join('');
   return `
     <div class="setup">
-      <div><h1>🎲 Roll for It</h1><p class="tag">Roll dice, match the cards, race to ${E.TARGET_SCORE} points. Tap a face to draw your icon and pick your dice colour.</p></div>
+      <div><h1>🎲 Rollick</h1><p class="tag">Roll dice, match the cards, race to ${E.TARGET_SCORE} points. Tap a face to draw your icon and pick your dice colour.</p></div>
       ${rows}
       ${ui.setup.length < MAX_PLAYERS ? '<button class="btn" data-act="addPlayer">+ Add player</button>' : ''}
       <button class="btn primary" data-act="start">Start game</button>
@@ -873,10 +873,10 @@ async function resumeRoom() {
 async function invite() {
   const code = net.room?.code;
   const url = `${location.origin}${location.pathname}#${code}`;
-  const text = `Join my Roll for It game: room ${code}`;
+  const text = `Join my Rollick game: room ${code}`;
   const inFrame = net.store?.kind === 'db'; // the claude.ai page's own address is not a link friends can use
   try {
-    if (navigator.share) { await navigator.share(inFrame ? { title: 'Roll for It', text } : { title: 'Roll for It', text, url }); return; }
+    if (navigator.share) { await navigator.share(inFrame ? { title: 'Rollick', text } : { title: 'Rollick', text, url }); return; }
     await navigator.clipboard.writeText(inFrame ? text : `${text}\n${url}`);
     say('Invite copied');
   } catch { say(`Tell friends room code ${code}`); }

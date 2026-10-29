@@ -1,4 +1,4 @@
-// Pure game rules for Roll for It. No DOM access; every transition returns a new state.
+// Pure game rules for Rollick. No DOM access; every transition returns a new state.
 
 export const DICE_PER_PLAYER = 6;
 export const TARGET_SCORE = 40;

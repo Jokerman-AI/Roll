@@ -1,6 +1,6 @@
-# Roll for It
+# Rollick
 
-A mobile-first, installable (PWA) version of the dice game *Roll for It*: roll dice, place them on the
+A mobile-first, installable (PWA) version of the dice game Rollick: roll dice, place them on the
 cards that need them, claim cards, and be first to 40 points. Play pass-and-play, against CPU
 opponents, or online with friends (2–8 players). Works offline once loaded. This is an independent
 implementation with its own card deck and art.
@@ -93,4 +93,4 @@ Any static host (Netlify Drop, Cloudflare Pages) also works: upload `index.html`
 - `src/app.js`, `src/style.css`: UI
 - `sw.js`, `manifest.webmanifest`, `icons/`: PWA shell
 - `vendor/peerjs.min.js`: PeerJS 1.5.4 (MIT)
-- `tools/build-single.mjs`: bundles everything into `dist/roll-for-it.html` for single-page hosts
+- `tools/build-single.mjs`: bundles everything into `dist/rollick.html` for single-page hosts
