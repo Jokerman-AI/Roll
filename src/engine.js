@@ -98,9 +98,11 @@ function rollOff(count, rng) {
   return { first: contenders[0], total: rolls.length ? rolls.find((r) => r.i === contenders[0]).total : 0 };
 }
 
+export const LEVEL_NAMES = ['easy', 'normal', 'hard'];
+
 export function newGame(configs, rng = Math.random) {
   if (configs.length < 2 || configs.length > MAX_PLAYERS) throw new Error('2-8 players');
-  const players = configs.map((c) => ({ name: c.name, cpu: !!c.cpu, score: 0, pile: [] })); // pile: points of cards claimed
+  const players = configs.map((c) => ({ name: c.name, cpu: !!c.cpu, level: LEVEL_NAMES.includes(c.level) ? c.level : 'normal', score: 0, pile: [] })); // pile: points of cards claimed
   const { first, total } = rollOff(players.length, rng);
   const state = {
     players,

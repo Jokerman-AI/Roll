@@ -304,3 +304,8 @@ test('the computer does spend a die when it finishes a card', () => {
     assert.deepEqual([a.type, a.card], ['place', 0], `${level} finishes the card`);
   }
 });
+
+test('each computer player keeps its own difficulty', () => {
+  const g = E.newGame([{ name: 'A', cpu: true, level: 'hard' }, { name: 'B', cpu: true, level: 'easy' }, { name: 'C', cpu: true, level: 'bogus' }, { name: 'D' }]);
+  assert.deepEqual(g.players.map((p) => p.level), ['hard', 'easy', 'normal', 'normal']);
+});

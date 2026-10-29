@@ -1,5 +1,8 @@
 import * as E from './engine.js';
 import { aiNextAction } from './ai.js';
+
+const nextLevel = (l) => E.LEVEL_NAMES[(E.LEVEL_NAMES.indexOf(l) + 1) % E.LEVEL_NAMES.length];
+const levelLabel = (l) => (E.LEVEL_NAMES.includes(l) ? l : 'normal').replace(/^./, (c) => c.toUpperCase());
 import { dbStore, p2pStore } from './transport.js';
 import {
   PALETTE, INK, BRUSHES, STAMPS, AVATAR_SIZE, cpuName, freeColor, safeAvatar, makeSketch, paintCanvas, pointOn, strokeSegment, stampAt, clearSketch, loadAvatar, exportAvatar,
@@ -37,7 +40,7 @@ const ui = {
   joinCode: '',
   setup: [
     { name: 'You', cpu: false, me: true, color: profile.color, avatar: profile.avatar }, // `me` marks the row that is saved as your profile
-    { name: cpuName(['You']), cpu: true, color: freeColor([profile.color], 1), avatar: '' },
+    { name: cpuName(['You']), cpu: true, level: 'normal', color: freeColor([profile.color], 1), avatar: '' },
   ],
   cfg: [], // players of the local game in progress
   game: null,
@@ -108,6 +111,7 @@ function setupView() {
       <button class="avbtn" data-act="editPlayer" data-i="${i}" aria-label="Customize ${esc(p.name)}">${avatarHtml(p, i, 44)}</button>
       <input data-name="${i}" value="${esc(p.name)}" maxlength="12" aria-label="Player ${i + 1} name">
       <button class="btn" data-act="toggleCpu" data-i="${i}">${p.cpu ? 'CPU' : 'Human'}</button>
+      ${p.cpu ? `<button class="btn" data-act="cycleLevel" data-i="${i}" aria-label="Difficulty: ${levelLabel(p.level)}">${levelLabel(p.level)}</button>` : ''}
       ${ui.setup.length > 2 ? `<button class="btn" data-act="removePlayer" data-i="${i}" aria-label="Remove">✕</button>` : ''}
     </div>`).join('');
   return `
@@ -147,7 +151,8 @@ function lobbyView() {
       ${i === net.mySeat
         ? `<button class="avbtn" data-act="editMe" aria-label="Customize your player">${avatarHtml(p, i, 44)}</button>`
         : avatarHtml(p, i, 44)}
-      <span style="flex:1">${esc(p.name)}${i === net.mySeat ? ' <small>(you)</small>' : ''}${p.cpu ? ' <small>CPU</small>' : ''}${p.uid === room.hostUid ? ' <small>host</small>' : ''}</span>
+      <span style="flex:1">${esc(p.name)}${i === net.mySeat ? ' <small>(you)</small>' : ''}${p.cpu ? ` <small>CPU</small>` : ''}${p.uid === room.hostUid ? ' <small>host</small>' : ''}</span>
+      ${isHost() && p.cpu ? `<button class="btn" data-act="cycleSeatLevel" data-i="${i}" aria-label="Difficulty: ${levelLabel(p.level)}">${levelLabel(p.level)}</button>` : ''}
       ${isHost() && p.cpu ? `<button class="btn" data-act="removeSeat" data-i="${i}" aria-label="Remove">✕</button>` : ''}
     </div>`).join('');
   return `
@@ -651,7 +656,7 @@ function doTakeBack() { commit(E.roll(E.takeBack(ui.game))); }
 function cpuStep() {
   const s = ui.game;
   if (!s || s.phase === 'over' || !s.players[s.current].cpu) return;
-  const a = aiNextAction(s);
+  const a = aiNextAction(s, { level: s.players[s.current].level });
   if (a.type === 'takeback') commit(E.takeBack(s));
   else if (a.type === 'roll') doRoll();
   else if (a.type === 'place') commit(E.place(s, a.rolled, a.card));
@@ -893,9 +898,15 @@ async function startOnline() {
 
 const actions = {
   toggleCpu: ({ i }) => { ui.setup[i].cpu = !ui.setup[i].cpu; render(); },
+  cycleLevel: ({ i }) => { ui.setup[i].level = nextLevel(ui.setup[i].level); render(); },
+  cycleSeatLevel: ({ i }) => mutateRoom((room) => {
+    if (room.hostUid !== net.uid || !room.seats[i]?.cpu) return null;
+    room.seats[i].level = nextLevel(room.seats[i].level);
+    return room;
+  }),
   addPlayer: () => {
     const color = freeColor(ui.setup.map((p) => p.color), null);
-    ui.setup.push({ name: cpuName(ui.setup.map((p) => p.name)), cpu: true, color, avatar: '' });
+    ui.setup.push({ name: cpuName(ui.setup.map((p) => p.name)), cpu: true, level: 'normal', color, avatar: '' });
     render();
   },
   removePlayer: ({ i }) => { ui.setup.splice(i, 1); render(); },
@@ -920,7 +931,7 @@ const actions = {
   startOnline,
   addSeatCpu: () => mutateRoom((room) => {
     if (room.hostUid !== net.uid || room.seats.length >= MAX_PLAYERS) return null;
-    room.seats.push({ uid: null, name: cpuName(room.seats.map((p) => p.name)), cpu: true, color: freeColor(room.seats.map((p) => p.color), null), avatar: '' });
+    room.seats.push({ uid: null, name: cpuName(room.seats.map((p) => p.name)), cpu: true, level: 'normal', color: freeColor(room.seats.map((p) => p.color), null), avatar: '' });
     return room;
   }),
   removeSeat: ({ i }) => mutateRoom((room) => {
