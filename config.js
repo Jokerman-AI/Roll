@@ -7,3 +7,6 @@
 // window.RFI_ICE_SERVERS = [
 //   { urls: 'turn:YOUR-TURN-HOST:3478', username: 'YOUR-USERNAME', credential: 'YOUR-PASSWORD' },
 // ];
+//
+// Free options for a relay of your own: a Metered.ca account (free tier) or Cloudflare Calls TURN.
+// Paste the urls, username and credential they give you into RFI_ICE_SERVERS above and uncomment it.

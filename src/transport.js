@@ -48,10 +48,41 @@ export function dbStore(db) {
 
 // PeerJS ships with a STUN server and a free shared TURN relay; these are repeated here so that your
 // own relay (set in config.js as RFI_ICE_SERVERS) is added on top of them rather than replacing them.
-const DEFAULT_ICE = [
-  { urls: 'stun:stun.l.google.com:19302' },
-  { urls: ['turn:eu-0.turn.peerjs.com:3478', 'turn:us-0.turn.peerjs.com:3478'], username: 'peerjs', credential: 'peerjsp' },
+// Players on different networks need a relay when their routers block direct links, and mobile networks often
+// only let TCP/443 through, so each relay is offered over UDP, TCP and TLS. The public relays are free and
+// best effort; a relay of your own (RFI_ICE_SERVERS) is the dependable fix.
+export const DEFAULT_ICE = [
+  { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302', 'stun:global.stun.twilio.com:3478'] },
+  {
+    urls: ['turn:eu-0.turn.peerjs.com:3478', 'turn:us-0.turn.peerjs.com:3478', 'turn:eu-0.turn.peerjs.com:3478?transport=tcp', 'turn:us-0.turn.peerjs.com:3478?transport=tcp'],
+    username: 'peerjs', credential: 'peerjsp',
+  },
+  {
+    urls: ['turn:openrelay.metered.ca:80', 'turn:openrelay.metered.ca:80?transport=tcp', 'turn:openrelay.metered.ca:443', 'turns:openrelay.metered.ca:443?transport=tcp'],
+    username: 'openrelayproject', credential: 'openrelayproject',
+  },
 ];
+
+/**
+ * Asks this phone's network what it can do: which kinds of connection candidates it can gather.
+ * `relay` means a relay server is reachable, which is what links players on different networks.
+ */
+export function checkConnection(extraIce, ms = 7000) {
+  return new Promise((resolve) => {
+    const found = { host: 0, srflx: 0, relay: 0 };
+    let pc;
+    try { pc = new RTCPeerConnection({ iceServers: [...DEFAULT_ICE, ...(Array.isArray(extraIce) ? extraIce : [])] }); } catch { resolve(null); return; }
+    const done = () => { clearTimeout(timer); try { pc.close(); } catch { /* closed */ } resolve(found); };
+    const timer = setTimeout(done, ms);
+    pc.onicecandidate = (e) => {
+      if (!e.candidate) { done(); return; }
+      const type = / typ (\w+)/.exec(e.candidate.candidate)?.[1];
+      if (type in found) { found[type]++; if (found.relay) done(); }
+    };
+    pc.createDataChannel('probe');
+    pc.createOffer().then((o) => pc.setLocalDescription(o)).catch(done);
+  });
+}
 
 function withIce(options, extra) {
   const custom = Array.isArray(extra) ? extra : [];

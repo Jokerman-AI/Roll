@@ -436,6 +436,8 @@ h1 { font-size: 2.4rem; margin: 0; letter-spacing: -.02em; }
 .joinrow .btn { min-width: 88px; }
 .notice { margin: 0; padding: 12px 14px; border-radius: 14px; background: #e5484d33; border: 1px solid #e5484d88; line-height: 1.35; }
 .tag.center { text-align: center; }
+.nettest { display: flex; flex-direction: column; gap: 10px; }
+.notice.ok { background: #2fb36d33; border-color: #2fb36d88; }
 
 body { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
 #app { padding: 12px 0; }
@@ -1083,10 +1085,41 @@ function dbStore(db) {
 
 // PeerJS ships with a STUN server and a free shared TURN relay; these are repeated here so that your
 // own relay (set in config.js as RFI_ICE_SERVERS) is added on top of them rather than replacing them.
+// Players on different networks need a relay when their routers block direct links, and mobile networks often
+// only let TCP/443 through, so each relay is offered over UDP, TCP and TLS. The public relays are free and
+// best effort; a relay of your own (RFI_ICE_SERVERS) is the dependable fix.
 const DEFAULT_ICE = [
-  { urls: 'stun:stun.l.google.com:19302' },
-  { urls: ['turn:eu-0.turn.peerjs.com:3478', 'turn:us-0.turn.peerjs.com:3478'], username: 'peerjs', credential: 'peerjsp' },
+  { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302', 'stun:global.stun.twilio.com:3478'] },
+  {
+    urls: ['turn:eu-0.turn.peerjs.com:3478', 'turn:us-0.turn.peerjs.com:3478', 'turn:eu-0.turn.peerjs.com:3478?transport=tcp', 'turn:us-0.turn.peerjs.com:3478?transport=tcp'],
+    username: 'peerjs', credential: 'peerjsp',
+  },
+  {
+    urls: ['turn:openrelay.metered.ca:80', 'turn:openrelay.metered.ca:80?transport=tcp', 'turn:openrelay.metered.ca:443', 'turns:openrelay.metered.ca:443?transport=tcp'],
+    username: 'openrelayproject', credential: 'openrelayproject',
+  },
 ];
+
+/**
+ * Asks this phone's network what it can do: which kinds of connection candidates it can gather.
+ * `relay` means a relay server is reachable, which is what links players on different networks.
+ */
+function checkConnection(extraIce, ms = 7000) {
+  return new Promise((resolve) => {
+    const found = { host: 0, srflx: 0, relay: 0 };
+    let pc;
+    try { pc = new RTCPeerConnection({ iceServers: [...DEFAULT_ICE, ...(Array.isArray(extraIce) ? extraIce : [])] }); } catch { resolve(null); return; }
+    const done = () => { clearTimeout(timer); try { pc.close(); } catch { /* closed */ } resolve(found); };
+    const timer = setTimeout(done, ms);
+    pc.onicecandidate = (e) => {
+      if (!e.candidate) { done(); return; }
+      const type = / typ (\w+)/.exec(e.candidate.candidate)?.[1];
+      if (type in found) { found[type]++; if (found.relay) done(); }
+    };
+    pc.createDataChannel('probe');
+    pc.createOffer().then((o) => pc.setLocalDescription(o)).catch(done);
+  });
+}
 
 function withIce(options, extra) {
   const custom = Array.isArray(extra) ? extra : [];
@@ -1327,6 +1360,7 @@ const ui = {
   screen: 'setup', // setup | online | lobby | game
   online: false,
   joinCode: '',
+  netTest: '', // result of the connection check on the online screen
   onlineError: '', // why the last create/join failed, shown on the online screen
   setup: [
     { name: 'You', cpu: false, me: true, color: profile.color, avatar: profile.avatar }, // `me` marks the row that is saved as your profile
@@ -1451,6 +1485,10 @@ function onlineView() {
           <button class="btn" data-act="joinRoom" ${net.busy ? 'disabled' : ''}>Join</button>
         </div>
       </section>
+      ${net.store?.kind === 'p2p' ? `<div class="nettest">
+        <button class="btn" data-act="testNet" ${ui.netTest === 'running' ? 'disabled' : ''}>${ui.netTest === 'running' ? 'Checking…' : 'Test my connection'}</button>
+        ${ui.netTest && ui.netTest !== 'running' ? `<p class="notice ${ui.netTest.startsWith('Good') ? 'ok' : ''}">${esc(ui.netTest)}</p>` : ''}
+      </div>` : ''}
       <nav class="links"><button data-act="toSetup">Back</button></nav>
     </div>`;
 }
@@ -2307,6 +2345,15 @@ const actions = {
     commit(g);
   },
   toSetup: () => { if (ui.online || net.unsub) { leaveRoom(); return; } keepAwake(false); clearTimeout(timer); ui.screen = 'setup'; ui.modal = null; ui.game = null; ui.rolling = false; render(); },
+  testNet: async () => {
+    ui.netTest = 'running'; render();
+    const r = await checkConnection(window.RFI_ICE_SERVERS);
+    ui.netTest = !r ? 'This browser cannot make direct connections, so online play will not work here. Try Safari or Chrome.'
+      : r.relay ? 'Good: a relay server is reachable, so friends on other networks should be able to connect.'
+      : r.srflx ? 'Limited: your phone can reach the internet but no relay server answered. Friends on other networks may not be able to connect. Try cellular instead of Wi-Fi (or the reverse), and turn off any VPN.'
+      : 'Blocked: this network is stopping online connections. Try another network, such as cellular, and turn off any VPN or content blocker.';
+    render();
+  },
   rules: () => { ui.modal = 'rules'; render(); },
   about: () => { ui.modal = 'about'; render(); },
   menu: () => { ui.modal = 'menu'; render(); },
