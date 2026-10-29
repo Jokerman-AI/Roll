@@ -1,5 +1,6 @@
 import * as E from './engine.js';
 import { aiNextAction } from './ai.js';
+import { dbStore, p2pStore } from './transport.js';
 
 const COLORS = ['#e5484d', '#3b82f6', '#2fb36d', '#f5a524', '#a855f7', '#14b8a6', '#ec4899', '#cbd5e1'];
 const MAX_PLAYERS = E.MAX_PLAYERS;
@@ -14,8 +15,8 @@ const store = {
   set: (k, v) => { try { localStorage.setItem(k, v); } catch { /* storage unavailable */ } },
 };
 
-// Online play uses the host page's shared database when it exists (null elsewhere).
-const net = { db: null, uid: null, ref: null, unsub: null, room: null, mySeat: -1, q: Promise.resolve(), busy: false };
+// Online play: the host page's shared database when present, otherwise peer-to-peer.
+const net = { store: null, uid: null, ref: null, unsub: null, room: null, mySeat: -1, q: Promise.resolve(), busy: false };
 const ui = {
   screen: 'setup', // setup | online | lobby | game
   online: false,
@@ -61,7 +62,8 @@ function setupView() {
       ${rows}
       ${ui.setup.length < MAX_PLAYERS ? '<button class="btn" data-act="addPlayer">+ Add player</button>' : ''}
       <button class="btn primary" data-act="start">Start game</button>
-      ${net.db ? '<button class="btn" data-act="goOnline">Play online with friends</button>' : ''}
+      ${net.store ? '<button class="btn" data-act="goOnline">Play online with friends</button>' : ''}
+      ${net.store && savedSession() ? `<button class="btn" data-act="resume">Return to room ${esc(savedSession().code)}</button>` : ''}
       <button class="btn" data-act="rules">How to play</button>
     </div>`;
 }
@@ -92,6 +94,7 @@ function lobbyView() {
   return `
     <div class="setup">
       <div><h1>Room <span class="code">${esc(room.code)}</span></h1><p class="tag">Friends join with this code. ${room.seats.length} of ${MAX_PLAYERS} seats taken.</p></div>
+      <button class="btn" data-act="invite">Invite friends</button>
       ${rows}
       ${isHost() ? `
         ${room.seats.length < MAX_PLAYERS ? '<button class="btn" data-act="addSeatCpu">+ Add CPU player</button>' : ''}
@@ -162,9 +165,12 @@ function gameView() {
   const noMoves = canEnd && !E.legalMoves(s).length;
 
   return `
-    <div class="score">${chips}</div>
+    <div class="game">
+    <div class="table">
+    <div class="score" style="--per:${Math.ceil(s.players.length / Math.ceil(s.players.length / 4))}">${chips}</div>
     <div class="status">${statusText(s)}</div>
     <div class="cards">${s.cards.map((c, i) => cardView(s, c, i)).join('')}</div>
+    </div>
     <div class="tray">
       <div class="dice">${tray}</div>
       <div class="actions">
@@ -172,6 +178,7 @@ function gameView() {
         ${s.phase === 'start' ? `<button class="btn ${mustTakeBack ? 'primary pulse' : ''}" data-act="takeBack" ${canTakeBack ? '' : 'disabled'}>Take back &amp; roll all</button>` : `<button class="btn ${noMoves ? 'primary pulse' : ''}" data-act="end" ${canEnd ? '' : 'disabled'}>End turn</button>`}
         <button class="btn" data-act="menu" style="flex:0 0 auto" aria-label="Menu">☰</button>
       </div>
+    </div>
     </div>`;
 }
 
@@ -302,22 +309,40 @@ function startGame() {
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
 const newCode = () => Array.from({ length: 4 }, () => CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)]).join('');
 
-async function initNet() {
-  const claude = window.claude;
-  if (!claude?.use) return;
-  try {
-    const [db, user] = await Promise.all([claude.use('db'), claude.use('user')]);
-    const uid = user ? await user.id() : null;
-    if (db && uid) { net.db = db; net.uid = uid; render(); }
-  } catch { /* online play unavailable */ }
+function savedSession() {
+  try { return JSON.parse(localStorage.getItem('rfi-session')); } catch { return null; }
+}
+const saveSession = (code, host) => store.set('rfi-session', JSON.stringify({ code, host }));
+
+function localUid() {
+  let id = store.get('rfi-uid');
+  if (!id) { id = `p_${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`; store.set('rfi-uid', id); }
+  return id;
 }
 
-function watchRoom(code) {
+async function initNet() {
+  try {
+    if (window.claude?.use) {
+      const [db, user] = await Promise.all([window.claude.use('db'), window.claude.use('user')]);
+      const uid = user ? await user.id() : null;
+      if (db && uid) { net.store = dbStore(db); net.uid = uid; }
+    } else if (window.Peer) {
+      net.uid = localUid();
+      net.store = p2pStore(window.Peer, window.RFI_PEER_OPTIONS, net.uid);
+    }
+  } catch { /* online play unavailable */ }
+  const m = /^#([A-Za-z]{4})$/.exec(location.hash);
+  if (net.store && m && ui.screen === 'setup') { ui.joinCode = m[1].toUpperCase(); ui.screen = 'online'; }
+  render();
+}
+
+function attach(ref) {
   net.unsub?.();
-  net.ref = net.db.collection('rooms').doc(code);
+  net.ref?.close?.();
+  net.ref = ref;
   net.room = null;
   net.q = Promise.resolve();
-  net.unsub = net.ref.onSnapshot(onRoom, () => { say('Lost connection to the room'); leaveRoom(); });
+  net.unsub = ref.onSnapshot(onRoom, () => { say('Lost connection to the room'); leaveRoom(); });
 }
 
 function onRoom(snap) {
@@ -342,6 +367,9 @@ function leaveRoom() {
   clearTimeout(timer);
   net.unsub?.();
   net.unsub = null;
+  net.ref?.close?.();
+  net.ref = null;
+  store.set('rfi-session', '');
   net.room = null;
   net.mySeat = -1;
   ui.online = false;
@@ -370,35 +398,64 @@ async function mutateRoom(fn) {
 
 const myName = () => (ui.name.trim() || 'Player').slice(0, 12);
 
+const failText = (e) => (e.message === 'notfound' ? 'No room with that code' : e.message === 'network' ? 'Could not reach the network. Check your connection.' : 'Could not connect. Try again.');
+
 async function createRoom() {
   net.busy = true; render();
   try {
+    let ref;
     let code;
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 6 && !ref; i++) {
       code = newCode();
-      if (!(await net.db.collection('rooms').doc(code).get()).exists) break;
+      try { ref = await net.store.host(code); } catch (e) { if (e.message !== 'taken') throw e; }
     }
-    watchRoom(code);
+    if (!ref) throw new Error('taken');
+    attach(ref);
+    saveSession(code, true);
     await pushRoom({ code, hostUid: net.uid, status: 'lobby', seats: [{ uid: net.uid, name: myName(), cpu: false }], game: null, createdAt: Date.now() });
-  } catch { leaveRoom(); ui.screen = 'online'; say('Could not create a room. The page needs to be shared with you as an editor.'); }
+  } catch (e) { leaveRoom(); ui.screen = 'online'; say(net.store.kind === 'db' ? 'Could not create a room. The page needs to be shared with you as an editor.' : failText(e)); }
   net.busy = false; render();
 }
 
-async function joinRoom() {
-  const code = ui.joinCode.trim().toUpperCase();
-  if (code.length !== 4) { say('Enter the 4-letter room code'); return; }
-  net.busy = true; render();
-  try {
-    if (!(await net.db.collection('rooms').doc(code).get()).exists) { say('No room with that code'); net.busy = false; render(); return; }
-    watchRoom(code);
+async function enterRoom(code, { host = false } = {}) {
+  const ref = host ? await net.store.host(code, { resume: true }) : await net.store.join(code);
+  attach(ref);
+  if (!host) {
     await mutateRoom((room) => {
       if (room.seats.some((p) => p.uid === net.uid)) return null; // rejoining
       if (room.status !== 'lobby' || room.seats.length >= MAX_PLAYERS) return null; // watch only
       room.seats.push({ uid: net.uid, name: myName(), cpu: false });
       return room;
     });
-  } catch { leaveRoom(); ui.screen = 'online'; say('Could not join. The page needs to be shared with you as an editor.'); }
+  }
+  saveSession(code, host);
+}
+
+async function joinRoom() {
+  const code = ui.joinCode.trim().toUpperCase();
+  if (code.length !== 4) { say('Enter the 4-letter room code'); return; }
+  net.busy = true; render();
+  try { await enterRoom(code); } catch (e) { leaveRoom(); ui.screen = 'online'; say(net.store.kind === 'db' ? 'Could not join. The page needs to be shared with you as an editor.' : failText(e)); }
   net.busy = false; render();
+}
+
+async function resumeRoom() {
+  const s = savedSession();
+  if (!s) return;
+  net.busy = true; render();
+  try { await enterRoom(s.code, { host: s.host }); } catch (e) { leaveRoom(); say(failText(e)); }
+  net.busy = false; render();
+}
+
+async function invite() {
+  const code = net.room?.code;
+  const url = `${location.origin}${location.pathname}#${code}`;
+  const text = `Join my Roll for It game: room ${code}`;
+  try {
+    if (navigator.share) { await navigator.share({ title: 'Roll for It', text, url }); return; }
+    await navigator.clipboard.writeText(`${text}\n${url}`);
+    say('Invite copied');
+  } catch { say(`Tell friends room code ${code}`); }
 }
 
 async function startOnline() {
@@ -419,6 +476,8 @@ const actions = {
   goOnline: () => { ui.screen = 'online'; render(); },
   createRoom,
   joinRoom,
+  resume: resumeRoom,
+  invite,
   startOnline,
   addSeatCpu: () => mutateRoom((room) => {
     if (room.hostUid !== net.uid || room.seats.length >= MAX_PLAYERS) return null;

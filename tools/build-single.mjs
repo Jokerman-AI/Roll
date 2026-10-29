@@ -8,6 +8,7 @@ const engine = read('src/engine.js');
 const names = [...engine.matchAll(/^export (?:const|function) (\w+)/gm)].map((m) => m[1]);
 const engineJs = `const E = (() => {\n${engine.replace(/^export /gm, '')}\nreturn { ${names.join(', ')} };\n})();`;
 
+const transport = read('src/transport.js').replace(/^export /gm, '');
 const ai = read('src/ai.js').replace(/^import .*$/gm, '').replace(/^export /gm, '');
 const app = read('src/app.js')
   .replace(/^import .*$/gm, '')
@@ -28,6 +29,7 @@ body { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: m
 <script>
 ${engineJs}
 ${ai}
+${transport}
 ${app}
 </script>
 `;

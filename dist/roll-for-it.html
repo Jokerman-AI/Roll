@@ -11,21 +11,25 @@
   --card-ink: #2b2417;
   --p0: #e5484d; --p1: #3b82f6; --p2: #2fb36d; --p3: #f5a524;
   --radius: 16px;
+  /* dice scale with the screen: width on phones, height when it is short (landscape, folded) */
+  --cd: clamp(30px, min(10.5vw, 5.8dvh), 56px);
+  --td: clamp(38px, min(13vw, 7dvh), 68px);
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body { height: 100%; margin: 0; }
 body {
   background: radial-gradient(120% 90% at 50% 0%, var(--felt-2), var(--felt));
   color: var(--ink);
-  font: 16px/1.35 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font: clamp(14px, 1.1vw + 10.5px, 18px)/1.35 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   overscroll-behavior: none;
   user-select: none; -webkit-user-select: none;
 }
 #app {
-  min-height: 100%; max-width: 560px; margin: 0 auto;
+  min-height: 100dvh; max-width: 560px; margin: 0 auto;
   display: flex; flex-direction: column;
-  padding-block: 12px;
+  padding: max(12px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-left)) max(12px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-right));
 }
+@media (min-width: 700px) { #app { max-width: 720px; } }
 button { font: inherit; color: inherit; cursor: pointer; }
 h1 { font-size: 2.4rem; margin: 0; letter-spacing: -.02em; }
 
@@ -52,7 +56,7 @@ h1 { font-size: 2.4rem; margin: 0; letter-spacing: -.02em; }
 /* scoreboard */
 .score { display: flex; gap: 8px; flex-wrap: wrap; }
 .chip {
-  flex: 1 1 22%; min-width: 0; padding: 8px 10px; border-radius: 12px; background: #00000030;
+  flex: 1 1 calc(100% / var(--per, 4) - 8px); min-width: 0; padding: 8px 10px; border-radius: 12px; background: #00000030;
   border: 2px solid transparent; display: flex; flex-direction: column;
 }
 .chip.active { border-color: var(--c); background: #00000055; }
@@ -61,10 +65,10 @@ h1 { font-size: 2.4rem; margin: 0; letter-spacing: -.02em; }
 .chip .s { font-size: 1.4rem; font-weight: 800; }
 .chip .s small { font-size: .75rem; color: var(--muted); font-weight: 600; }
 
-.status { text-align: center; margin: 12px 0 8px; min-height: 1.4em; font-weight: 600; }
+.status { text-align: center; min-height: 1.4em; font-weight: 600; }
 
 /* cards */
-.cards { flex: 1; display: flex; flex-direction: column; gap: 10px; justify-content: center; }
+.cards { display: flex; flex-direction: column; gap: 10px; justify-content: center; min-height: 0; }
 .gcard {
   background: var(--card); color: var(--card-ink); border-radius: var(--radius);
   padding: 10px 14px; display: flex; align-items: center; gap: 12px;
@@ -72,7 +76,7 @@ h1 { font-size: 2.4rem; margin: 0; letter-spacing: -.02em; }
   width: 100%; text-align: left;
 }
 .gcard.accepts { border-color: #ffd34d; transform: scale(1.02); box-shadow: 0 0 0 4px #ffd34d55; }
-.gcard .pts { font-size: 2rem; font-weight: 900; min-width: 2.4ch; text-align: center; line-height: 1; }
+.gcard .pts { font-size: clamp(1.4rem, 5.5dvh, 2.2rem); font-weight: 900; min-width: 2.4ch; text-align: center; line-height: 1; }
 .gcard .pts small { display: block; font-size: .6rem; letter-spacing: .1em; color: #8a7a55; }
 .slots { display: flex; gap: 10px; flex-wrap: wrap; flex: 1; justify-content: flex-end; }
 .slot { display: flex; flex-direction: column; align-items: center; gap: 4px; background: none; border: 0; padding: 0; }
@@ -81,7 +85,7 @@ h1 { font-size: 2.4rem; margin: 0; letter-spacing: -.02em; }
 
 /* dice */
 .die {
-  --size: 44px; --bg: #fff; --pip: #222;
+  --size: var(--cd); --bg: #fff; --pip: #222;
   width: var(--size); height: var(--size); border-radius: calc(var(--size) * .22);
   background: var(--bg); display: grid; grid-template: repeat(3, 1fr) / repeat(3, 1fr);
   padding: calc(var(--size) * .14); box-shadow: inset 0 -3px 0 #0003, 0 2px 4px #0003;
@@ -91,12 +95,11 @@ h1 { font-size: 2.4rem; margin: 0; letter-spacing: -.02em; }
 .die i.on { background: var(--pip); }
 .die.ghost { --bg: #e8dfc4; --pip: #8a7a55; box-shadow: inset 0 0 0 2px #c9bc96; }
 .die.mine { --bg: var(--c); --pip: #fff; }
-.die.big { --size: 56px; }
 
 /* tray */
-.tray { background: #00000030; border-radius: var(--radius); padding: 12px; margin-top: 10px; }
-.dice { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; min-height: 60px; align-items: center; }
-.dice .die { --size: 52px; }
+.tray { background: #00000030; border-radius: var(--radius); padding: 12px; }
+.dice { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; min-height: var(--td); align-items: center; }
+.dice .die { --size: var(--td); }
 .dice button.die { border: 0; }
 .dice button.die.sel { outline: 4px solid #ffd34d; outline-offset: 2px; }
 .dice .die.rolling { animation: tumble .65s ease-out; }
@@ -135,6 +138,62 @@ h1 { font-size: 2.4rem; margin: 0; letter-spacing: -.02em; }
 
 .code { color: #ffd34d; letter-spacing: .15em; }
 .setup small { color: var(--muted); font-size: .75rem; }
+
+/* ---- game layout: one column on portrait phones ---- */
+.game {
+  flex: 1; display: grid; gap: 10px; min-height: 0;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(min-content, 1fr) auto;
+  grid-template-areas: "score" "status" "cards" "tray";
+}
+.table { display: contents; }
+.score { grid-area: score; }
+.status { grid-area: status; }
+.cards { grid-area: cards; }
+.tray { grid-area: tray; }
+.modal { padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
+
+/* ---- landscape phones, tablets, unfolded foldables: cards left, controls right ---- */
+@media (orientation: landscape) and (min-width: 600px) {
+  #app { max-width: 1000px; }
+  .game {
+    grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+    grid-template-rows: auto auto minmax(0, 1fr);
+    grid-template-areas: "cards score" "cards status" "cards tray";
+    column-gap: 16px;
+  }
+  .tray { align-self: end; }
+  .cards { justify-content: flex-start; }
+}
+
+/* ---- dual-screen, side by side (Surface Duo open like a book): one screen each side of the hinge ---- */
+@media (horizontal-viewport-segments: 2) {
+  #app { max-width: none; padding-inline: 0; }
+  .game {
+    grid-template-columns: env(viewport-segment-width 0 0, 1fr) env(viewport-segment-width 1 0, 1fr);
+    column-gap: calc(env(viewport-segment-left 1 0, 0px) - env(viewport-segment-right 0 0, 0px));
+    grid-template-rows: auto auto minmax(0, 1fr);
+    grid-template-areas: "cards score" "cards status" "cards tray";
+  }
+  .cards, .score, .status, .tray { margin-inline: 16px; }
+  .setup { max-width: env(viewport-segment-width 0 0, 560px); padding-inline: 16px; }
+}
+
+/* ---- dual-screen, top and bottom (Surface Duo in laptop posture): table above the hinge, dice below ---- */
+@media (vertical-viewport-segments: 2) {
+  #app { max-width: none; padding: 0; }
+  .game {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: env(viewport-segment-height 0 0, 1fr) env(viewport-segment-height 0 1, 1fr);
+    row-gap: calc(env(viewport-segment-top 0 1, 0px) - env(viewport-segment-bottom 0 0, 0px));
+    grid-template-areas: "table" "tray";
+  }
+  .table { display: flex; flex-direction: column; gap: 10px; grid-area: table; min-height: 0; padding: 12px 16px; }
+  .tray { align-self: center; width: min(560px, calc(100% - 32px)); }
+}
+
+/* ---- very small screens ---- */
+@media (max-height: 640px) { .game { gap: 6px; } .cards { gap: 6px; } .gcard { padding: 5px 12px; } .slot { gap: 2px; } .status { min-height: 0; } .score { gap: 6px; } .chip { padding: 5px 8px; } .chip .s { font-size: 1.1rem; } .tray { padding: 8px; } .btn { min-height: 44px; padding: 10px 14px; } }
 
 body { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
 #app { padding-inline: 0; }
@@ -371,6 +430,169 @@ function aiNextAction(s, rng = Math.random) {
   return { type: 'place', rolled: best.rolled, card: best.card };
 }
 
+// Room transports. Both expose the same small "room store" shape to the game:
+//   host(code, {resume}) -> ref     create a room (throws 'taken' if the code is in use)
+//   join(code)           -> ref     connect to a room (throws 'notfound')
+// and a ref has get(), set(room), acquire(), onSnapshot(next, error), close().
+// A snapshot is { exists, data() } where data() is the whole room document.
+
+const PEER_PREFIX = 'rollforit-';
+const MAX_SEATS = 8;
+const keyOf = (code) => `rfi-room-${code}`;
+
+function tryStorage(fn) {
+  try { return fn(); } catch { return null; }
+}
+
+function snapshotOf(room) {
+  return { id: 'room', exists: room !== null, data: () => room ?? undefined, metadata: {} };
+}
+
+/** Rooms kept in the host page's shared database (the claude.ai artifact). */
+function dbStore(db) {
+  const doc = (code) => db.collection('rooms').doc(code);
+  return {
+    kind: 'db',
+    async host(code, { resume = false } = {}) {
+      const ref = doc(code);
+      if (!resume && (await ref.get()).exists) throw new Error('taken');
+      return Object.assign(ref, { close() {} });
+    },
+    async join(code) {
+      const ref = doc(code);
+      if (!(await ref.get()).exists) throw new Error('notfound');
+      return Object.assign(ref, { close() {} });
+    },
+  };
+}
+
+/** Rooms held in the host's browser, reached over WebRTC through PeerJS. */
+function p2pStore(Peer, options, uid) {
+  const open = (peer) => new Promise((resolve, reject) => {
+    peer.on('open', resolve);
+    peer.on('error', (e) => reject(Object.assign(new Error(e.type), { type: e.type })));
+  });
+
+  return {
+    kind: 'p2p',
+
+    async host(code, { resume = false } = {}) {
+      let room = resume ? tryStorage(() => JSON.parse(localStorage.getItem(keyOf(code)))) : null;
+      if (resume && !room) throw new Error('notfound');
+      const peer = new Peer(PEER_PREFIX + code, options);
+      try { await open(peer); } catch (e) { peer.destroy(); throw new Error(e.type === 'unavailable-id' ? 'taken' : 'network'); }
+
+      const subs = new Set();
+      const conns = new Map(); // peer connection -> player uid
+      const broadcast = () => {
+        for (const conn of conns.keys()) if (conn.open) conn.send({ t: 'room', room });
+        subs.forEach((cb) => cb(snapshotOf(room)));
+      };
+      const publish = (next) => {
+        room = next;
+        tryStorage(() => localStorage.setItem(keyOf(code), JSON.stringify(room)));
+        broadcast();
+      };
+
+      // Guests can only ask to join the lobby, or make the move it is their turn to make.
+      const onGuestMessage = (conn, msg) => {
+        const sender = conns.get(conn);
+        if (!room || !sender) return;
+        if (msg.t === 'hello') { conn.send({ t: 'room', room }); return; }
+        if (msg.t !== 'set' || !msg.room) return;
+        if (room.status === 'lobby') {
+          const mine = msg.room.seats?.find((p) => p.uid === sender);
+          if (mine && !room.seats.some((p) => p.uid === sender) && room.seats.length < MAX_SEATS) {
+            publish({ ...room, seats: [...room.seats, { uid: sender, name: String(mine.name).slice(0, 12), cpu: false }] });
+            return;
+          }
+        } else if (room.game && msg.room.game) {
+          const mover = room.seats[room.game.current]?.uid;
+          const g = msg.room.game;
+          if (mover === sender && g.gid === room.game.gid && g.rev > room.game.rev) {
+            publish({ ...room, game: g, status: g.phase === 'over' ? 'over' : 'playing' });
+            return;
+          }
+        }
+        conn.send({ t: 'room', room }); // refused: resync the sender
+      };
+
+      peer.on('connection', (conn) => {
+        conns.set(conn, conn.metadata?.uid ?? null);
+        conn.on('data', (msg) => onGuestMessage(conn, msg));
+        conn.on('close', () => conns.delete(conn));
+      });
+      peer.on('disconnected', () => peer.reconnect());
+
+      return {
+        async get() { return snapshotOf(room); },
+        async set(next) { publish(JSON.parse(JSON.stringify(next))); },
+        async acquire() { return { acquired: true }; },
+        onSnapshot(next) { subs.add(next); next(snapshotOf(room)); return () => subs.delete(next); },
+        close() { peer.destroy(); },
+      };
+    },
+
+    async join(code) {
+      const peer = new Peer(undefined, options);
+      try { await open(peer); } catch { peer.destroy(); throw new Error('network'); }
+
+      let room = null;
+      let conn = null;
+      let closed = false;
+      const subs = new Set();
+      const errors = new Set();
+
+      const connect = () => new Promise((resolve, reject) => {
+        const c = peer.connect(PEER_PREFIX + code, { metadata: { uid }, reliable: true });
+        const timer = setTimeout(() => reject(new Error('notfound')), 8000);
+        const onPeerError = (e) => { if (e.type === 'peer-unavailable') { clearTimeout(timer); reject(new Error('notfound')); } };
+        peer.on('error', onPeerError);
+        c.on('open', () => c.send({ t: 'hello' }));
+        c.on('data', (msg) => {
+          if (msg.t !== 'room') return;
+          clearTimeout(timer);
+          peer.off('error', onPeerError);
+          const first = room === null;
+          room = msg.room;
+          if (first) { conn = c; resolve(); }
+          subs.forEach((cb) => cb(snapshotOf(room)));
+        });
+        c.on('close', () => { if (!closed && conn === c) reconnect(); });
+      });
+
+      let retrying = false;
+      async function reconnect() {
+        if (retrying) return;
+        retrying = true;
+        for (let i = 0; i < 8 && !closed; i++) {
+          await new Promise((r) => setTimeout(r, 1500));
+          try {
+            if (peer.disconnected) peer.reconnect();
+            room = null; // so the first message after reconnecting is treated as fresh
+            await connect();
+            retrying = false;
+            return;
+          } catch { /* try again */ }
+        }
+        retrying = false;
+        errors.forEach((cb) => cb({ code: 'lost' }));
+      }
+
+      await connect().catch((e) => { peer.destroy(); throw e; });
+
+      return {
+        async get() { return snapshotOf(room); },
+        async set(next) { if (conn?.open) conn.send({ t: 'set', room: JSON.parse(JSON.stringify(next)) }); },
+        async acquire() { return { acquired: true }; },
+        onSnapshot(next, error) { subs.add(next); if (error) errors.add(error); next(snapshotOf(room)); return () => { subs.delete(next); errors.delete(error); }; },
+        close() { closed = true; peer.destroy(); },
+      };
+    },
+  };
+}
+
+
 
 
 
@@ -387,8 +609,8 @@ const store = {
   set: (k, v) => { try { localStorage.setItem(k, v); } catch { /* storage unavailable */ } },
 };
 
-// Online play uses the host page's shared database when it exists (null elsewhere).
-const net = { db: null, uid: null, ref: null, unsub: null, room: null, mySeat: -1, q: Promise.resolve(), busy: false };
+// Online play: the host page's shared database when present, otherwise peer-to-peer.
+const net = { store: null, uid: null, ref: null, unsub: null, room: null, mySeat: -1, q: Promise.resolve(), busy: false };
 const ui = {
   screen: 'setup', // setup | online | lobby | game
   online: false,
@@ -434,7 +656,8 @@ function setupView() {
       ${rows}
       ${ui.setup.length < MAX_PLAYERS ? '<button class="btn" data-act="addPlayer">+ Add player</button>' : ''}
       <button class="btn primary" data-act="start">Start game</button>
-      ${net.db ? '<button class="btn" data-act="goOnline">Play online with friends</button>' : ''}
+      ${net.store ? '<button class="btn" data-act="goOnline">Play online with friends</button>' : ''}
+      ${net.store && savedSession() ? `<button class="btn" data-act="resume">Return to room ${esc(savedSession().code)}</button>` : ''}
       <button class="btn" data-act="rules">How to play</button>
     </div>`;
 }
@@ -465,6 +688,7 @@ function lobbyView() {
   return `
     <div class="setup">
       <div><h1>Room <span class="code">${esc(room.code)}</span></h1><p class="tag">Friends join with this code. ${room.seats.length} of ${MAX_PLAYERS} seats taken.</p></div>
+      <button class="btn" data-act="invite">Invite friends</button>
       ${rows}
       ${isHost() ? `
         ${room.seats.length < MAX_PLAYERS ? '<button class="btn" data-act="addSeatCpu">+ Add CPU player</button>' : ''}
@@ -535,9 +759,12 @@ function gameView() {
   const noMoves = canEnd && !E.legalMoves(s).length;
 
   return `
-    <div class="score">${chips}</div>
+    <div class="game">
+    <div class="table">
+    <div class="score" style="--per:${Math.ceil(s.players.length / Math.ceil(s.players.length / 4))}">${chips}</div>
     <div class="status">${statusText(s)}</div>
     <div class="cards">${s.cards.map((c, i) => cardView(s, c, i)).join('')}</div>
+    </div>
     <div class="tray">
       <div class="dice">${tray}</div>
       <div class="actions">
@@ -545,6 +772,7 @@ function gameView() {
         ${s.phase === 'start' ? `<button class="btn ${mustTakeBack ? 'primary pulse' : ''}" data-act="takeBack" ${canTakeBack ? '' : 'disabled'}>Take back &amp; roll all</button>` : `<button class="btn ${noMoves ? 'primary pulse' : ''}" data-act="end" ${canEnd ? '' : 'disabled'}>End turn</button>`}
         <button class="btn" data-act="menu" style="flex:0 0 auto" aria-label="Menu">☰</button>
       </div>
+    </div>
     </div>`;
 }
 
@@ -675,22 +903,40 @@ function startGame() {
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
 const newCode = () => Array.from({ length: 4 }, () => CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)]).join('');
 
-async function initNet() {
-  const claude = window.claude;
-  if (!claude?.use) return;
-  try {
-    const [db, user] = await Promise.all([claude.use('db'), claude.use('user')]);
-    const uid = user ? await user.id() : null;
-    if (db && uid) { net.db = db; net.uid = uid; render(); }
-  } catch { /* online play unavailable */ }
+function savedSession() {
+  try { return JSON.parse(localStorage.getItem('rfi-session')); } catch { return null; }
+}
+const saveSession = (code, host) => store.set('rfi-session', JSON.stringify({ code, host }));
+
+function localUid() {
+  let id = store.get('rfi-uid');
+  if (!id) { id = `p_${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`; store.set('rfi-uid', id); }
+  return id;
 }
 
-function watchRoom(code) {
+async function initNet() {
+  try {
+    if (window.claude?.use) {
+      const [db, user] = await Promise.all([window.claude.use('db'), window.claude.use('user')]);
+      const uid = user ? await user.id() : null;
+      if (db && uid) { net.store = dbStore(db); net.uid = uid; }
+    } else if (window.Peer) {
+      net.uid = localUid();
+      net.store = p2pStore(window.Peer, window.RFI_PEER_OPTIONS, net.uid);
+    }
+  } catch { /* online play unavailable */ }
+  const m = /^#([A-Za-z]{4})$/.exec(location.hash);
+  if (net.store && m && ui.screen === 'setup') { ui.joinCode = m[1].toUpperCase(); ui.screen = 'online'; }
+  render();
+}
+
+function attach(ref) {
   net.unsub?.();
-  net.ref = net.db.collection('rooms').doc(code);
+  net.ref?.close?.();
+  net.ref = ref;
   net.room = null;
   net.q = Promise.resolve();
-  net.unsub = net.ref.onSnapshot(onRoom, () => { say('Lost connection to the room'); leaveRoom(); });
+  net.unsub = ref.onSnapshot(onRoom, () => { say('Lost connection to the room'); leaveRoom(); });
 }
 
 function onRoom(snap) {
@@ -715,6 +961,9 @@ function leaveRoom() {
   clearTimeout(timer);
   net.unsub?.();
   net.unsub = null;
+  net.ref?.close?.();
+  net.ref = null;
+  store.set('rfi-session', '');
   net.room = null;
   net.mySeat = -1;
   ui.online = false;
@@ -743,35 +992,64 @@ async function mutateRoom(fn) {
 
 const myName = () => (ui.name.trim() || 'Player').slice(0, 12);
 
+const failText = (e) => (e.message === 'notfound' ? 'No room with that code' : e.message === 'network' ? 'Could not reach the network. Check your connection.' : 'Could not connect. Try again.');
+
 async function createRoom() {
   net.busy = true; render();
   try {
+    let ref;
     let code;
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 6 && !ref; i++) {
       code = newCode();
-      if (!(await net.db.collection('rooms').doc(code).get()).exists) break;
+      try { ref = await net.store.host(code); } catch (e) { if (e.message !== 'taken') throw e; }
     }
-    watchRoom(code);
+    if (!ref) throw new Error('taken');
+    attach(ref);
+    saveSession(code, true);
     await pushRoom({ code, hostUid: net.uid, status: 'lobby', seats: [{ uid: net.uid, name: myName(), cpu: false }], game: null, createdAt: Date.now() });
-  } catch { leaveRoom(); ui.screen = 'online'; say('Could not create a room. The page needs to be shared with you as an editor.'); }
+  } catch (e) { leaveRoom(); ui.screen = 'online'; say(net.store.kind === 'db' ? 'Could not create a room. The page needs to be shared with you as an editor.' : failText(e)); }
   net.busy = false; render();
 }
 
-async function joinRoom() {
-  const code = ui.joinCode.trim().toUpperCase();
-  if (code.length !== 4) { say('Enter the 4-letter room code'); return; }
-  net.busy = true; render();
-  try {
-    if (!(await net.db.collection('rooms').doc(code).get()).exists) { say('No room with that code'); net.busy = false; render(); return; }
-    watchRoom(code);
+async function enterRoom(code, { host = false } = {}) {
+  const ref = host ? await net.store.host(code, { resume: true }) : await net.store.join(code);
+  attach(ref);
+  if (!host) {
     await mutateRoom((room) => {
       if (room.seats.some((p) => p.uid === net.uid)) return null; // rejoining
       if (room.status !== 'lobby' || room.seats.length >= MAX_PLAYERS) return null; // watch only
       room.seats.push({ uid: net.uid, name: myName(), cpu: false });
       return room;
     });
-  } catch { leaveRoom(); ui.screen = 'online'; say('Could not join. The page needs to be shared with you as an editor.'); }
+  }
+  saveSession(code, host);
+}
+
+async function joinRoom() {
+  const code = ui.joinCode.trim().toUpperCase();
+  if (code.length !== 4) { say('Enter the 4-letter room code'); return; }
+  net.busy = true; render();
+  try { await enterRoom(code); } catch (e) { leaveRoom(); ui.screen = 'online'; say(net.store.kind === 'db' ? 'Could not join. The page needs to be shared with you as an editor.' : failText(e)); }
   net.busy = false; render();
+}
+
+async function resumeRoom() {
+  const s = savedSession();
+  if (!s) return;
+  net.busy = true; render();
+  try { await enterRoom(s.code, { host: s.host }); } catch (e) { leaveRoom(); say(failText(e)); }
+  net.busy = false; render();
+}
+
+async function invite() {
+  const code = net.room?.code;
+  const url = `${location.origin}${location.pathname}#${code}`;
+  const text = `Join my Roll for It game: room ${code}`;
+  try {
+    if (navigator.share) { await navigator.share({ title: 'Roll for It', text, url }); return; }
+    await navigator.clipboard.writeText(`${text}\n${url}`);
+    say('Invite copied');
+  } catch { say(`Tell friends room code ${code}`); }
 }
 
 async function startOnline() {
@@ -792,6 +1070,8 @@ const actions = {
   goOnline: () => { ui.screen = 'online'; render(); },
   createRoom,
   joinRoom,
+  resume: resumeRoom,
+  invite,
   startOnline,
   addSeatCpu: () => mutateRoom((room) => {
     if (room.hostUid !== net.uid || room.seats.length >= MAX_PLAYERS) return null;
