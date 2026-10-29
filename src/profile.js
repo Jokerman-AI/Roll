@@ -31,15 +31,25 @@ export function safeAvatar(value) {
 
 /* ---- drawing surface (kept off-screen so the editor can be re-rendered without losing the picture) ---- */
 
-export const INK = ['#ffffff', ...PALETTE.map((c) => c.hex)];
+// Icons are drawn on opaque paper, so the dice colour only ever appears as the ring around them.
+export const PAPER = '#fffdf4';
+export const INK = [PALETTE[7].hex, ...PALETTE.slice(0, 7).map((c) => c.hex)];
 export const BRUSHES = [4, 8, 14];
 export const AVATAR_SIZE = 128;
 const SIZE = AVATAR_SIZE;
+
+function fillPaper(buf) {
+  const ctx = buf.getContext('2d');
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.fillStyle = PAPER;
+  ctx.fillRect(0, 0, SIZE, SIZE);
+}
 
 export function makeSketch() {
   const buf = document.createElement('canvas');
   buf.width = SIZE;
   buf.height = SIZE;
+  fillPaper(buf);
   return { buf, dirty: false, ink: INK[0], width: BRUSHES[1], erase: false };
 }
 
@@ -56,15 +66,16 @@ export function pointOn(canvas, event) {
 
 export function strokeSegment(sketch, from, to) {
   const ctx = sketch.buf.getContext('2d');
-  ctx.globalCompositeOperation = sketch.erase ? 'destination-out' : 'source-over';
-  ctx.strokeStyle = sketch.ink;
+  const ink = sketch.erase ? PAPER : sketch.ink; // erasing paints the paper back
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.strokeStyle = ink;
   ctx.lineWidth = sketch.width;
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
   ctx.beginPath();
   if (from.x === to.x && from.y === to.y) {
     // a tap: some browsers draw nothing for a zero-length line, so paint the dot directly
-    ctx.fillStyle = sketch.ink;
+    ctx.fillStyle = ink;
     ctx.arc(to.x, to.y, sketch.width / 2, 0, Math.PI * 2);
     ctx.fill();
   } else {
@@ -76,15 +87,24 @@ export function strokeSegment(sketch, from, to) {
 }
 
 export function clearSketch(sketch) {
-  sketch.buf.getContext('2d').clearRect(0, 0, SIZE, SIZE);
+  fillPaper(sketch.buf);
   sketch.dirty = false;
 }
 
-export function loadAvatar(sketch, dataUrl, done) {
+/** Load a saved icon for editing. Older icons were transparent; those are laid on `legacyBg`. */
+export function loadAvatar(sketch, dataUrl, done, legacyBg = PAPER) {
   if (!safeAvatar(dataUrl)) return;
   const img = new Image();
   img.onload = () => {
-    sketch.buf.getContext('2d').drawImage(img, 0, 0, SIZE, SIZE);
+    const ctx = sketch.buf.getContext('2d');
+    const probe = document.createElement('canvas');
+    probe.width = probe.height = 1;
+    probe.getContext('2d').drawImage(img, 0, 0, 1, 1);
+    if (probe.getContext('2d').getImageData(0, 0, 1, 1).data[3] < 250) {
+      ctx.fillStyle = legacyBg;
+      ctx.fillRect(0, 0, SIZE, SIZE);
+    }
+    ctx.drawImage(img, 0, 0, SIZE, SIZE);
     sketch.dirty = true;
     done();
   };

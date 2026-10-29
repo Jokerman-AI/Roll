@@ -241,7 +241,9 @@ h1 { font-size: 2.4rem; margin: 0; letter-spacing: -.02em; }
 .av {
   --s: 40px; width: var(--s); height: var(--s); border-radius: 50%; background: var(--c);
   display: grid; place-items: center; overflow: hidden; flex: none; box-shadow: 0 0 0 2px #ffffff40;
+  box-sizing: border-box;
 }
+.av.pic { background: #fffdf4; border: clamp(2px, calc(var(--s) * .09), 5px) solid var(--c); }
 .av img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .av b { font-size: calc(var(--s) * .5); line-height: 1; }
 .avbtn { position: relative; background: none; border: 0; padding: 0; border-radius: 50%; flex: none; }
@@ -251,8 +253,8 @@ h1 { font-size: 2.4rem; margin: 0; letter-spacing: -.02em; }
 }
 .editor .note { margin: 6px 0 0; color: #6b5d3b; font-size: .9rem; }
 .avwrap {
-  width: min(62vw, 240px); aspect-ratio: 1; margin: 10px auto; border-radius: 50%; background: var(--c);
-  overflow: hidden; box-shadow: 0 0 0 3px #0002; touch-action: none;
+  width: min(62vw, 240px); aspect-ratio: 1; margin: 10px auto; border-radius: 50%; background: #fffdf4;
+  overflow: hidden; box-shadow: 0 0 0 3px #0003; touch-action: none;
 }
 #avcv { width: 100%; height: 100%; display: block; touch-action: none; cursor: crosshair; }
 .tools { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; align-items: center; margin: 8px 0; }
@@ -550,15 +552,25 @@ function safeAvatar(value) {
 
 /* ---- drawing surface (kept off-screen so the editor can be re-rendered without losing the picture) ---- */
 
-const INK = ['#ffffff', ...PALETTE.map((c) => c.hex)];
+// Icons are drawn on opaque paper, so the dice colour only ever appears as the ring around them.
+const PAPER = '#fffdf4';
+const INK = [PALETTE[7].hex, ...PALETTE.slice(0, 7).map((c) => c.hex)];
 const BRUSHES = [4, 8, 14];
 const AVATAR_SIZE = 128;
 const SIZE = AVATAR_SIZE;
+
+function fillPaper(buf) {
+  const ctx = buf.getContext('2d');
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.fillStyle = PAPER;
+  ctx.fillRect(0, 0, SIZE, SIZE);
+}
 
 function makeSketch() {
   const buf = document.createElement('canvas');
   buf.width = SIZE;
   buf.height = SIZE;
+  fillPaper(buf);
   return { buf, dirty: false, ink: INK[0], width: BRUSHES[1], erase: false };
 }
 
@@ -575,15 +587,16 @@ function pointOn(canvas, event) {
 
 function strokeSegment(sketch, from, to) {
   const ctx = sketch.buf.getContext('2d');
-  ctx.globalCompositeOperation = sketch.erase ? 'destination-out' : 'source-over';
-  ctx.strokeStyle = sketch.ink;
+  const ink = sketch.erase ? PAPER : sketch.ink; // erasing paints the paper back
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.strokeStyle = ink;
   ctx.lineWidth = sketch.width;
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
   ctx.beginPath();
   if (from.x === to.x && from.y === to.y) {
     // a tap: some browsers draw nothing for a zero-length line, so paint the dot directly
-    ctx.fillStyle = sketch.ink;
+    ctx.fillStyle = ink;
     ctx.arc(to.x, to.y, sketch.width / 2, 0, Math.PI * 2);
     ctx.fill();
   } else {
@@ -595,15 +608,24 @@ function strokeSegment(sketch, from, to) {
 }
 
 function clearSketch(sketch) {
-  sketch.buf.getContext('2d').clearRect(0, 0, SIZE, SIZE);
+  fillPaper(sketch.buf);
   sketch.dirty = false;
 }
 
-function loadAvatar(sketch, dataUrl, done) {
+/** Load a saved icon for editing. Older icons were transparent; those are laid on `legacyBg`. */
+function loadAvatar(sketch, dataUrl, done, legacyBg = PAPER) {
   if (!safeAvatar(dataUrl)) return;
   const img = new Image();
   img.onload = () => {
-    sketch.buf.getContext('2d').drawImage(img, 0, 0, SIZE, SIZE);
+    const ctx = sketch.buf.getContext('2d');
+    const probe = document.createElement('canvas');
+    probe.width = probe.height = 1;
+    probe.getContext('2d').drawImage(img, 0, 0, 1, 1);
+    if (probe.getContext('2d').getImageData(0, 0, 1, 1).data[3] < 250) {
+      ctx.fillStyle = legacyBg;
+      ctx.fillRect(0, 0, SIZE, SIZE);
+    }
+    ctx.drawImage(img, 0, 0, SIZE, SIZE);
     sketch.dirty = true;
     done();
   };
@@ -865,7 +887,7 @@ function avatarHtml(p, i, size) {
   const c = swatch(p, i);
   const img = safeAvatar(p?.avatar);
   const inner = img ? `<img src="${img}" alt="">` : `<b style="color:${c.pip}">${esc((p?.name || '?').trim().charAt(0).toUpperCase() || '?')}</b>`;
-  return `<span class="av" style="--s:${size}px;--c:${c.hex}">${inner}</span>`;
+  return `<span class="av${img ? ' pic' : ''}" style="--s:${size}px;--c:${c.hex}">${inner}</span>`;
 }
 
 function die(face, cls = '', attrs = '', tag = 'div') {
@@ -1048,8 +1070,8 @@ function editorView() {
   const brushes = BRUSHES.map((w) => `<button class="brush ${ed.sk.width === w ? 'on' : ''}" data-act="brush" data-w="${w}" aria-label="Brush size ${w}"><i style="--w:${w}px"></i></button>`).join('');
   const colors = PALETTE.map((c, i) => `<button class="swatch ${ed.color === i ? 'on' : ''}" style="--c:${c.hex}" data-act="pickColor" data-i="${i}" ${taken.has(i) ? 'disabled' : ''} aria-label="${c.name} dice${taken.has(i) ? ' (taken)' : ''}"></button>`).join('');
   return `<div class="modal"><div class="sheet editor"><h2>Your player</h2>
-    <p class="note">Draw your icon with your finger.</p>
-    <div class="avwrap" style="--c:${PALETTE[ed.color].hex}"><canvas id="avcv" width="${AVATAR_SIZE}" height="${AVATAR_SIZE}" aria-label="Drawing area"></canvas></div>
+    <p class="note">Draw your icon with your finger. Your dice colour becomes its ring.</p>
+    <div class="avwrap"><canvas id="avcv" width="${AVATAR_SIZE}" height="${AVATAR_SIZE}" aria-label="Drawing area"></canvas></div>
     <div class="tools">${ink}</div>
     <div class="tools"><span class="brushes">${brushes}</span><button class="btn small" data-act="clearArt">Clear</button></div>
     <p class="note">Dice colour. Each player needs a different one.</p>
@@ -1105,7 +1127,7 @@ function editorTaken() {
 function openEditor(target, i, current) {
   const sk = makeSketch();
   ui.ed = { target, i, color: current.color, sk };
-  loadAvatar(sk, current.avatar, () => { const cv = document.getElementById('avcv'); if (cv) paintCanvas(cv, sk); });
+  loadAvatar(sk, current.avatar, () => { const cv = document.getElementById('avcv'); if (cv) paintCanvas(cv, sk); }, PALETTE[current.color % PALETTE.length].hex);
   render();
 }
 

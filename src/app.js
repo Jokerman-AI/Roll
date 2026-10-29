@@ -67,7 +67,7 @@ function avatarHtml(p, i, size) {
   const c = swatch(p, i);
   const img = safeAvatar(p?.avatar);
   const inner = img ? `<img src="${img}" alt="">` : `<b style="color:${c.pip}">${esc((p?.name || '?').trim().charAt(0).toUpperCase() || '?')}</b>`;
-  return `<span class="av" style="--s:${size}px;--c:${c.hex}">${inner}</span>`;
+  return `<span class="av${img ? ' pic' : ''}" style="--s:${size}px;--c:${c.hex}">${inner}</span>`;
 }
 
 function die(face, cls = '', attrs = '', tag = 'div') {
@@ -250,8 +250,8 @@ function editorView() {
   const brushes = BRUSHES.map((w) => `<button class="brush ${ed.sk.width === w ? 'on' : ''}" data-act="brush" data-w="${w}" aria-label="Brush size ${w}"><i style="--w:${w}px"></i></button>`).join('');
   const colors = PALETTE.map((c, i) => `<button class="swatch ${ed.color === i ? 'on' : ''}" style="--c:${c.hex}" data-act="pickColor" data-i="${i}" ${taken.has(i) ? 'disabled' : ''} aria-label="${c.name} dice${taken.has(i) ? ' (taken)' : ''}"></button>`).join('');
   return `<div class="modal"><div class="sheet editor"><h2>Your player</h2>
-    <p class="note">Draw your icon with your finger.</p>
-    <div class="avwrap" style="--c:${PALETTE[ed.color].hex}"><canvas id="avcv" width="${AVATAR_SIZE}" height="${AVATAR_SIZE}" aria-label="Drawing area"></canvas></div>
+    <p class="note">Draw your icon with your finger. Your dice colour becomes its ring.</p>
+    <div class="avwrap"><canvas id="avcv" width="${AVATAR_SIZE}" height="${AVATAR_SIZE}" aria-label="Drawing area"></canvas></div>
     <div class="tools">${ink}</div>
     <div class="tools"><span class="brushes">${brushes}</span><button class="btn small" data-act="clearArt">Clear</button></div>
     <p class="note">Dice colour. Each player needs a different one.</p>
@@ -307,7 +307,7 @@ function editorTaken() {
 function openEditor(target, i, current) {
   const sk = makeSketch();
   ui.ed = { target, i, color: current.color, sk };
-  loadAvatar(sk, current.avatar, () => { const cv = document.getElementById('avcv'); if (cv) paintCanvas(cv, sk); });
+  loadAvatar(sk, current.avatar, () => { const cv = document.getElementById('avcv'); if (cv) paintCanvas(cv, sk); }, PALETTE[current.color % PALETTE.length].hex);
   render();
 }
 
