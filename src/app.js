@@ -3,6 +3,7 @@ import { aiNextAction } from './ai.js';
 
 const levelLabel = (l) => (E.LEVEL_NAMES.includes(l) ? l : 'normal').replace(/^./, (c) => c.toUpperCase());
 import { dbStore, p2pStore, checkConnection } from './transport.js';
+import { checkFallback, DEFAULT_BROKERS } from './relay.js';
 import {
   PALETTE, INK, BRUSHES, STAMPS, AVATAR_SIZE, cpuName, freeColor, safeAvatar, makeSketch, paintCanvas, pointOn, strokeSegment, stampAt, clearSketch, loadAvatar, exportAvatar,
 } from './profile.js';
@@ -430,7 +431,7 @@ function modalView() {
       <h3>Privacy</h3>
       <ul>
         <li>Rollick has no accounts, ads or analytics. Your name, icon, colour and settings are saved only on your device.</li>
-        <li>Online games connect players directly (peer to peer). Your name, icon and moves are sent to the other players in your room. A signalling server and relay servers help devices find each other, and they can see network addresses and connection details while you play.</li>
+        <li>Online games connect players directly (peer to peer) when they can. Your name, icon and moves are sent to the other players in your room. A signalling server and relay servers help devices find each other, and they can see network addresses and connection details while you play. If a direct connection is blocked, moves are passed through free public message servers instead. Anyone who knows your room code could see that traffic, so don't share the code publicly and don't put private information in your name or icon.</li>
         <li>Clear the site data or remove the app to delete everything stored on your device.</li>
       </ul>
       <h3>Open-source notices</h3>
@@ -1024,10 +1025,11 @@ const actions = {
   toSetup: () => { if (ui.online || net.unsub) { leaveRoom(); return; } keepAwake(false); clearTimeout(timer); ui.screen = 'setup'; ui.modal = null; ui.game = null; ui.rolling = false; render(); },
   testNet: async () => {
     ui.netTest = 'running'; render();
-    const r = await checkConnection(window.RFI_ICE_SERVERS);
-    ui.netTest = !r ? 'This browser cannot make direct connections, so online play will not work here. Try Safari or Chrome.'
-      : r.relay ? 'Good: a relay server is reachable, so friends on other networks should be able to connect.'
-      : r.srflx ? 'Limited: your phone can reach the internet but no relay server answered. Friends on other networks may not be able to connect. Try cellular instead of Wi-Fi (or the reverse), and turn off any VPN.'
+    const [r, backup] = await Promise.all([checkConnection(window.RFI_ICE_SERVERS), checkFallback(window.RFI_RELAY_BROKERS ?? DEFAULT_BROKERS)]);
+    ui.netTest = r?.relay ? 'Good: a relay server is reachable, so friends on other networks should be able to connect.'
+      : backup ? 'Good: direct connections are limited here, but the backup route is reachable, so friends on other networks can still connect.'
+      : !r ? 'This browser cannot make direct connections, and the backup route is unreachable. Try Safari or Chrome, and turn off any VPN.'
+      : r.srflx ? 'Limited: your phone can reach the internet but no relay or backup route answered. Friends on other networks may not be able to connect. Try another network and turn off any VPN or content blocker.'
       : 'Blocked: this network is stopping online connections. Try another network, such as cellular, and turn off any VPN or content blocker.';
     render();
   },
