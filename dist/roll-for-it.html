@@ -110,9 +110,7 @@ h1 { font-size: 2.4rem; margin: 0; letter-spacing: -.02em; }
   --fc: 1; position: absolute; left: 6cqw; right: 6cqw; top: 27cqw; bottom: 27cqw;
   display: flex; flex-wrap: wrap; gap: 3cqw; justify-content: center; align-content: center;
 }
-.slot { flex: 0 0 calc((100% - (var(--fc) - 1) * 3cqw) / var(--fc)); display: flex; flex-direction: column; align-items: center; gap: 1cqw; }
-.slot .dots { display: flex; gap: 3px; height: 7px; }
-.slot .dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--c); }
+.slot { flex: 0 0 calc((100% - (var(--fc) - 1) * 3cqw) / var(--fc)); display: flex; flex-direction: column; align-items: center; }
 .face .die { --size: calc(var(--dz, 30) * 1cqw); }
 .deckback {
   display: none; place-items: center; align-content: center; color: #fff; text-align: center; line-height: 1.1;
@@ -133,6 +131,8 @@ h1 { font-size: 2.4rem; margin: 0; letter-spacing: -.02em; }
 .die i.on { background: var(--pip); }
 .die.ghost { --bg: #e8dfc4; --pip: #8a7a55; box-shadow: inset 0 0 0 2px #c9bc96; }
 .die.mine, .die.owned { --bg: var(--c); --pip: var(--pc, #fff); }
+/* a die covered by several players is split into slices of their colours; pips get an outline to stay readable */
+.die.shared i.on { box-shadow: 0 0 0 1px #0007; }
 .die.hand { opacity: .55; }
 
 /* tray */
@@ -1159,14 +1159,25 @@ function pileHtml(pile = []) {
 
 const tierOf = (points) => (points >= 13 ? 4 : points >= 9 ? 3 : points >= 5 ? 2 : 1);
 
+/** A die on a card takes the colour of whoever covers it; several players split it into slices. */
+const ownedClass = (owners) => (owners.length === 0 ? 'ghost' : owners.length === 1 ? 'owned' : 'owned shared');
+function ownedStyle(owners, s) {
+  if (!owners.length) return '';
+  const seat = (p) => swatch(seats()[p], p);
+  if (owners.length === 1) return `--c:${seat(owners[0]).hex};--pc:${seat(owners[0]).pip}`;
+  const shown = owners.slice(0, 4); // a die is only so big
+  const step = 100 / shown.length;
+  const slices = shown.map((p, k) => `${seat(p).hex} ${(k * step).toFixed(1)}% ${((k + 1) * step).toFixed(1)}%`).join(', ');
+  return `--c:${seat(shown[0]).hex};--bg:conic-gradient(${slices});--pc:#fff`;
+}
+
 function cardView(s, card, ci) {
   const accepts = ui.selected !== null && E.canPlace(s, ui.selected, ci);
   const used = new Map(); // per player, how many of each face already counted
   const n = card.need.length;
   // [dice per row, die size in % of card width]; sized so the block fits between the two corner numbers.
-  const [cols, dz] = { 1: [1, 44], 2: [2, 42], 3: [3, 27], 4: [2, 33], 5: [3, 27] }[n] || [3, 24];
-  const mineSeat = seats()[s.current];
-  const slots = card.need.map((face) => {
+  const [cols, dz] = { 1: [1, 50], 2: [2, 42], 3: [3, 27], 4: [2, 40], 5: [3, 27] }[n] || [3, 24];
+    const slots = card.need.map((face) => {
     const owners = s.players.map((_, p) => p).filter((p) => {
       const key = `${p}:${face}`;
       const c = used.get(key) || 0;
@@ -1174,11 +1185,7 @@ function cardView(s, card, ci) {
       used.set(key, c + 1);
       return has > c;
     });
-    const mine = owners.includes(s.current);
-    const dots = owners.filter((p) => p !== s.current).map((p) => `<i style="--c:${hexOf(p)}"></i>`).join('');
-    return `<div class="slot ${mine ? 'mine' : ''}">
-      ${die(face, mine ? 'mine' : 'ghost', mine ? `style="${diceVars(mineSeat, s.current)}"` : '')}
-      <span class="dots">${dots}</span></div>`;
+    return `<div class="slot" data-o="${owners.length}">${die(face, ownedClass(owners), `style="${ownedStyle(owners, s)}"`)}</div>`;
   }).join('');
   return `<div class="gcard ${accepts ? 'accepts' : ''} ${ui.hint?.card === ci ? 'hinted' : ''}" data-tier="${tierOf(card.points)}" data-act="pickCard" data-card="${ci}" role="group" aria-label="${card.points} point card">
     <div class="corner tl"><b>${card.points}</b></div>
@@ -1281,7 +1288,7 @@ function modalView() {
         <li><b>Score it!</b> Cover every picture on a card with <i>your own</i> dice to score it. All dice on a scored card go back to their owners, and a new card is flipped. Leftover dice from your roll may go on the new card.</li>
         <li><b>Take Back:</b> at the start of your turn, before rolling, you may take back <b>all</b> your dice from the cards and roll all six.</li>
       </ol>
-      <p>Coloured dots under a number show which opponents already cover it. Other players' dice can't score cards for you, but they can beat you to them!</p>
+      <p>A die on a card is filled with the colour of the player covering it. If two or more players cover the same number, the die is split into slices of their colours. Other players' dice can't score cards for you, but they can beat you to them!</p>
       <p>Play starts with a two-dice roll-off; 5+ players use two sets (60 cards) and four face-up cards.</p>
       <button class="btn primary" data-act="closeModal">Got it</button></div></div>`;
   }

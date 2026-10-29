@@ -185,14 +185,25 @@ function pileHtml(pile = []) {
 
 const tierOf = (points) => (points >= 13 ? 4 : points >= 9 ? 3 : points >= 5 ? 2 : 1);
 
+/** A die on a card takes the colour of whoever covers it; several players split it into slices. */
+const ownedClass = (owners) => (owners.length === 0 ? 'ghost' : owners.length === 1 ? 'owned' : 'owned shared');
+function ownedStyle(owners, s) {
+  if (!owners.length) return '';
+  const seat = (p) => swatch(seats()[p], p);
+  if (owners.length === 1) return `--c:${seat(owners[0]).hex};--pc:${seat(owners[0]).pip}`;
+  const shown = owners.slice(0, 4); // a die is only so big
+  const step = 100 / shown.length;
+  const slices = shown.map((p, k) => `${seat(p).hex} ${(k * step).toFixed(1)}% ${((k + 1) * step).toFixed(1)}%`).join(', ');
+  return `--c:${seat(shown[0]).hex};--bg:conic-gradient(${slices});--pc:#fff`;
+}
+
 function cardView(s, card, ci) {
   const accepts = ui.selected !== null && E.canPlace(s, ui.selected, ci);
   const used = new Map(); // per player, how many of each face already counted
   const n = card.need.length;
   // [dice per row, die size in % of card width]; sized so the block fits between the two corner numbers.
-  const [cols, dz] = { 1: [1, 44], 2: [2, 42], 3: [3, 27], 4: [2, 33], 5: [3, 27] }[n] || [3, 24];
-  const mineSeat = seats()[s.current];
-  const slots = card.need.map((face) => {
+  const [cols, dz] = { 1: [1, 50], 2: [2, 42], 3: [3, 27], 4: [2, 40], 5: [3, 27] }[n] || [3, 24];
+    const slots = card.need.map((face) => {
     const owners = s.players.map((_, p) => p).filter((p) => {
       const key = `${p}:${face}`;
       const c = used.get(key) || 0;
@@ -200,11 +211,7 @@ function cardView(s, card, ci) {
       used.set(key, c + 1);
       return has > c;
     });
-    const mine = owners.includes(s.current);
-    const dots = owners.filter((p) => p !== s.current).map((p) => `<i style="--c:${hexOf(p)}"></i>`).join('');
-    return `<div class="slot ${mine ? 'mine' : ''}">
-      ${die(face, mine ? 'mine' : 'ghost', mine ? `style="${diceVars(mineSeat, s.current)}"` : '')}
-      <span class="dots">${dots}</span></div>`;
+    return `<div class="slot" data-o="${owners.length}">${die(face, ownedClass(owners), `style="${ownedStyle(owners, s)}"`)}</div>`;
   }).join('');
   return `<div class="gcard ${accepts ? 'accepts' : ''} ${ui.hint?.card === ci ? 'hinted' : ''}" data-tier="${tierOf(card.points)}" data-act="pickCard" data-card="${ci}" role="group" aria-label="${card.points} point card">
     <div class="corner tl"><b>${card.points}</b></div>
@@ -307,7 +314,7 @@ function modalView() {
         <li><b>Score it!</b> Cover every picture on a card with <i>your own</i> dice to score it. All dice on a scored card go back to their owners, and a new card is flipped. Leftover dice from your roll may go on the new card.</li>
         <li><b>Take Back:</b> at the start of your turn, before rolling, you may take back <b>all</b> your dice from the cards and roll all six.</li>
       </ol>
-      <p>Coloured dots under a number show which opponents already cover it. Other players' dice can't score cards for you, but they can beat you to them!</p>
+      <p>A die on a card is filled with the colour of the player covering it. If two or more players cover the same number, the die is split into slices of their colours. Other players' dice can't score cards for you, but they can beat you to them!</p>
       <p>Play starts with a two-dice roll-off; 5+ players use two sets (60 cards) and four face-up cards.</p>
       <button class="btn primary" data-act="closeModal">Got it</button></div></div>`;
   }
