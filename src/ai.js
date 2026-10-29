@@ -6,10 +6,10 @@ export function aiNextAction(s, rng = Math.random) {
 
   if (s.phase === 'start') {
     const hand = E.handSize(s, me);
-    if (hand === 0 || (hand === 1 && rng() < 0.5)) {
-      const pick = weakestPlacedDie(s, me);
-      if (pick) return { type: 'pickup', ...pick };
-    }
+    if (hand === 0) return { type: 'takeback' };
+    // Take Back resets everything, so only do it when stuck with few dice and no card nearly done.
+    const closest = Math.min(...s.cards.map((c) => (c.placed[me].length ? E.missing(c, me).length : Infinity)));
+    if (hand <= 2 && closest > 1 && rng() < 0.6) return { type: 'takeback' };
     return { type: 'roll' };
   }
 
@@ -27,16 +27,4 @@ export function aiNextAction(s, rng = Math.random) {
     }
   }
   return { type: 'place', rolled: best.rolled, card: best.card };
-}
-
-// The die sitting on the card furthest from completion.
-function weakestPlacedDie(s, me) {
-  let best = null;
-  s.cards.forEach((card, ci) => {
-    const placed = card.placed[me];
-    if (!placed.length) return;
-    const progress = placed.length / card.need.length;
-    if (!best || progress < best.progress) best = { progress, card: ci, face: placed[placed.length - 1] };
-  });
-  return best && { card: best.card, face: best.face };
 }

@@ -1,8 +1,8 @@
 import * as E from './engine.js';
 import { aiNextAction } from './ai.js';
 
-const COLORS = ['#e5484d', '#3b82f6', '#2fb36d', '#f5a524'];
-const MAX_PLAYERS = 4;
+const COLORS = ['#e5484d', '#3b82f6', '#2fb36d', '#f5a524', '#a855f7', '#14b8a6', '#ec4899', '#cbd5e1'];
+const MAX_PLAYERS = E.MAX_PLAYERS;
 const CPU_DELAY = 700;
 const ROLL_MS = 650;
 const PIPS = { 1: [4], 2: [0, 8], 3: [0, 4, 8], 4: [0, 2, 6, 8], 5: [0, 2, 4, 6, 8], 6: [0, 2, 3, 5, 6, 8] };
@@ -59,7 +59,7 @@ function statusText(s) {
   if (ui.rolling) return `${esc(cur.name)} rolls…`;
   if (cur.cpu) return `${esc(cur.name)} is thinking…`;
   if (s.phase === 'start') {
-    return E.handSize(s, s.current) === 0 ? 'All dice are on cards — tap one of yours to take it back' : `${esc(cur.name)}: roll your ${E.handSize(s, s.current)} dice`;
+    return E.handSize(s, s.current) === 0 ? 'All your dice are on cards — take them back to roll' : `${esc(cur.name)}: roll your ${E.handSize(s, s.current)} dice`;
   }
   if (!s.rolled.length) return 'All dice placed';
   if (!E.legalMoves(s).length) return 'No matches this time';
@@ -67,7 +67,6 @@ function statusText(s) {
 }
 
 function cardView(s, card, ci) {
-  const human = !s.players[s.current].cpu && s.phase !== 'over';
   const accepts = ui.selected !== null && E.canPlace(s, ui.selected, ci);
   const used = new Map(); // per player, how many of each face already counted
   const slots = card.need.map((face) => {
@@ -80,11 +79,10 @@ function cardView(s, card, ci) {
     });
     const mine = owners.includes(s.current);
     const others = owners.filter((p) => p !== s.current);
-    const pick = mine && human && s.phase === 'start';
     const dots = others.map((p) => `<i style="--c:${color(p)}"></i>`).join('');
-    return `<button class="slot ${mine ? 'mine' : ''} ${pick ? 'pick' : ''}" ${pick ? `data-act="pickUp" data-card="${ci}" data-face="${face}"` : 'tabindex="-1"'}>
+    return `<div class="slot ${mine ? 'mine' : ''}">
       ${die(face, mine ? 'mine' : 'ghost', mine ? `style="--c:${color(s.current)}"` : '')}
-      <span class="dots">${dots}</span></button>`;
+      <span class="dots">${dots}</span></div>`;
   }).join('');
   return `<div class="gcard ${accepts ? 'accepts' : ''}" data-act="pickCard" data-card="${ci}" role="group">
     <div class="pts">${card.points}<small>PTS</small></div><div class="slots">${slots}</div></div>`;
@@ -107,6 +105,9 @@ function gameView() {
     const n = E.handSize(s, s.current);
     tray = n ? Array.from({ length: n }, () => die(1, 'ghost')).join('').replace(/aria-label="1"/g, 'aria-label="die in hand"') : '<span class="hint">No dice in hand</span>';
   }
+  const onCards = E.DICE_PER_PLAYER - E.handSize(s, s.current);
+  const canTakeBack = human && s.phase === 'start' && onCards > 0;
+  const mustTakeBack = canTakeBack && onCards === E.DICE_PER_PLAYER;
   const canRoll = human && s.phase === 'start' && E.handSize(s, s.current) > 0;
   const canEnd = human && s.phase === 'placing' && !ui.rolling;
   const noMoves = canEnd && !E.legalMoves(s).length;
@@ -119,7 +120,7 @@ function gameView() {
       <div class="dice">${tray}</div>
       <div class="actions">
         <button class="btn primary ${canRoll ? 'pulse' : ''}" data-act="roll" ${canRoll ? '' : 'disabled'}>Roll</button>
-        <button class="btn ${noMoves ? 'primary pulse' : ''}" data-act="end" ${canEnd ? '' : 'disabled'}>End turn</button>
+        ${s.phase === 'start' ? `<button class="btn ${mustTakeBack ? 'primary pulse' : ''}" data-act="takeBack" ${canTakeBack ? '' : 'disabled'}>Take back &amp; roll all</button>` : `<button class="btn ${noMoves ? 'primary pulse' : ''}" data-act="end" ${canEnd ? '' : 'disabled'}>End turn</button>`}
         <button class="btn" data-act="menu" style="flex:0 0 auto" aria-label="Menu">☰</button>
       </div>
     </div>`;
@@ -136,16 +137,15 @@ function modalView() {
   }
   if (ui.modal === 'rules') {
     return `<div class="modal" data-act="closeModal"><div class="sheet"><h2>How to play</h2>
-      <p>Be the first to score <b>${E.TARGET_SCORE} points</b>.</p>
+      <p>Be the first to score <b>${E.TARGET_SCORE} points</b>. Cards are worth 2–15 points.</p>
       <ol>
-        <li>Three cards are face up. Each shows the dice faces needed to claim it and its points.</li>
-        <li>On your turn, <b>roll all the dice in your hand</b> (you have ${E.DICE_PER_PLAYER}).</li>
-        <li>Tap a die, then a card that needs that number to <b>place</b> it there. Dice you don't place go back to your hand.</li>
-        <li>Placed dice <b>stay on the card</b> between turns. Cover every number on a card to claim it and score.</li>
-        <li>When a card is claimed, <b>all</b> dice on it (yours and everyone's) return to hands and a new card is drawn.</li>
-        <li>Before rolling you may <b>take back</b> your placed dice by tapping them — handy when you are stuck or an opponent is about to win a card.</li>
+        <li><b>Roll for it!</b> Roll all the dice in your hand (you own ${E.DICE_PER_PLAYER}), once per turn.</li>
+        <li><b>Match it!</b> Tap a die, then a card that shows that number. Each die matches one picture on one card. Once placed, a die can't move. You may choose not to place a die; unplaced dice stay in your hand.</li>
+        <li><b>Score it!</b> Cover every picture on a card with <i>your own</i> dice to score it. All dice on a scored card go back to their owners, and a new card is flipped. Leftover dice from your roll may go on the new card.</li>
+        <li><b>Take Back:</b> at the start of your turn, before rolling, you may take back <b>all</b> your dice from the cards and roll all six.</li>
       </ol>
-      <p>Coloured dots under a number show which opponents already cover it.</p>
+      <p>Coloured dots under a number show which opponents already cover it. Other players' dice can't score cards for you, but they can beat you to them!</p>
+      <p>Play starts with a two-dice roll-off; 5+ players use two sets (60 cards) and four face-up cards.</p>
       <button class="btn primary" data-act="closeModal">Got it</button></div></div>`;
   }
   if (ui.modal === 'menu') {
@@ -196,11 +196,16 @@ function doRoll() {
   timer = setTimeout(() => { ui.rolling = false; render(); settle(); }, ROLL_MS);
 }
 
+function doTakeBack() {
+  ui.game = E.takeBack(ui.game);
+  doRoll();
+}
+
 function cpuStep() {
   const s = ui.game;
   if (!s || s.phase === 'over' || !s.players[s.current].cpu) return;
   const a = aiNextAction(s);
-  if (a.type === 'pickup') commit(E.pickUp(s, a.card, a.face));
+  if (a.type === 'takeback') { ui.game = E.takeBack(s); render(); timer = setTimeout(cpuStep, CPU_DELAY); }
   else if (a.type === 'roll') doRoll();
   else if (a.type === 'place') commit(E.place(s, a.rolled, a.card));
   else commit(E.endTurn(s));
@@ -213,7 +218,8 @@ function startGame() {
   ui.selected = null;
   ui.rolling = false;
   ui.modal = null;
-  render();
+  const first = ui.game.players[ui.game.current];
+  say(`${first.name} goes first (rolled ${ui.game.firstRoll})`, 2500);
   settle();
 }
 
@@ -231,7 +237,7 @@ const actions = {
   closeModal: () => { ui.modal = null; render(); },
   roll: () => { if (humanTurn() && ui.game.phase === 'start' && E.handSize(ui.game, ui.game.current) > 0) doRoll(); },
   end: () => { if (humanTurn() && ui.game.phase === 'placing') { clearTimeout(timer); commit(E.endTurn(ui.game)); } },
-  pickUp: ({ card, face }) => { if (humanTurn() && ui.game.phase === 'start') commit(E.pickUp(ui.game, +card, +face)); },
+  takeBack: () => { if (humanTurn() && ui.game.phase === 'start') doTakeBack(); },
   pickRolled: ({ i }) => {
     if (!humanTurn() || ui.game.phase !== 'placing') return;
     const idx = +i;

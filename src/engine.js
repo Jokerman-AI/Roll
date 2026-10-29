@@ -1,14 +1,18 @@
 // Pure game rules for Roll for It. No DOM access; every transition returns a new state.
 
 export const DICE_PER_PLAYER = 6;
-export const CARDS_IN_PLAY = 3;
 export const TARGET_SCORE = 40;
+export const MAX_PLAYERS = 8; // one set plays 2-4; two sets play up to 8
 
-// How many cards of each size go in the deck, and what they are worth.
-const TIERS = [
-  { size: 2, points: 10, count: 12 },
-  { size: 3, points: 20, count: 12 },
-  { size: 4, points: 30, count: 6 },
+// One 30-card set: [dice required, distinct faces among them, points, how many].
+// Harder combinations are worth more, spanning the 2-15 point range.
+const SET_SHAPES = [
+  [1, 1, 2, 4],
+  [2, 2, 5, 6],
+  [2, 1, 7, 4],
+  [3, 3, 10, 6],
+  [3, 2, 12, 6],
+  [3, 1, 15, 4],
 ];
 
 export function mulberry32(seed) {
@@ -39,15 +43,18 @@ function multisets(size, min = 1) {
   return out;
 }
 
-export function buildDeck(rng) {
+export function buildDeck(rng, sets = 1) {
   const deck = [];
-  for (const tier of TIERS) {
-    for (const need of shuffle(multisets(tier.size), rng).slice(0, tier.count)) {
-      deck.push({ points: tier.points, need });
+  for (let s = 0; s < sets; s++) {
+    for (const [size, distinct, points, count] of SET_SHAPES) {
+      const pool = multisets(size).filter((m) => new Set(m).size === distinct);
+      for (const need of shuffle(pool, rng).slice(0, count)) deck.push({ points, need });
     }
   }
   return shuffle(deck, rng);
 }
+
+export const cardsInPlay = (playerCount) => (playerCount >= 5 ? 4 : 3);
 
 /** The faces `player` still needs on `card`. */
 export function missing(card, player) {
@@ -64,21 +71,35 @@ export function handSize(state, player) {
   return DICE_PER_PLAYER - onCards;
 }
 
+/** Everyone rolls two dice; highest total goes first, ties roll again. */
+function rollOff(count, rng) {
+  let contenders = Array.from({ length: count }, (_, i) => i);
+  let rolls = [];
+  while (contenders.length > 1) {
+    rolls = contenders.map((i) => ({ i, total: 2 + Math.floor(rng() * 6) + Math.floor(rng() * 6) }));
+    const top = Math.max(...rolls.map((r) => r.total));
+    contenders = rolls.filter((r) => r.total === top).map((r) => r.i);
+  }
+  return { first: contenders[0], total: rolls.length ? rolls.find((r) => r.i === contenders[0]).total : 0 };
+}
+
 export function newGame(configs, rng = Math.random) {
+  if (configs.length < 2 || configs.length > MAX_PLAYERS) throw new Error('2-8 players');
   const players = configs.map((c) => ({ name: c.name, cpu: !!c.cpu, score: 0 }));
-  const deck = buildDeck(rng);
+  const { first, total } = rollOff(players.length, rng);
   const state = {
     players,
-    deck,
+    deck: buildDeck(rng, players.length > 4 ? 2 : 1),
     cards: [],
-    current: 0,
+    current: first,
+    firstRoll: total,
     phase: 'start', // start -> placing -> (next player's) start ... -> over
     rolled: [],
     winner: null,
     lastClaim: null,
     nextId: 1,
   };
-  for (let i = 0; i < CARDS_IN_PLAY; i++) draw(state);
+  for (let i = 0; i < cardsInPlay(players.length); i++) draw(state);
   return state;
 }
 
@@ -98,22 +119,19 @@ function assertPhase(state, phase) {
   if (state.phase !== phase) throw new Error(`Expected phase ${phase}, got ${state.phase}`);
 }
 
-/** Take a placed die back into hand (only before rolling). */
-export function pickUp(state, cardIdx, face) {
+/** Take Back: before rolling, return ALL of your dice from the trays to your hand. */
+export function takeBack(state) {
   assertPhase(state, 'start');
   const s = structuredClone(state);
   s.lastClaim = null;
-  const placed = s.cards[cardIdx]?.placed[s.current];
-  const i = placed ? placed.indexOf(face) : -1;
-  if (i < 0) throw new Error('No such die to pick up');
-  placed.splice(i, 1);
+  for (const c of s.cards) c.placed[s.current] = [];
   return s;
 }
 
 export function roll(state, rng = Math.random) {
   assertPhase(state, 'start');
   const n = handSize(state, state.current);
-  if (n <= 0) throw new Error('No dice in hand; pick one up first');
+  if (n <= 0) throw new Error('No dice in hand; take them back first');
   const s = structuredClone(state);
   s.lastClaim = null;
   s.rolled = Array.from({ length: n }, () => 1 + Math.floor(rng() * 6));

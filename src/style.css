@@ -46,9 +46,9 @@ h1 { font-size: 2.4rem; margin: 0; letter-spacing: -.02em; }
 .prow .btn { padding: 10px 12px; min-height: 44px; }
 
 /* scoreboard */
-.score { display: flex; gap: 8px; }
+.score { display: flex; gap: 8px; flex-wrap: wrap; }
 .chip {
-  flex: 1; min-width: 0; padding: 8px 10px; border-radius: 12px; background: #00000030;
+  flex: 1 1 22%; min-width: 0; padding: 8px 10px; border-radius: 12px; background: #00000030;
   border: 2px solid transparent; display: flex; flex-direction: column;
 }
 .chip.active { border-color: var(--c); background: #00000055; }
@@ -74,9 +74,6 @@ h1 { font-size: 2.4rem; margin: 0; letter-spacing: -.02em; }
 .slot { display: flex; flex-direction: column; align-items: center; gap: 4px; background: none; border: 0; padding: 0; }
 .slot .dots { display: flex; gap: 3px; height: 8px; }
 .slot .dots i { width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
-.slot.mine { cursor: default; }
-.slot.mine.pick { cursor: pointer; }
-.slot.mine.pick .die { outline: 3px dashed #0006; outline-offset: 2px; }
 
 /* dice */
 .die {
