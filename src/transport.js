@@ -5,6 +5,7 @@
 // A snapshot is { exists, data() } where data() is the whole room document.
 
 import { freeColor, safeAvatar } from './profile.js';
+import { relayBus, ROOT, DEFAULT_BROKERS } from './relay.js';
 
 const PEER_PREFIX = 'rollick-';
 const MAX_SEATS = 8;
@@ -99,9 +100,18 @@ function statusFeed() {
   };
 }
 
-/** Rooms held in the host's browser, reached over WebRTC through PeerJS. */
-export function p2pStore(Peer, options, uid, extraIce) {
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const seatsKey = (room) => JSON.stringify(room?.seats ?? []);
+const hashOf = (text) => { let h = 5381; for (let i = 0; i < text.length; i++) h = ((h * 33) ^ text.charCodeAt(i)) >>> 0; return h; };
+
+/**
+ * Rooms held in the host's browser. Phones connect directly over WebRTC (PeerJS) and, as a backup for
+ * networks that block that, through public message brokers (see relay.js). The host listens on both.
+ */
+export function p2pStore(Peer, options, uid, extraIce, brokers = DEFAULT_BROKERS) {
   const peerOptions = withIce(options, extraIce);
+  const useRelay = Array.isArray(brokers) && brokers.length > 0;
+
   // Resolves once the signalling server has accepted us. A blocked or overloaded server can leave this
   // hanging, so give up after a while instead of leaving the screen waiting forever.
   const open = (peer) => new Promise((resolve, reject) => {
@@ -116,14 +126,45 @@ export function p2pStore(Peer, options, uid, extraIce) {
     async host(code, { resume = false } = {}) {
       let room = resume ? tryStorage(() => JSON.parse(localStorage.getItem(keyOf(code)))) : null;
       if (resume && !room) throw new Error('notfound');
-      const peer = new Peer(PEER_PREFIX + code, peerOptions);
-      try { await open(peer); } catch (e) { peer.destroy(); throw new Error(e.type === 'unavailable-id' ? 'taken' : 'network'); }
+      const home = `${ROOT}/${code}`;
+      const bus = useRelay ? relayBus(brokers) : null;
+
+      // The direct route. If the signalling server is down we can still host over the backup route.
+      let peer = null;
+      try {
+        peer = new Peer(PEER_PREFIX + code, peerOptions);
+        await open(peer);
+      } catch (e) {
+        peer?.destroy();
+        peer = null;
+        if (e.type === 'unavailable-id') { bus?.close(); throw new Error('taken'); }
+        if (!bus) throw new Error('network');
+      }
+      if (bus) {
+        const up = await bus.ready(peer ? 1500 : 8000);
+        if (!peer && !up) { bus.close(); throw new Error('network'); }
+        if (!resume && up) { // is another room already using this code?
+          let clash = false;
+          bus.subscribe(`${home}/w`, (m) => { if (m.t === 'taken') clash = true; });
+          bus.publish(`${home}/g`, { t: 'whois' });
+          await sleep(1200);
+          if (clash) { peer?.destroy(); bus.close(); throw new Error('taken'); }
+        }
+      }
 
       const subs = new Set();
       const status = statusFeed();
-      const conns = new Map(); // peer connection -> player uid
+      const conns = new Map(); // connection -> player uid
       const broadcast = () => {
-        for (const conn of conns.keys()) if (conn.open) conn.send({ t: 'room', room });
+        const key = seatsKey(room);
+        const direct = new Set([...conns].filter(([c]) => !c.relay && c.open).map(([, u]) => u)); // guests already reached directly
+        for (const conn of [...conns.keys()]) {
+          if (conn.relay && Date.now() - conn.last > 90000) { conns.delete(conn); continue; }
+          if (!conn.open || (conn.relay && direct.has(conns.get(conn)))) continue;
+          // over the backup route, only resend the seats (which carry the icons) when they changed
+          if (conn.relay && room.game && conn.seats === key) conn.send({ t: 'game', game: room.game, status: room.status });
+          else { conn.send({ t: 'room', room }); conn.seats = key; }
+        }
         subs.forEach((cb) => cb(snapshotOf(room)));
       };
       const publish = (next) => {
@@ -137,7 +178,7 @@ export function p2pStore(Peer, options, uid, extraIce) {
         const sender = conns.get(conn);
         if (!room || !sender) return;
         if (msg.t === 'ping') { conn.send({ t: 'pong' }); return; }
-        if (msg.t === 'hello') { conn.send({ t: 'room', room }); return; }
+        if (msg.t === 'hello') { conn.send({ t: 'room', room }); conn.seats = seatsKey(room); return; }
         if (msg.t !== 'set' || !msg.room) return;
         if (room.status === 'lobby') {
           // In the lobby a guest may only add or update their own seat.
@@ -163,25 +204,49 @@ export function p2pStore(Peer, options, uid, extraIce) {
           }
         }
         conn.send({ t: 'room', room }); // refused: resync the sender
+        conn.seats = seatsKey(room);
       };
 
-      peer.on('connection', (conn) => {
-        conns.set(conn, conn.metadata?.uid ?? null);
-        conn.on('data', (msg) => onGuestMessage(conn, msg));
-        conn.on('close', () => conns.delete(conn));
-      });
+      if (peer) {
+        peer.on('connection', (conn) => {
+          conns.set(conn, conn.metadata?.uid ?? null);
+          conn.on('data', (msg) => onGuestMessage(conn, msg));
+          conn.on('close', () => conns.delete(conn));
+        });
+      }
+
+      // Guests on the backup route: each one has its own reply topic, and says who they are in every message.
+      const relayConns = new Map(); // uid -> pseudo connection
+      if (bus) {
+        bus.subscribe(`${home}/g`, (msg) => {
+          if (msg.t === 'whois') { if (room) bus.publish(`${home}/w`, { t: 'taken' }); return; }
+          const from = typeof msg.uid === 'string' ? msg.uid.slice(0, 80) : '';
+          if (!from) return;
+          if (msg.t === 'bye') { const c = relayConns.get(from); if (c) { conns.delete(c); relayConns.delete(from); } return; }
+          let conn = relayConns.get(from);
+          if (!conn) {
+            conn = { relay: true, open: true, last: Date.now(), seats: '', send: (m) => bus.publish(`${home}/h/${from}`, m) };
+            relayConns.set(from, conn);
+          }
+          conns.set(conn, from);
+          conn.last = Date.now();
+          // a guest that already holds the current seats only needs the game
+          if (msg.t === 'hello' && room?.game && msg.have === hashOf(seatsKey(room))) { conn.seats = seatsKey(room); conn.send({ t: 'game', game: room.game, status: room.status }); return; }
+          onGuestMessage(conn, msg);
+        });
+      }
 
       // A locked or backgrounded phone drops its link to the signalling server; get it back.
       let regain = 0;
       const regainSignal = () => {
-        if (peer.destroyed || !peer.disconnected) return;
-        status.set('reconnecting');
+        if (!peer || peer.destroyed || !peer.disconnected) return;
+        if (!bus?.alive) status.set('reconnecting');
         try { peer.reconnect(); } catch { /* not ready yet; the timer tries again */ }
         clearTimeout(regain);
         regain = setTimeout(regainSignal, 3000);
       };
-      peer.on('disconnected', regainSignal);
-      peer.on('open', () => { clearTimeout(regain); status.set('online'); });
+      peer?.on('disconnected', regainSignal);
+      peer?.on('open', () => { clearTimeout(regain); status.set('online'); });
       const onVisible = () => { if (!document.hidden) regainSignal(); };
       document.addEventListener('visibilitychange', onVisible);
 
@@ -197,26 +262,33 @@ export function p2pStore(Peer, options, uid, extraIce) {
           document.removeEventListener('visibilitychange', onVisible);
           for (const conn of conns.keys()) if (conn.open) conn.send({ t: 'bye' }); // so guests leave at once
           tryStorage(() => localStorage.removeItem(keyOf(code)));
-          setTimeout(() => peer.destroy(), 250);
+          setTimeout(() => { peer?.destroy(); bus?.close(); }, 400);
         },
       };
     },
 
     async join(code) {
-      const peer = new Peer(undefined, peerOptions);
-      try { await open(peer); } catch { peer.destroy(); throw new Error('network'); }
+      const home = `${ROOT}/${code}`;
+      const bus = useRelay ? relayBus(brokers) : null;
+      let peer = null;
+      try { peer = new Peer(undefined, peerOptions); await open(peer); } catch { peer?.destroy(); peer = null; if (!bus) throw new Error('network'); }
 
       let room = null; // the last room we were sent; kept while reconnecting
       let fresh = true; // the next room message is the first on a new connection
       let conn = null;
       let closed = false;
       let lastSeen = Date.now();
+      let relayLast = 0; // when the backup route last heard from the host
       const subs = new Set();
       const errors = new Set();
       const status = statusFeed();
+      const relayOk = () => !!bus && Date.now() - relayLast < 45000;
+      const notify = () => subs.forEach((cb) => cb(snapshotOf(room)));
 
+      // Direct route.
       let latest = null; // the newest connection attempt; anything from an older one is ignored
       const connect = () => new Promise((resolve, reject) => {
+        if (!peer) { reject(new Error('network')); return; }
         const c = peer.connect(PEER_PREFIX + code, { metadata: { uid }, reliable: true });
         latest = c;
         const timer = setTimeout(() => reject(new Error('timeout')), 15000); // slow networks can take a while
@@ -231,10 +303,34 @@ export function p2pStore(Peer, options, uid, extraIce) {
           clearTimeout(timer);
           peer.off('error', onPeerError);
           room = msg.room;
-          if (fresh) { fresh = false; conn = c; status.set('online'); resolve(); }
-          subs.forEach((cb) => cb(snapshotOf(room)));
+          if (fresh || !conn) { fresh = false; conn = c; status.set('online'); resolve(); }
+          notify();
         });
         c.on('close', () => { if (!closed && conn === c) reconnect(); });
+      });
+
+      // Backup route: say hello until the host answers, then keep saying it as a heartbeat.
+      let helloTimer = 0;
+      let raceDone = false;
+      const hello = () => bus.publish(`${home}/g`, { t: 'hello', uid, have: room ? hashOf(seatsKey(room)) : 0 });
+      const relayFirst = () => new Promise((resolve, reject) => {
+        let first = true;
+        const timer = setTimeout(() => reject(new Error('timeout')), 8000);
+        bus.subscribe(`${home}/h/${uid}`, (msg) => {
+          relayLast = Date.now();
+          if (msg.t === 'bye') { closed = true; errors.forEach((cb) => cb({ code: 'closed' })); return; }
+          if (msg.t === 'room') room = msg.room;
+          else if (msg.t === 'game' && room) room = { ...room, game: msg.game, status: msg.status };
+          else if (msg.t === 'game') { hello(); return; } // we missed the seats: ask for everything
+          else return;
+          if (first) { first = false; clearTimeout(timer); fresh = false; status.set('online'); resolve(); }
+          notify();
+        });
+        bus.ready(8000).then((up) => {
+          if (!up) { clearTimeout(timer); reject(new Error('network')); return; }
+          hello();
+          if (!raceDone) helloTimer = setInterval(() => { if (!room || Date.now() - relayLast > 4000) hello(); }, 2000);
+        });
       });
 
       // Keeps trying for about two minutes, since the host may only have locked their phone for a moment.
@@ -242,23 +338,39 @@ export function p2pStore(Peer, options, uid, extraIce) {
       async function reconnect() {
         if (retrying || closed) return;
         retrying = true;
-        status.set('reconnecting');
+        if (!relayOk()) status.set('reconnecting');
         for (let i = 0; i < 30 && !closed; i++) {
-          await new Promise((r) => setTimeout(r, Math.min(1500 + i * 500, 5000)));
+          await sleep(Math.min(1500 + i * 500, 5000));
           try {
-            if (peer.disconnected) peer.reconnect();
+            if (peer?.disconnected) peer.reconnect();
             fresh = true; // the first message after reconnecting replaces our connection
             await connect();
             retrying = false;
             return;
           } catch { /* try again */ }
+          if (relayOk()) status.set('online');
         }
         retrying = false;
+        if (relayOk()) return;
         status.set('lost');
         errors.forEach((cb) => cb({ code: 'lost' }));
       }
 
-      await connect().catch((e) => { peer.destroy(); throw e; });
+      // Take whichever route answers first. A wrong code is only reported once the backup route has had its say.
+      const direct = connect().catch(async (e) => { if (e.message === 'notfound') await sleep(3000); throw e; });
+      const backup = bus ? relayFirst() : Promise.reject(new Error('network'));
+      try {
+        await Promise.any([direct, backup]);
+      } catch (all) {
+        const errs = all.errors || [];
+        peer?.destroy();
+        bus?.close();
+        clearInterval(helloTimer);
+        throw errs.find((e) => e.message === 'notfound') || errs.find((e) => e.message === 'timeout') || errs[0] || new Error('network');
+      }
+      raceDone = true;
+      backup.catch(() => {}); // the loser may still fail later; that is fine
+      direct.catch(() => {});
 
       // A phone that was backgrounded can keep a dead link open; ping so it is noticed, and recheck on wake-up.
       const beat = setInterval(() => {
@@ -268,23 +380,33 @@ export function p2pStore(Peer, options, uid, extraIce) {
       }, 8000);
       const onVisible = () => {
         if (document.hidden || closed || retrying) return;
-        if (!conn?.open || Date.now() - lastSeen > 25000) { try { conn?.close(); } catch { /* already closed */ } reconnect(); }
+        if (!conn?.open || Date.now() - lastSeen > 25000) { try { conn?.close(); } catch { /* already closed */ } if (conn) reconnect(); }
+        if (bus) hello();
       };
       document.addEventListener('visibilitychange', onVisible);
+      if (bus) { clearInterval(helloTimer); helloTimer = setInterval(hello, 20000); }
 
       return {
         async get() { return snapshotOf(room); },
         async set(next) {
-          if (!conn?.open) throw new Error('offline');
           // A move only needs the game; everything else (seats, icons) is the host's to keep.
           const sent = next.game ? { game: next.game, status: next.status } : next;
-          conn.send({ t: 'set', room: JSON.parse(JSON.stringify(sent)) });
+          if (conn?.open) { conn.send({ t: 'set', room: JSON.parse(JSON.stringify(sent)) }); return; }
+          if (bus?.alive) { bus.publish(`${home}/g`, { t: 'set', uid, room: JSON.parse(JSON.stringify(sent)) }); return; }
+          throw new Error('offline');
         },
         async acquire() { return { acquired: true }; },
         onSnapshot(next, error) { subs.add(next); if (error) errors.add(error); next(snapshotOf(room)); return () => { subs.delete(next); errors.delete(error); }; },
         onStatus: status.on,
-        retry: () => { try { conn?.close(); } catch { /* already closed */ } retrying = false; reconnect(); },
-        close() { closed = true; clearInterval(beat); document.removeEventListener('visibilitychange', onVisible); peer.destroy(); },
+        retry: () => { try { conn?.close(); } catch { /* already closed */ } retrying = false; if (peer) reconnect(); else if (bus) hello(); },
+        close() {
+          closed = true;
+          clearInterval(beat);
+          clearInterval(helloTimer);
+          document.removeEventListener('visibilitychange', onVisible);
+          if (bus) bus.publish(`${home}/g`, { t: 'bye', uid });
+          setTimeout(() => { peer?.destroy(); bus?.close(); }, 300);
+        },
       };
     },
   };
