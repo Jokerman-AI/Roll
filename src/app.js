@@ -788,7 +788,7 @@ async function initNet() {
       if (db && uid) { net.store = dbStore(db); net.uid = uid; }
     } else if (window.Peer) {
       net.uid = localUid();
-      net.store = p2pStore(window.Peer, window.RFI_PEER_OPTIONS, net.uid, window.RFI_ICE_SERVERS);
+      net.store = p2pStore(window.Peer, window.RFI_PEER_OPTIONS, net.uid, window.RFI_ICE_SERVERS, window.RFI_RELAY_BROKERS);
     }
   } catch { /* online play unavailable */ }
   const m = /^#([A-Za-z]{4})$/.exec(location.hash);
