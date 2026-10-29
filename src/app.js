@@ -1,7 +1,6 @@
 import * as E from './engine.js';
 import { aiNextAction } from './ai.js';
 
-const nextLevel = (l) => E.LEVEL_NAMES[(E.LEVEL_NAMES.indexOf(l) + 1) % E.LEVEL_NAMES.length];
 const levelLabel = (l) => (E.LEVEL_NAMES.includes(l) ? l : 'normal').replace(/^./, (c) => c.toUpperCase());
 import { dbStore, p2pStore } from './transport.js';
 import {
@@ -38,6 +37,7 @@ const ui = {
   screen: 'setup', // setup | online | lobby | game
   online: false,
   joinCode: '',
+  onlineError: '', // why the last create/join failed, shown on the online screen
   setup: [
     { name: 'You', cpu: false, me: true, color: profile.color, avatar: profile.avatar }, // `me` marks the row that is saved as your profile
     { name: cpuName(['You']), cpu: true, level: 'normal', color: freeColor([profile.color], 1), avatar: '' },
@@ -144,42 +144,62 @@ function setupView() {
 function onlineView() {
   return `
     <div class="setup">
-      <div><h1>Play online</h1><p class="tag">Create a room and send friends the code, or enter theirs.</p></div>
-      <div class="prow">
-        <button class="avbtn" data-act="editProfile" aria-label="Customize your player">${avatarHtml(profile, 0, 44)}</button>
-        <input id="myname" value="${esc(profile.name)}" maxlength="12" placeholder="Your name" aria-label="Your name">
-      </div>
-      <button class="btn primary" data-act="createRoom" ${net.busy ? 'disabled' : ''}>Create room</button>
-      <div class="prow">
-        <input id="joincode" value="${esc(ui.joinCode)}" maxlength="4" placeholder="Room code" autocapitalize="characters" autocomplete="off" aria-label="Room code" style="text-transform:uppercase;letter-spacing:.2em">
-        <button class="btn" data-act="joinRoom" ${net.busy ? 'disabled' : ''}>Join</button>
-      </div>
-      <button class="btn" data-act="toSetup">Back</button>
+      <header class="hero">${LOGO}<h1>Play online</h1><p class="tag">Make a room and share the code, or join a friend's.</p></header>
+      <section class="panel" aria-label="You">
+        <h2>You</h2>
+        <div class="prow">
+          <button class="avbtn" data-act="editProfile" aria-label="Customize your player">${avatarHtml(profile, 0, 48)}</button>
+          <div class="pmain"><input id="myname" value="${esc(profile.name)}" maxlength="12" placeholder="Your name" aria-label="Your name"></div>
+        </div>
+      </section>
+      ${ui.onlineError ? `<p class="notice" role="alert">${esc(ui.onlineError)}</p>` : ''}
+      <button class="btn primary big" data-act="createRoom" ${net.busy ? 'disabled' : ''}>${net.busy ? 'Connecting…' : 'Create room'}</button>
+      <section class="panel" aria-label="Join a room">
+        <h2>Join a room</h2>
+        <div class="joinrow">
+          <input id="joincode" class="codein" value="${esc(ui.joinCode)}" maxlength="4" placeholder="CODE" autocapitalize="characters" autocomplete="off" aria-label="Room code">
+          <button class="btn" data-act="joinRoom" ${net.busy ? 'disabled' : ''}>Join</button>
+        </div>
+      </section>
+      <nav class="links"><button data-act="toSetup">Back</button></nav>
     </div>`;
 }
 
 function lobbyView() {
   const room = net.room;
   if (!room) return '<div class="setup"><p class="tag">Connecting…</p></div>';
-  const rows = room.seats.map((p, i) => `
+  const host = isHost();
+  const rows = room.seats.map((p, i) => {
+    const cpu = p.cpu;
+    const tags = [i === net.mySeat ? 'You' : '', p.uid === room.hostUid ? 'Host' : ''].filter(Boolean).map((t) => `<small class="tagpill">${t}</small>`).join('');
+    const kind = cpu ? (E.LEVEL_NAMES.includes(p.level) ? p.level : 'normal') : '';
+    return `
     <div class="prow">
       ${i === net.mySeat
-        ? `<button class="avbtn" data-act="editMe" aria-label="Customize your player">${avatarHtml(p, i, 44)}</button>`
-        : avatarHtml(p, i, 44)}
-      <span style="flex:1">${esc(p.name)}${i === net.mySeat ? ' <small>(you)</small>' : ''}${p.cpu ? ` <small>CPU</small>` : ''}${p.uid === room.hostUid ? ' <small>host</small>' : ''}</span>
-      ${isHost() && p.cpu ? `<button class="btn" data-act="cycleSeatLevel" data-i="${i}" aria-label="Difficulty: ${levelLabel(p.level)}">${levelLabel(p.level)}</button>` : ''}
-      ${isHost() && p.cpu ? `<button class="btn" data-act="removeSeat" data-i="${i}" aria-label="Remove">✕</button>` : ''}
-    </div>`).join('');
+        ? `<button class="avbtn" data-act="editMe" aria-label="Customize your player">${avatarHtml(p, i, 48)}</button>`
+        : avatarHtml(p, i, 48)}
+      <div class="pmain">
+        <div class="pname">${esc(p.name)} ${tags}</div>
+        ${cpu && host
+          ? `<div class="seg three" role="group" aria-label="${esc(p.name)} difficulty">${E.LEVEL_NAMES.map((k) => `<button class="${kind === k ? 'on' : ''}" data-act="setSeatLevel" data-i="${i}" data-k="${k}" aria-pressed="${kind === k}">${levelLabel(k)}</button>`).join('')}</div>`
+          : `<div class="pmeta">${cpu ? `CPU · ${levelLabel(p.level)}` : i === net.mySeat ? 'Tap your face to change icon and colour' : 'Player'}</div>`}
+      </div>
+      ${host && cpu ? `<button class="x" data-act="removeSeat" data-i="${i}" aria-label="Remove ${esc(p.name)}">✕</button>` : ''}
+    </div>`;
+  }).join('');
   return `
     <div class="setup">
-      <div><h1>Room <span class="code">${esc(room.code)}</span></h1><p class="tag">Friends join with this code. ${room.seats.length} of ${MAX_PLAYERS} seats taken. Tap your face to change your icon and dice colour.</p></div>
+      <header class="hero">${LOGO}<p class="tag">Room code</p><h1 class="code">${esc(room.code)}</h1></header>
       <button class="btn" data-act="invite">Invite friends</button>
-      ${rows}
-      ${isHost() ? `
-        ${room.seats.length < MAX_PLAYERS ? '<button class="btn" data-act="addSeatCpu">+ Add CPU player</button>' : ''}
-        <button class="btn primary" data-act="startOnline" ${room.seats.length < 2 ? 'disabled' : ''}>Start game</button>`
-        : '<p class="tag">Waiting for the host to start…</p>'}
-      <button class="btn" data-act="toSetup">Leave room</button>
+      <section class="panel" aria-label="Players">
+        <h2>Players · ${room.seats.length} of ${MAX_PLAYERS}</h2>
+        ${rows}
+        ${host && room.seats.length < MAX_PLAYERS ? '<button class="add" data-act="addSeatCpu">+ Add CPU player</button>' : ''}
+      </section>
+      ${host
+        ? `<button class="btn primary big" data-act="startOnline" ${room.seats.length < 2 ? 'disabled' : ''}>${room.seats.length < 2 ? 'Waiting for players…' : 'Start game'}</button>`
+        : '<p class="tag center">Waiting for the host to start…</p>'}
+      <nav class="links"><button data-act="toSetup">Leave room</button></nav>
     </div>`;
 }
 
@@ -854,9 +874,14 @@ async function mutateRoom(fn) {
 const myName = () => (profile.name.trim() || 'Player').slice(0, 12);
 const mySeatData = (taken) => ({ name: myName(), cpu: false, color: freeColor(taken, profile.color), avatar: profile.avatar });
 
-const failText = (e) => (e.message === 'notfound' ? 'No room with that code' : e.message === 'timeout' ? 'Could not reach that room. Check the code and your connection.' : e.message === 'network' ? 'Could not reach the network. Check your connection.' : 'Could not connect. Try again.');
+const failText = (e) => (e.message === 'notfound' ? 'No room with that code. Check it with your friend, and make sure they are still on the lobby screen.'
+  : e.message === 'timeout' ? 'Could not reach that room. Check the code, and that both phones are online. The host must keep Rollick open.'
+  : e.message === 'network' ? 'Could not reach the connection service. Check your internet, turn off any VPN or content blocker, and try again.'
+  : e.message === 'taken' ? 'Could not find a free room code. Try again.'
+  : 'Could not connect. Try again.');
 
 async function createRoom() {
+  ui.onlineError = '';
   net.busy = true; render();
   try {
     let ref;
@@ -869,7 +894,7 @@ async function createRoom() {
     attach(ref);
     saveSession(code, true);
     await pushRoom({ code, hostUid: net.uid, status: 'lobby', seats: [{ uid: net.uid, ...mySeatData([]) }], game: null, createdAt: Date.now() });
-  } catch (e) { leaveRoom(); ui.screen = 'online'; say(net.store.kind === 'db' ? 'Could not create a room. The page needs to be shared with you as an editor.' : failText(e)); }
+  } catch (e) { leaveRoom(); ui.screen = 'online'; ui.onlineError = net.store.kind === 'db' ? 'Could not create a room. The page needs to be shared with you as an editor.' : failText(e); }
   net.busy = false; render();
 }
 
@@ -891,9 +916,10 @@ async function enterRoom(code, { host = false } = {}) {
 
 async function joinRoom() {
   const code = ui.joinCode.trim().toUpperCase();
-  if (code.length !== 4) { say('Enter the 4-letter room code'); return; }
+  ui.onlineError = '';
+  if (code.length !== 4) { ui.onlineError = 'Enter the 4-letter room code.'; render(); return; }
   net.busy = true; render();
-  try { await enterRoom(code); } catch (e) { leaveRoom(); ui.screen = 'online'; say(net.store.kind === 'db' ? 'Could not join. The page needs to be shared with you as an editor.' : failText(e)); }
+  try { await enterRoom(code); } catch (e) { leaveRoom(); ui.screen = 'online'; ui.onlineError = net.store.kind === 'db' ? 'Could not join. The page needs to be shared with you as an editor.' : failText(e); }
   net.busy = false; render();
 }
 
@@ -942,9 +968,9 @@ const actions = {
     if (p.cpu) p.level = k;
     render();
   },
-  cycleSeatLevel: ({ i }) => mutateRoom((room) => {
-    if (room.hostUid !== net.uid || !room.seats[i]?.cpu) return null;
-    room.seats[i].level = nextLevel(room.seats[i].level);
+  setSeatLevel: ({ i, k }) => mutateRoom((room) => {
+    if (room.hostUid !== net.uid || !room.seats[i]?.cpu || !E.LEVEL_NAMES.includes(k)) return null;
+    room.seats[i].level = k;
     return room;
   }),
   addPlayer: () => {
