@@ -36,7 +36,7 @@ const ui = {
   online: false,
   joinCode: '',
   setup: [
-    { name: 'You', cpu: false, color: profile.color, avatar: profile.avatar },
+    { name: 'You', cpu: false, me: true, color: profile.color, avatar: profile.avatar }, // `me` marks the row that is saved as your profile
     { name: cpuName(['You']), cpu: true, color: freeColor([profile.color], 1), avatar: '' },
   ],
   cfg: [], // players of the local game in progress
@@ -65,7 +65,7 @@ const isHost = () => net.room?.hostUid === net.uid;
 /* ---------- players' looks ---------- */
 
 const seats = () => (ui.online ? net.room?.seats : ui.cfg) || [];
-const swatch = (p, i) => PALETTE[Number.isInteger(p?.color) ? p.color % PALETTE.length : i % PALETTE.length];
+const swatch = (p, i) => PALETTE[Number.isInteger(p?.color) ? ((p.color % PALETTE.length) + PALETTE.length) % PALETTE.length : i % PALETTE.length];
 const hexOf = (i) => swatch(seats()[i], i).hex;
 const diceVars = (p, i) => { const c = swatch(p, i); return `--c:${c.hex};--pc:${c.pip}`; };
 
@@ -426,7 +426,7 @@ async function saveEditor() {
   ui.ed = null;
   if (ed.target === 'setup') {
     Object.assign(ui.setup[ed.i], look);
-    if (ed.i === 0) { Object.assign(profile, look); saveProfile(); }
+    if (ui.setup[ed.i].me) { Object.assign(profile, look); saveProfile(); }
   } else if (ed.target === 'profile') {
     Object.assign(profile, look);
     saveProfile();
@@ -625,11 +625,11 @@ function showHint() {
   const s = ui.game;
   clearTimeout(hintTimer);
   if (s.phase === 'start') {
-    const a = aiNextAction(s);
+    const a = aiNextAction(s, () => 0); // no dice rolls: the same advice every time
     ui.hint = { button: a.type === 'takeback' ? 'takeback' : 'roll' };
     say(a.type === 'takeback' ? 'Hint: take back your dice and roll all six' : `Hint: roll your ${E.handSize(s, s.current)} dice`, 3500);
   } else {
-    const best = bestPlacement(s);
+    const best = bestPlacement(s, () => 0);
     if (!best) { say('Hint: nothing fits. End your turn.', 3500); return; }
     ui.hint = { rolled: best.rolled, card: best.card };
     say(`Hint: put the ${s.rolled[best.rolled]} on the ${s.cards[best.card].points}-point card`, 3500);
@@ -737,6 +737,7 @@ function attach(ref) {
   });
   net.unsub = ref.onSnapshot(onRoom, (e) => {
     if (e?.code === 'lost') return; // the banner offers Retry
+    if (e?.code === 'closed') { say('The host ended the room'); leaveRoom(); return; }
     say('Lost connection to the room');
     leaveRoom();
   });
@@ -802,7 +803,7 @@ async function mutateRoom(fn) {
 const myName = () => (profile.name.trim() || 'Player').slice(0, 12);
 const mySeatData = (taken) => ({ name: myName(), cpu: false, color: freeColor(taken, profile.color), avatar: profile.avatar });
 
-const failText = (e) => (e.message === 'notfound' ? 'No room with that code' : e.message === 'network' ? 'Could not reach the network. Check your connection.' : 'Could not connect. Try again.');
+const failText = (e) => (e.message === 'notfound' ? 'No room with that code' : e.message === 'timeout' ? 'Could not reach that room. Check the code and your connection.' : e.message === 'network' ? 'Could not reach the network. Check your connection.' : 'Could not connect. Try again.');
 
 async function createRoom() {
   net.busy = true; render();
@@ -831,6 +832,8 @@ async function enterRoom(code, { host = false } = {}) {
       room.seats.push({ uid: net.uid, ...mySeatData(room.seats.map((p) => p.color)) });
       return room;
     });
+    const seated = (await net.ref.get()).data()?.seats?.some((p) => p.uid === net.uid);
+    if (!seated) say('You can watch, but the room is full or the game has started.', 3500);
   }
   saveSession(code, host);
 }
@@ -847,7 +850,16 @@ async function resumeRoom() {
   const s = savedSession();
   if (!s) return;
   net.busy = true; render();
-  try { await enterRoom(s.code, { host: s.host }); } catch (e) { leaveRoom(); say(failText(e)); }
+  try {
+    // A host who just reloaded may find the old connection still registered for a short while; keep trying.
+    for (let attempt = 0; ; attempt++) {
+      try { await enterRoom(s.code, { host: s.host }); break; } catch (e) {
+        if (!(s.host && e.message === 'taken' && attempt < 8)) throw e;
+        if (attempt === 0) say('Reconnecting to your room…', 4000);
+        await sleep(4000);
+      }
+    }
+  } catch (e) { leaveRoom(); say(e.message === 'taken' ? 'Your old connection is still closing. Try again in a moment.' : failText(e)); }
   net.busy = false; render();
 }
 
@@ -855,9 +867,10 @@ async function invite() {
   const code = net.room?.code;
   const url = `${location.origin}${location.pathname}#${code}`;
   const text = `Join my Roll for It game: room ${code}`;
+  const inFrame = net.store?.kind === 'db'; // the claude.ai page's own address is not a link friends can use
   try {
-    if (navigator.share) { await navigator.share({ title: 'Roll for It', text, url }); return; }
-    await navigator.clipboard.writeText(`${text}\n${url}`);
+    if (navigator.share) { await navigator.share(inFrame ? { title: 'Roll for It', text } : { title: 'Roll for It', text, url }); return; }
+    await navigator.clipboard.writeText(inFrame ? text : `${text}\n${url}`);
     say('Invite copied');
   } catch { say(`Tell friends room code ${code}`); }
 }
@@ -964,7 +977,7 @@ app.addEventListener('input', (e) => {
   const i = e.target.dataset?.name;
   if (i !== undefined) {
     ui.setup[i].name = e.target.value.trim() || `Player ${+i + 1}`;
-    if (+i === 0) { profile.name = ui.setup[0].name; saveProfile(); }
+    if (ui.setup[i].me) { profile.name = ui.setup[i].name; saveProfile(); }
   }
 });
 
@@ -972,5 +985,5 @@ render();
 initNet();
 
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
-  navigator.serviceWorker.register('sw.js').catch(() => {});
+  navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).catch(() => {});
 }

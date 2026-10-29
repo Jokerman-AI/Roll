@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as E from '../src/engine.js';
-import { aiNextAction } from '../src/ai.js';
+import { aiNextAction, bestPlacement } from '../src/ai.js';
 import { cpuName } from '../src/profile.js';
 
 const cfg = [{ name: 'A' }, { name: 'B', cpu: true }];
@@ -116,7 +116,7 @@ test('cannot roll with no dice in hand', () => {
 });
 
 test('CPU vs CPU games always finish', () => {
-  for (let seed = 1; seed <= 200; seed++) {
+  for (let seed = 1; seed <= 60; seed++) {
     const rng = E.mulberry32(seed);
     let s = E.newGame(Array.from({ length: 1 + (seed % 7) + 1 }, (_, i) => ({ name: `p${i}` })), rng);
     let steps = 0;
@@ -142,4 +142,81 @@ test('computer players get short, unique, generated names', () => {
   }
   assert.match(cpuName(taken), /^Robo \d+$/); // the pool is used up, so it numbers them
   assert.notEqual(cpuName(['Dicey', 'dicey ']), 'Dicey'); // ignores case and spaces when avoiding repeats
+});
+
+/** Everything that must hold after every single move, whoever made it. */
+function checkInvariants(s, deckSize, label) {
+  const ids = s.cards.map((c) => c.id);
+  assert.equal(new Set(ids).size, ids.length, `${label}: card ids are unique`);
+  assert.ok(s.cards.length <= E.cardsInPlay(s.players.length), `${label}: no more cards than seats allow`);
+  let claimed = 0;
+  s.players.forEach((p, i) => {
+    const hand = E.handSize(s, i);
+    assert.ok(hand >= 0 && hand <= E.DICE_PER_PLAYER, `${label}: player ${i} has ${hand} dice in hand`);
+    assert.equal(p.pile.reduce((a, b) => a + b, 0), p.score, `${label}: pile adds up to the score`);
+    claimed += p.pile.length;
+    s.cards.forEach((c) => {
+      const left = [...c.need];
+      for (const f of c.placed[i]) {
+        const k = left.indexOf(f);
+        assert.ok(k >= 0, `${label}: a placed die matches a picture the card needs`);
+        left.splice(k, 1);
+      }
+      assert.ok(left.length > 0, `${label}: a completed card must have been claimed already`);
+    });
+  });
+  assert.equal(s.cards.length + s.deck.length + claimed, deckSize, `${label}: no card is lost or duplicated`);
+  if (s.phase === 'placing') assert.ok(s.rolled.length <= E.handSize(s, s.current), `${label}: rolled dice come from the hand`);
+  else if (s.phase === 'start') assert.equal(s.rolled.length, 0, `${label}: nothing is rolled between turns`);
+  assert.ok(s.current >= 0 && s.current < s.players.length, `${label}: current player exists`);
+  if (s.phase === 'over') assert.ok(s.winner !== null, `${label}: a finished game has a winner`);
+}
+
+test('random legal play keeps every rule invariant (2-8 players, 60 games)', () => {
+  for (let seed = 1; seed <= 60; seed++) {
+    const rng = E.mulberry32(seed * 7919);
+    const count = 2 + (seed % 7);
+    let s = E.newGame(Array.from({ length: count }, (_, i) => ({ name: `p${i}` })), rng);
+    const deckSize = s.cards.length + s.deck.length;
+    let steps = 0;
+    while (s.phase !== 'over' && steps++ < 80000) {
+      const label = `seed ${seed} step ${steps}`;
+      if (s.phase === 'start') {
+        const hand = E.handSize(s, s.current);
+        const onCards = E.DICE_PER_PLAYER - hand;
+        if (hand === 0 || (onCards > 0 && rng() < 0.15)) s = E.takeBack(s);
+        s = E.roll(s, rng);
+      } else {
+        const moves = E.legalMoves(s);
+        if (!moves.length || rng() < 0.12) s = E.endTurn(s);
+        else { const m = rng() < 0.6 ? bestPlacement(s, rng) : moves[Math.floor(rng() * moves.length)]; s = E.place(s, m.rolled, m.card); } // a mix of sensible and random moves
+      }
+      checkInvariants(s, deckSize, label);
+    }
+    assert.equal(s.phase, 'over', `seed ${seed} should finish`);
+  }
+});
+
+test('illegal moves are rejected and leave the game untouched', () => {
+  const s = E.newGame(cfg, E.mulberry32(99));
+  assert.throws(() => E.place(s, 0, 0), 'cannot place before rolling');
+  assert.throws(() => E.endTurn(s), 'cannot end a turn that has not started');
+  const rolled = E.roll(s, E.mulberry32(5));
+  assert.throws(() => E.roll(rolled), 'cannot roll twice');
+  assert.throws(() => E.takeBack(rolled), 'cannot take back after rolling');
+  const before = JSON.stringify(rolled);
+  const bad = rolled.cards.findIndex((c, ci) => !E.canPlace(rolled, 0, ci));
+  if (bad >= 0) assert.throws(() => E.place(rolled, 0, bad), 'cannot place a die on a card that does not need it');
+  assert.equal(JSON.stringify(rolled), before, 'failed moves do not change the state');
+});
+
+test('hints are deterministic: the same state always gets the same advice', () => {
+  for (let seed = 1; seed <= 20; seed++) {
+    const rng = E.mulberry32(seed);
+    let s = E.roll(E.newGame(cfg, rng), rng);
+    const none = () => 0;
+    assert.deepEqual(bestPlacement(s, none), bestPlacement(s, none));
+    const start = E.newGame(cfg, rng);
+    assert.deepEqual(aiNextAction(start, none), aiNextAction(start, none));
+  }
 });

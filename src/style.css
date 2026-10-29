@@ -19,8 +19,13 @@ body {
   font: clamp(14px, 1.1vw + 10.5px, 18px)/1.35 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   overscroll-behavior: none;
   user-select: none; -webkit-user-select: none;
+  touch-action: manipulation; /* no double-tap zoom delay; pinch zoom still works */
 }
+/* Safari will not let people type in a field inside a user-select:none page unless it opts back in */
+input, textarea { -webkit-user-select: text; user-select: text; }
+/* dice tumbling in from the side must not make the page scroll sideways */
 #app {
+  overflow-x: clip;
   min-height: 100dvh; max-width: 560px; margin: 0 auto;
   display: flex; flex-direction: column;
   padding: max(12px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-left)) max(12px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-right));

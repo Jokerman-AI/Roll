@@ -36,6 +36,13 @@ up again. Moves are paused until it is back.
 - Each player draws their own icon and chooses their dice colour; every player in a game has a different colour.
   Your icon and colour are remembered on your device.
 
+## Good to know
+
+- **Browsers:** the layout needs a recent browser: Safari 16.4 or newer (iOS 16.4+), Chrome or Edge 105+.
+- **Fair play:** each player's browser runs the game, and the host only checks that moves come from the player
+  whose turn it is. It is built for friends; a determined player could cheat, and room codes are short and not secret.
+- **Hosting a room:** if the host leaves, the room ends; if the host only reloads, "Return to room" picks the game up again.
+
 ## Screens
 
 The layout adapts to small phones, large phones, tablets, landscape, notches, and dual-screen devices

@@ -23,17 +23,25 @@ function snapshotOf(room) {
 /** Rooms kept in the host page's shared database (the claude.ai artifact). */
 export function dbStore(db) {
   const doc = (code) => db.collection('rooms').doc(code);
+  // Wrap the platform's document reference instead of adding to it, which it may not allow.
+  const wrap = (ref) => ({
+    get: () => ref.get(),
+    set: (data) => ref.set(data),
+    acquire: (options) => ref.acquire(options),
+    onSnapshot: (next, error) => ref.onSnapshot(next, error),
+    close() {},
+  });
   return {
     kind: 'db',
     async host(code, { resume = false } = {}) {
       const ref = doc(code);
       if (!resume && (await ref.get()).exists) throw new Error('taken');
-      return Object.assign(ref, { close() {} });
+      return wrap(ref);
     },
     async join(code) {
       const ref = doc(code);
       if (!(await ref.get()).exists) throw new Error('notfound');
-      return Object.assign(ref, { close() {} });
+      return wrap(ref);
     },
   };
 }
@@ -150,7 +158,13 @@ export function p2pStore(Peer, options, uid, extraIce) {
         onSnapshot(next) { subs.add(next); next(snapshotOf(room)); return () => subs.delete(next); },
         onStatus: status.on,
         retry: regainSignal,
-        close() { clearTimeout(regain); document.removeEventListener('visibilitychange', onVisible); peer.destroy(); },
+        close() {
+          clearTimeout(regain);
+          document.removeEventListener('visibilitychange', onVisible);
+          for (const conn of conns.keys()) if (conn.open) conn.send({ t: 'bye' }); // so guests leave at once
+          tryStorage(() => localStorage.removeItem(keyOf(code)));
+          setTimeout(() => peer.destroy(), 250);
+        },
       };
     },
 
@@ -158,7 +172,8 @@ export function p2pStore(Peer, options, uid, extraIce) {
       const peer = new Peer(undefined, peerOptions);
       try { await open(peer); } catch { peer.destroy(); throw new Error('network'); }
 
-      let room = null;
+      let room = null; // the last room we were sent; kept while reconnecting
+      let fresh = true; // the next room message is the first on a new connection
       let conn = null;
       let closed = false;
       let lastSeen = Date.now();
@@ -166,20 +181,23 @@ export function p2pStore(Peer, options, uid, extraIce) {
       const errors = new Set();
       const status = statusFeed();
 
+      let latest = null; // the newest connection attempt; anything from an older one is ignored
       const connect = () => new Promise((resolve, reject) => {
         const c = peer.connect(PEER_PREFIX + code, { metadata: { uid }, reliable: true });
-        const timer = setTimeout(() => reject(new Error('notfound')), 8000);
+        latest = c;
+        const timer = setTimeout(() => reject(new Error('timeout')), 15000); // slow networks can take a while
         const onPeerError = (e) => { if (e.type === 'peer-unavailable') { clearTimeout(timer); reject(new Error('notfound')); } };
         peer.on('error', onPeerError);
         c.on('open', () => c.send({ t: 'hello' }));
         c.on('data', (msg) => {
+          if (c !== latest) return;
           lastSeen = Date.now();
+          if (msg.t === 'bye') { closed = true; errors.forEach((cb) => cb({ code: 'closed' })); return; }
           if (msg.t !== 'room') return;
           clearTimeout(timer);
           peer.off('error', onPeerError);
-          const first = room === null;
           room = msg.room;
-          if (first) { conn = c; status.set('online'); resolve(); }
+          if (fresh) { fresh = false; conn = c; status.set('online'); resolve(); }
           subs.forEach((cb) => cb(snapshotOf(room)));
         });
         c.on('close', () => { if (!closed && conn === c) reconnect(); });
@@ -195,7 +213,7 @@ export function p2pStore(Peer, options, uid, extraIce) {
           await new Promise((r) => setTimeout(r, Math.min(1500 + i * 500, 5000)));
           try {
             if (peer.disconnected) peer.reconnect();
-            room = null; // so the first message after reconnecting is treated as fresh
+            fresh = true; // the first message after reconnecting replaces our connection
             await connect();
             retrying = false;
             return;
