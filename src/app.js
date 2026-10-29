@@ -189,7 +189,8 @@ function cardView(s, card, ci) {
   const accepts = ui.selected !== null && E.canPlace(s, ui.selected, ci);
   const used = new Map(); // per player, how many of each face already counted
   const n = card.need.length;
-  const cols = n <= 2 ? 1 : n <= 4 ? 2 : 3;
+  // [dice per row, die size in % of card width]; sized so the block fits between the two corner numbers.
+  const [cols, dz] = { 1: [1, 44], 2: [2, 42], 3: [3, 27], 4: [2, 33], 5: [3, 27] }[n] || [3, 24];
   const mineSeat = seats()[s.current];
   const slots = card.need.map((face) => {
     const owners = s.players.map((_, p) => p).filter((p) => {
@@ -206,9 +207,9 @@ function cardView(s, card, ci) {
       <span class="dots">${dots}</span></div>`;
   }).join('');
   return `<div class="gcard ${accepts ? 'accepts' : ''} ${ui.hint?.card === ci ? 'hinted' : ''}" data-tier="${tierOf(card.points)}" data-act="pickCard" data-card="${ci}" role="group" aria-label="${card.points} point card">
-    <div class="corner tl"><b>${card.points}</b><i></i></div>
-    <div class="face" style="--fc:${cols};--dz:${cols === 1 ? 44 : cols === 2 ? 31 : 24}">${slots}</div>
-    <div class="corner br"><b>${card.points}</b><i></i></div>
+    <div class="corner tl"><b>${card.points}</b></div>
+    <div class="face" style="--fc:${cols};--dz:${dz}">${slots}</div>
+    <div class="corner br"><b>${card.points}</b></div>
   </div>`;
 }
 
