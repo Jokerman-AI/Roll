@@ -1,5 +1,8 @@
 import * as E from './engine.js';
 import { aiNextAction } from './ai.js';
+
+const nextLevel = (l) => E.LEVEL_NAMES[(E.LEVEL_NAMES.indexOf(l) + 1) % E.LEVEL_NAMES.length];
+const levelLabel = (l) => (E.LEVEL_NAMES.includes(l) ? l : 'normal').replace(/^./, (c) => c.toUpperCase());
 import { dbStore, p2pStore } from './transport.js';
 import {
   PALETTE, INK, BRUSHES, STAMPS, AVATAR_SIZE, cpuName, freeColor, safeAvatar, makeSketch, paintCanvas, pointOn, strokeSegment, stampAt, clearSketch, loadAvatar, exportAvatar,
@@ -37,7 +40,7 @@ const ui = {
   joinCode: '',
   setup: [
     { name: 'You', cpu: false, me: true, color: profile.color, avatar: profile.avatar }, // `me` marks the row that is saved as your profile
-    { name: cpuName(['You']), cpu: true, color: freeColor([profile.color], 1), avatar: '' },
+    { name: cpuName(['You']), cpu: true, level: 'normal', color: freeColor([profile.color], 1), avatar: '' },
   ],
   cfg: [], // players of the local game in progress
   game: null,
@@ -102,23 +105,39 @@ function connBanner() {
     : '<div class="conn" role="status">Reconnecting…</div>';
 }
 
+const KINDS = [['human', 'Human'], ['easy', 'Easy'], ['normal', 'Normal'], ['hard', 'Hard']];
+const kindOf = (p) => (p.cpu ? (E.LEVEL_NAMES.includes(p.level) ? p.level : 'normal') : 'human');
+
+const LOGO = `<svg class="logo" viewBox="0 0 120 120" aria-hidden="true">
+  <g transform="rotate(-14 42 44)"><rect x="12" y="14" width="56" height="56" rx="13" fill="#fff8e7"/><g fill="#e5484d"><circle cx="27" cy="29" r="5.5"/><circle cx="53" cy="55" r="5.5"/><circle cx="40" cy="42" r="5.5"/></g></g>
+  <g transform="rotate(12 80 80)"><rect x="52" y="52" width="56" height="56" rx="13" fill="#3b82f6"/><g fill="#fff"><circle cx="67" cy="67" r="5.5"/><circle cx="93" cy="67" r="5.5"/><circle cx="67" cy="93" r="5.5"/><circle cx="93" cy="93" r="5.5"/></g></g>
+</svg>`;
+
 function setupView() {
   const rows = ui.setup.map((p, i) => `
     <div class="prow">
-      <button class="avbtn" data-act="editPlayer" data-i="${i}" aria-label="Customize ${esc(p.name)}">${avatarHtml(p, i, 44)}</button>
-      <input data-name="${i}" value="${esc(p.name)}" maxlength="12" aria-label="Player ${i + 1} name">
-      <button class="btn" data-act="toggleCpu" data-i="${i}">${p.cpu ? 'CPU' : 'Human'}</button>
-      ${ui.setup.length > 2 ? `<button class="btn" data-act="removePlayer" data-i="${i}" aria-label="Remove">✕</button>` : ''}
+      <button class="avbtn" data-act="editPlayer" data-i="${i}" aria-label="Customize ${esc(p.name)}">${avatarHtml(p, i, 48)}</button>
+      <div class="pmain">
+        <input data-name="${i}" value="${esc(p.name)}" maxlength="12" aria-label="Player ${i + 1} name">
+        <div class="seg" role="group" aria-label="${esc(p.name)} is">
+          ${KINDS.map(([k, label]) => `<button class="${kindOf(p) === k ? 'on' : ''}" data-act="setKind" data-i="${i}" data-k="${k}" aria-pressed="${kindOf(p) === k}">${label}</button>`).join('')}
+        </div>
+      </div>
+      ${ui.setup.length > 2 ? `<button class="x" data-act="removePlayer" data-i="${i}" aria-label="Remove ${esc(p.name)}">✕</button>` : ''}
     </div>`).join('');
+  const saved = net.store && savedSession();
   return `
     <div class="setup">
-      <div><h1>🎲 Rollick</h1><p class="tag">Roll dice, match the cards, race to ${E.TARGET_SCORE} points. Tap a face to draw your icon and pick your dice colour.</p></div>
-      ${rows}
-      ${ui.setup.length < MAX_PLAYERS ? '<button class="btn" data-act="addPlayer">+ Add player</button>' : ''}
-      <button class="btn primary" data-act="start">Start game</button>
+      <header class="hero">${LOGO}<h1>Rollick</h1><p class="tag">Roll the dice, fill the cards, be first to ${E.TARGET_SCORE}.</p></header>
+      ${saved ? `<button class="btn resume" data-act="resume">Return to room ${esc(saved.code)}</button>` : ''}
+      <section class="panel" aria-label="Players">
+        <h2>Players</h2>
+        ${rows}
+        ${ui.setup.length < MAX_PLAYERS ? '<button class="add" data-act="addPlayer">+ Add player</button>' : ''}
+      </section>
+      <button class="btn primary big" data-act="start">Start game</button>
       ${net.store ? '<button class="btn" data-act="goOnline">Play online with friends</button>' : ''}
-      ${net.store && savedSession() ? `<button class="btn" data-act="resume">Return to room ${esc(savedSession().code)}</button>` : ''}
-      <button class="btn" data-act="rules">How to play</button>
+      <nav class="links"><button data-act="rules">How to play</button><span aria-hidden="true">·</span><button data-act="about">About &amp; terms</button></nav>
     </div>`;
 }
 
@@ -147,7 +166,8 @@ function lobbyView() {
       ${i === net.mySeat
         ? `<button class="avbtn" data-act="editMe" aria-label="Customize your player">${avatarHtml(p, i, 44)}</button>`
         : avatarHtml(p, i, 44)}
-      <span style="flex:1">${esc(p.name)}${i === net.mySeat ? ' <small>(you)</small>' : ''}${p.cpu ? ' <small>CPU</small>' : ''}${p.uid === room.hostUid ? ' <small>host</small>' : ''}</span>
+      <span style="flex:1">${esc(p.name)}${i === net.mySeat ? ' <small>(you)</small>' : ''}${p.cpu ? ` <small>CPU</small>` : ''}${p.uid === room.hostUid ? ' <small>host</small>' : ''}</span>
+      ${isHost() && p.cpu ? `<button class="btn" data-act="cycleSeatLevel" data-i="${i}" aria-label="Difficulty: ${levelLabel(p.level)}">${levelLabel(p.level)}</button>` : ''}
       ${isHost() && p.cpu ? `<button class="btn" data-act="removeSeat" data-i="${i}" aria-label="Remove">✕</button>` : ''}
     </div>`).join('');
   return `
@@ -362,18 +382,42 @@ function modalView() {
     return `<div class="modal" data-act="closeModal"><div class="sheet"><h2>How to play</h2>
       <p>Be the first to score <b>${E.TARGET_SCORE} points</b>. Cards are worth 2–15 points, and the harder a card is to finish, the more it's worth.</p>
       <ol>
-        <li><b>Roll for it!</b> Roll all the dice in your hand (you own ${E.DICE_PER_PLAYER}), once per turn.</li>
-        <li><b>Match it!</b> Tap a die, then a card that shows that number. Each die matches one picture on one card. Once placed, a die can't move. You may choose not to place a die; unplaced dice stay in your hand.</li>
-        <li><b>Score it!</b> Cover every picture on a card with <i>your own</i> dice to score it. All dice on a scored card go back to their owners, and a new card is flipped. Leftover dice from your roll may go on the new card.</li>
+        <li><b>Roll.</b> Roll all the dice in your hand (you own ${E.DICE_PER_PLAYER}), once per turn.</li>
+        <li><b>Place.</b> Tap a die, then a card that shows that number. Each die matches one picture on one card. Once placed, a die can't move. You may choose not to place a die; unplaced dice stay in your hand.</li>
+        <li><b>Claim.</b> Cover every picture on a card with <i>your own</i> dice to score it. All dice on a scored card go back to their owners, and a new card is flipped. Leftover dice from your roll may go on the new card.</li>
         <li><b>Take Back:</b> at the start of your turn, before rolling, you may take back <b>all</b> your dice from the cards and roll all six.</li>
       </ol>
       <p>A die on a card is filled with the colour of the player covering it. If two or more players cover the same number, the die is split into slices of their colours and a number shows how many. <b>Tap any die on a card</b> to see who has it and how far along each player is on that card. Other players' dice can't score cards for you, but they can beat you to them!</p>
       <p>Play starts with a two-dice roll-off; 5+ players use two sets (60 cards) and four face-up cards.</p>
       <button class="btn primary" data-act="closeModal">Got it</button></div></div>`;
   }
+  if (ui.modal === 'about') {
+    return `<div class="modal"><div class="sheet legal"><h2>About Rollick</h2>
+      <p>Rollick is an independent dice-and-cards game with its own card deck, art and rules. It is not affiliated with, or endorsed by, any other game or publisher.</p>
+      <h3>Terms of use</h3>
+      <ul>
+        <li>Rollick is provided as is, for fun, with no warranty. We are not liable for lost games, dropped connections or any other loss from using it.</li>
+        <li>Player names and drawn icons are shown to everyone in your game. Keep them kind and legal: no hateful, sexual, harassing or infringing content, and no impersonating others. Anyone who breaks this may be asked to leave by the room host.</li>
+        <li>You are responsible for what you draw and type. Do not use anyone else's artwork or trademarks.</li>
+        <li>Don't try to cheat, disrupt other players' games or attack the service.</li>
+        <li>These terms may change. Continuing to use Rollick means you accept them.</li>
+      </ul>
+      <h3>Privacy</h3>
+      <ul>
+        <li>Rollick has no accounts, ads or analytics. Your name, icon, colour and settings are saved only on your device.</li>
+        <li>Online games connect players directly (peer to peer). Your name, icon and moves are sent to the other players in your room. A signalling server and relay servers help devices find each other, and they can see network addresses and connection details while you play.</li>
+        <li>Clear the site data or remove the app to delete everything stored on your device.</li>
+      </ul>
+      <h3>Open-source notices</h3>
+      <p>Online play uses <b>PeerJS</b> 1.5.4, released under the MIT licence. Copyright (c) 2015 Michelle Bu and Eric Zhang.</p>
+      <p><small>Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions: The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software. THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.</small></p>
+      <p>Emoji stamps use your device's own emoji font.</p>
+      <button class="btn primary" data-act="closeModal">Close</button></div></div>`;
+  }
   if (ui.modal === 'menu') {
     return `<div class="modal" data-act="closeModal"><div class="sheet"><h2>Menu</h2>
       <button class="btn" data-act="rules">How to play</button>
+      <button class="btn" data-act="about">About &amp; terms</button>
       ${ui.online && isHost() && ui.game?.phase !== 'over' && ui.game.current !== net.mySeat ? '<button class="btn" data-act="skipTurn">Skip current player</button>' : ''}
       ${ui.online ? '' : '<button class="btn" data-act="rematch">Restart game</button>'}
       <button class="btn" data-act="toSetup">${ui.online ? 'Leave room' : 'Main menu'}</button>
@@ -651,7 +695,7 @@ function doTakeBack() { commit(E.roll(E.takeBack(ui.game))); }
 function cpuStep() {
   const s = ui.game;
   if (!s || s.phase === 'over' || !s.players[s.current].cpu) return;
-  const a = aiNextAction(s);
+  const a = aiNextAction(s, { level: s.players[s.current].level });
   if (a.type === 'takeback') commit(E.takeBack(s));
   else if (a.type === 'roll') doRoll();
   else if (a.type === 'place') commit(E.place(s, a.rolled, a.card));
@@ -892,10 +936,20 @@ async function startOnline() {
 }
 
 const actions = {
-  toggleCpu: ({ i }) => { ui.setup[i].cpu = !ui.setup[i].cpu; render(); },
+  setKind: ({ i, k }) => {
+    const p = ui.setup[i];
+    p.cpu = k !== 'human';
+    if (p.cpu) p.level = k;
+    render();
+  },
+  cycleSeatLevel: ({ i }) => mutateRoom((room) => {
+    if (room.hostUid !== net.uid || !room.seats[i]?.cpu) return null;
+    room.seats[i].level = nextLevel(room.seats[i].level);
+    return room;
+  }),
   addPlayer: () => {
     const color = freeColor(ui.setup.map((p) => p.color), null);
-    ui.setup.push({ name: cpuName(ui.setup.map((p) => p.name)), cpu: true, color, avatar: '' });
+    ui.setup.push({ name: cpuName(ui.setup.map((p) => p.name)), cpu: true, level: 'normal', color, avatar: '' });
     render();
   },
   removePlayer: ({ i }) => { ui.setup.splice(i, 1); render(); },
@@ -920,7 +974,7 @@ const actions = {
   startOnline,
   addSeatCpu: () => mutateRoom((room) => {
     if (room.hostUid !== net.uid || room.seats.length >= MAX_PLAYERS) return null;
-    room.seats.push({ uid: null, name: cpuName(room.seats.map((p) => p.name)), cpu: true, color: freeColor(room.seats.map((p) => p.color), null), avatar: '' });
+    room.seats.push({ uid: null, name: cpuName(room.seats.map((p) => p.name)), cpu: true, level: 'normal', color: freeColor(room.seats.map((p) => p.color), null), avatar: '' });
     return room;
   }),
   removeSeat: ({ i }) => mutateRoom((room) => {
@@ -938,6 +992,7 @@ const actions = {
   },
   toSetup: () => { if (ui.online || net.unsub) { leaveRoom(); return; } keepAwake(false); clearTimeout(timer); ui.screen = 'setup'; ui.modal = null; ui.game = null; ui.rolling = false; render(); },
   rules: () => { ui.modal = 'rules'; render(); },
+  about: () => { ui.modal = 'about'; render(); },
   menu: () => { ui.modal = 'menu'; render(); },
   closeModal: () => { ui.modal = null; render(); },
   roll: () => { if (canAct() && ui.game.phase === 'start' && E.handSize(ui.game, ui.game.current) > 0) doRoll(); },
