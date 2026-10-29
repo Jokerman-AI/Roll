@@ -11,6 +11,25 @@ export const PALETTE = [
   { name: 'Black', hex: '#2a2f3a', pip: '#ffffff' },
 ];
 
+// Names for computer players, all short enough for a scoreboard chip.
+const CPU_NAMES = [
+  'Dicey', 'Snake Eyes', 'Lucky', 'Boxcars', 'Rollo', 'Pips', 'Tumbler', 'Cubert', 'Ace', 'Jinx',
+  'Gizmo', 'Pixel', 'Turbo', 'Widget', 'Sparky', 'Nova', 'Clank', 'Bolt', 'Dottie', 'Hazard',
+  'Wildcard', 'Roulette', 'Domino', 'Shaker', 'Gambit', 'Fortune', 'Chance', 'Roller', 'Sixer', 'Lucky 7',
+  'Rolo', 'Bones', 'Pebble', 'Tango', 'Zigzag', 'Maverick', 'Dash', 'Echo', 'Fizz', 'Comet',
+];
+
+/** A random computer-player name that nobody at the table already has. */
+export function cpuName(taken = []) {
+  const used = new Set(taken.map((n) => String(n).trim().toLowerCase()));
+  const free = CPU_NAMES.filter((n) => !used.has(n.toLowerCase()));
+  if (free.length) return free[Math.floor(Math.random() * free.length)];
+  for (let i = 2; ; i++) {
+    const n = `Robo ${i}`;
+    if (!used.has(n.toLowerCase())) return n;
+  }
+}
+
 /** `wanted` if no one else has it, otherwise the first colour nobody has. */
 export function freeColor(taken, wanted) {
   const used = new Set(taken);

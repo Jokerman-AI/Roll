@@ -2,7 +2,7 @@ import * as E from './engine.js';
 import { aiNextAction, bestPlacement } from './ai.js';
 import { dbStore, p2pStore } from './transport.js';
 import {
-  PALETTE, INK, BRUSHES, STAMPS, AVATAR_SIZE, freeColor, safeAvatar, makeSketch, paintCanvas, pointOn, strokeSegment, stampAt, clearSketch, loadAvatar, exportAvatar,
+  PALETTE, INK, BRUSHES, STAMPS, AVATAR_SIZE, cpuName, freeColor, safeAvatar, makeSketch, paintCanvas, pointOn, strokeSegment, stampAt, clearSketch, loadAvatar, exportAvatar,
 } from './profile.js';
 
 const MAX_PLAYERS = E.MAX_PLAYERS;
@@ -37,7 +37,7 @@ const ui = {
   joinCode: '',
   setup: [
     { name: 'You', cpu: false, color: profile.color, avatar: profile.avatar },
-    { name: 'Robo', cpu: true, color: freeColor([profile.color], 1), avatar: '' },
+    { name: cpuName(['You']), cpu: true, color: freeColor([profile.color], 1), avatar: '' },
   ],
   cfg: [], // players of the local game in progress
   game: null,
@@ -826,7 +826,7 @@ const actions = {
   toggleCpu: ({ i }) => { ui.setup[i].cpu = !ui.setup[i].cpu; render(); },
   addPlayer: () => {
     const color = freeColor(ui.setup.map((p) => p.color), null);
-    ui.setup.push({ name: `Player ${ui.setup.length + 1}`, cpu: true, color, avatar: '' });
+    ui.setup.push({ name: cpuName(ui.setup.map((p) => p.name)), cpu: true, color, avatar: '' });
     render();
   },
   removePlayer: ({ i }) => { ui.setup.splice(i, 1); render(); },
@@ -851,8 +851,7 @@ const actions = {
   startOnline,
   addSeatCpu: () => mutateRoom((room) => {
     if (room.hostUid !== net.uid || room.seats.length >= MAX_PLAYERS) return null;
-    const n = room.seats.filter((p) => p.cpu).length + 1;
-    room.seats.push({ uid: null, name: `Robo ${n}`, cpu: true, color: freeColor(room.seats.map((p) => p.color), null), avatar: '' });
+    room.seats.push({ uid: null, name: cpuName(room.seats.map((p) => p.name)), cpu: true, color: freeColor(room.seats.map((p) => p.color), null), avatar: '' });
     return room;
   }),
   removeSeat: ({ i }) => mutateRoom((room) => {

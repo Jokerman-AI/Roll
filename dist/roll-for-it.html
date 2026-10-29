@@ -613,6 +613,25 @@ const PALETTE = [
   { name: 'Black', hex: '#2a2f3a', pip: '#ffffff' },
 ];
 
+// Names for computer players, all short enough for a scoreboard chip.
+const CPU_NAMES = [
+  'Dicey', 'Snake Eyes', 'Lucky', 'Boxcars', 'Rollo', 'Pips', 'Tumbler', 'Cubert', 'Ace', 'Jinx',
+  'Gizmo', 'Pixel', 'Turbo', 'Widget', 'Sparky', 'Nova', 'Clank', 'Bolt', 'Dottie', 'Hazard',
+  'Wildcard', 'Roulette', 'Domino', 'Shaker', 'Gambit', 'Fortune', 'Chance', 'Roller', 'Sixer', 'Lucky 7',
+  'Rolo', 'Bones', 'Pebble', 'Tango', 'Zigzag', 'Maverick', 'Dash', 'Echo', 'Fizz', 'Comet',
+];
+
+/** A random computer-player name that nobody at the table already has. */
+function cpuName(taken = []) {
+  const used = new Set(taken.map((n) => String(n).trim().toLowerCase()));
+  const free = CPU_NAMES.filter((n) => !used.has(n.toLowerCase()));
+  if (free.length) return free[Math.floor(Math.random() * free.length)];
+  for (let i = 2; ; i++) {
+    const n = `Robo ${i}`;
+    if (!used.has(n.toLowerCase())) return n;
+  }
+}
+
 /** `wanted` if no one else has it, otherwise the first colour nobody has. */
 function freeColor(taken, wanted) {
   const used = new Set(taken);
@@ -1011,7 +1030,7 @@ const ui = {
   joinCode: '',
   setup: [
     { name: 'You', cpu: false, color: profile.color, avatar: profile.avatar },
-    { name: 'Robo', cpu: true, color: freeColor([profile.color], 1), avatar: '' },
+    { name: cpuName(['You']), cpu: true, color: freeColor([profile.color], 1), avatar: '' },
   ],
   cfg: [], // players of the local game in progress
   game: null,
@@ -1800,7 +1819,7 @@ const actions = {
   toggleCpu: ({ i }) => { ui.setup[i].cpu = !ui.setup[i].cpu; render(); },
   addPlayer: () => {
     const color = freeColor(ui.setup.map((p) => p.color), null);
-    ui.setup.push({ name: `Player ${ui.setup.length + 1}`, cpu: true, color, avatar: '' });
+    ui.setup.push({ name: cpuName(ui.setup.map((p) => p.name)), cpu: true, color, avatar: '' });
     render();
   },
   removePlayer: ({ i }) => { ui.setup.splice(i, 1); render(); },
@@ -1825,8 +1844,7 @@ const actions = {
   startOnline,
   addSeatCpu: () => mutateRoom((room) => {
     if (room.hostUid !== net.uid || room.seats.length >= MAX_PLAYERS) return null;
-    const n = room.seats.filter((p) => p.cpu).length + 1;
-    room.seats.push({ uid: null, name: `Robo ${n}`, cpu: true, color: freeColor(room.seats.map((p) => p.color), null), avatar: '' });
+    room.seats.push({ uid: null, name: cpuName(room.seats.map((p) => p.name)), cpu: true, color: freeColor(room.seats.map((p) => p.color), null), avatar: '' });
     return room;
   }),
   removeSeat: ({ i }) => mutateRoom((room) => {

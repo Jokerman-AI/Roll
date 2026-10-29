@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as E from '../src/engine.js';
 import { aiNextAction } from '../src/ai.js';
+import { cpuName } from '../src/profile.js';
 
 const cfg = [{ name: 'A' }, { name: 'B', cpu: true }];
 
@@ -129,4 +130,16 @@ test('CPU vs CPU games always finish', () => {
     assert.equal(s.phase, 'over', `seed ${seed} did not finish`);
     assert.ok(s.players[s.winner].score >= 40 || s.cards.length === 0);
   }
+});
+
+test('computer players get short, unique, generated names', () => {
+  const taken = [];
+  for (let i = 0; i < 40; i++) {
+    const name = cpuName(taken);
+    assert.ok(name.length > 0 && name.length <= 12, `"${name}" fits a scoreboard chip`);
+    assert.ok(!taken.some((n) => n.toLowerCase() === name.toLowerCase()), `"${name}" is new`);
+    taken.push(name);
+  }
+  assert.match(cpuName(taken), /^Robo \d+$/); // the pool is used up, so it numbers them
+  assert.notEqual(cpuName(['Dicey', 'dicey ']), 'Dicey'); // ignores case and spaces when avoiding repeats
 });
