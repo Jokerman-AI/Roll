@@ -172,7 +172,8 @@ h1 { font-size: 2.4rem; margin: 0; letter-spacing: -.02em; }
 .trophy { display: flex; justify-content: center; margin-bottom: 6px; }
 .scores { display: flex; flex-direction: column; gap: 6px; margin: 10px 0; }
 .srow { display: flex; align-items: center; gap: 10px; text-align: left; }
-.srow span { flex: 1; }
+.srow > span:not(.av) { flex: 1; }
+.srow .av { flex: none; }
 .sheet .btn.small { width: auto; min-height: 40px; padding: 8px 14px; margin: 0; }
 
 @media (prefers-reduced-motion: reduce) {
