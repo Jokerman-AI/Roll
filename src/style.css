@@ -432,3 +432,5 @@ h1 { font-size: 2.4rem; margin: 0; letter-spacing: -.02em; }
 .joinrow .btn { min-width: 88px; }
 .notice { margin: 0; padding: 12px 14px; border-radius: 14px; background: #e5484d33; border: 1px solid #e5484d88; line-height: 1.35; }
 .tag.center { text-align: center; }
+.nettest { display: flex; flex-direction: column; gap: 10px; }
+.notice.ok { background: #2fb36d33; border-color: #2fb36d88; }

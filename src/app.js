@@ -2,7 +2,7 @@ import * as E from './engine.js';
 import { aiNextAction } from './ai.js';
 
 const levelLabel = (l) => (E.LEVEL_NAMES.includes(l) ? l : 'normal').replace(/^./, (c) => c.toUpperCase());
-import { dbStore, p2pStore } from './transport.js';
+import { dbStore, p2pStore, checkConnection } from './transport.js';
 import {
   PALETTE, INK, BRUSHES, STAMPS, AVATAR_SIZE, cpuName, freeColor, safeAvatar, makeSketch, paintCanvas, pointOn, strokeSegment, stampAt, clearSketch, loadAvatar, exportAvatar,
 } from './profile.js';
@@ -37,6 +37,7 @@ const ui = {
   screen: 'setup', // setup | online | lobby | game
   online: false,
   joinCode: '',
+  netTest: '', // result of the connection check on the online screen
   onlineError: '', // why the last create/join failed, shown on the online screen
   setup: [
     { name: 'You', cpu: false, me: true, color: profile.color, avatar: profile.avatar }, // `me` marks the row that is saved as your profile
@@ -161,6 +162,10 @@ function onlineView() {
           <button class="btn" data-act="joinRoom" ${net.busy ? 'disabled' : ''}>Join</button>
         </div>
       </section>
+      ${net.store?.kind === 'p2p' ? `<div class="nettest">
+        <button class="btn" data-act="testNet" ${ui.netTest === 'running' ? 'disabled' : ''}>${ui.netTest === 'running' ? 'Checking…' : 'Test my connection'}</button>
+        ${ui.netTest && ui.netTest !== 'running' ? `<p class="notice ${ui.netTest.startsWith('Good') ? 'ok' : ''}">${esc(ui.netTest)}</p>` : ''}
+      </div>` : ''}
       <nav class="links"><button data-act="toSetup">Back</button></nav>
     </div>`;
 }
@@ -1017,6 +1022,15 @@ const actions = {
     commit(g);
   },
   toSetup: () => { if (ui.online || net.unsub) { leaveRoom(); return; } keepAwake(false); clearTimeout(timer); ui.screen = 'setup'; ui.modal = null; ui.game = null; ui.rolling = false; render(); },
+  testNet: async () => {
+    ui.netTest = 'running'; render();
+    const r = await checkConnection(window.RFI_ICE_SERVERS);
+    ui.netTest = !r ? 'This browser cannot make direct connections, so online play will not work here. Try Safari or Chrome.'
+      : r.relay ? 'Good: a relay server is reachable, so friends on other networks should be able to connect.'
+      : r.srflx ? 'Limited: your phone can reach the internet but no relay server answered. Friends on other networks may not be able to connect. Try cellular instead of Wi-Fi (or the reverse), and turn off any VPN.'
+      : 'Blocked: this network is stopping online connections. Try another network, such as cellular, and turn off any VPN or content blocker.';
+    render();
+  },
   rules: () => { ui.modal = 'rules'; render(); },
   about: () => { ui.modal = 'about'; render(); },
   menu: () => { ui.modal = 'menu'; render(); },
