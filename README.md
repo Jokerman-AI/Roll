@@ -26,6 +26,9 @@ up again. Moves are paused until it is back.
   card is, and the gold ones are the five-of-a-kind jackpots. The deck of 30 runs from 2 points (one die)
   to 15 (five of a kind). Points follow how long a card takes to finish (simulated), so the hard ones pay more.
 - Dice tumble and land one by one when rolled (reduced-motion settings skip the animation).
+- A die on a card takes the colour of the player covering it. When several players cover the same number it
+  splits into slices of their colours with a small count badge, and tapping any die lists who has it and each
+  player's progress on the card.
 - Each scored card goes into a staggered pile next to the player's score, with its points showing. A claimed
   card flies to its owner and the score counts up; the winner gets confetti.
 - The 💡 button highlights the best move (the die and the card, or whether to roll or take back), and ↶ undoes

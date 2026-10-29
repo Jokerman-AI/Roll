@@ -103,11 +103,21 @@ h1 { font-size: 2.4rem; margin: 0; letter-spacing: -.02em; }
 .corner.br { bottom: 6cqw; right: 8cqw; transform: rotate(180deg); }
 /* the dice sit in the band between the two corner numbers, so they can never overlap them */
 .face {
-  --fc: 1; position: absolute; left: 6cqw; right: 6cqw; top: 27cqw; bottom: 27cqw;
+  --fc: 1; position: absolute; left: 8cqw; right: 8cqw; top: 27cqw; bottom: 27cqw;
   display: flex; flex-wrap: wrap; gap: 3cqw; justify-content: center; align-content: center;
 }
 .slot { flex: 0 0 calc((100% - (var(--fc) - 1) * 3cqw) / var(--fc)); display: flex; flex-direction: column; align-items: center; }
-.face .die { --size: calc(var(--dz, 30) * 1cqw); }
+.face .die, .face .dwrap { --size: calc(var(--dz, 30) * 1cqw); }
+.slot { background: none; border: 0; padding: 0; font: inherit; color: inherit; cursor: pointer; }
+.dwrap { position: relative; display: block; width: var(--size); height: var(--size); }
+/* count of players covering a die, shown only when it is shared */
+.badge {
+  position: absolute; top: 0; right: 0; transform: translate(45%, -45%); z-index: 2;
+  width: max(14px, calc(var(--size) * .32)); height: max(14px, calc(var(--size) * .32)); border-radius: 50%;
+  display: grid; place-items: center; background: #1d2b24; color: #fff;
+  font: 800 max(9px, calc(var(--size) * .2))/1 system-ui, sans-serif; box-shadow: 0 0 0 2px #fffdf4;
+}
+.slot.peeked .die { outline: 3px solid #ffd34d; outline-offset: 2px; }
 .deckback {
   display: none; place-items: center; align-content: center; color: #fff; text-align: center; line-height: 1.1;
   background: repeating-linear-gradient(45deg, #1d4f8f 0 7px, #2a63ad 7px 14px);
@@ -339,3 +349,16 @@ h1 { font-size: 2.4rem; margin: 0; letter-spacing: -.02em; }
 .stamps { gap: 6px; }
 .stamp { width: 42px; height: 42px; border-radius: 12px; border: 0; background: #0001; font-size: 1.4rem; line-height: 1; padding: 0; }
 .stamp.on { outline: 3px solid #2b2417; outline-offset: 2px; background: #fff; }
+
+/* ---- who-has-this-die popover ---- */
+.peek {
+  position: fixed; z-index: 15; background: var(--card); color: var(--card-ink); border-radius: 14px; padding: 12px;
+  box-shadow: 0 14px 30px #000a, 0 0 0 1px #0002; font-size: .95rem;
+}
+.peek h3 { margin: 0 0 6px; font-size: .95rem; display: flex; align-items: center; gap: 8px; }
+.peek .orow { display: flex; align-items: center; gap: 8px; padding: 3px 0; }
+.peek .orow span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.peek .orow small { color: #6b5d3b; }
+.peek .none { color: #6b5d3b; padding: 2px 0; }
+.peek .sum { border-top: 1px solid #0002; margin-top: 8px; padding-top: 6px; }
+.peek .sumh { font-size: .75rem; letter-spacing: .06em; text-transform: uppercase; color: #6b5d3b; margin-bottom: 2px; }

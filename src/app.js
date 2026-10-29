@@ -45,6 +45,7 @@ const ui = {
   rolling: false,
   fx: [],
   hint: null, // {rolled, card} or {button}
+  peek: null, // {card, slot, id}: the who-has-this-die popover, kept while that card is on the table
   undo: [], // game states before this turn's placements
   conn: 'online',
   modal: null,
@@ -55,6 +56,7 @@ let toastTimer = 0;
 let rollTimer = 0;
 let rollClock = 0;
 let hintTimer = 0;
+let peekTimer = 0;
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const wins = (name) => `${esc(name)} ${name.trim().toLowerCase() === 'you' ? 'win' : 'wins'}!`;
@@ -87,9 +89,10 @@ function setFace(el, face) {
 /* ---------- rendering ---------- */
 
 function render() {
-  app.innerHTML = ({ setup: setupView, online: onlineView, lobby: lobbyView, game: gameView }[ui.screen])() + connBanner() + modalView();
+  app.innerHTML = ({ setup: setupView, online: onlineView, lobby: lobbyView, game: gameView }[ui.screen])() + connBanner() + modalView() + peekView();
   const cv = document.getElementById('avcv');
   if (cv && ui.ed) paintCanvas(cv, ui.ed.sk);
+  positionPeek();
 }
 
 function connBanner() {
@@ -197,21 +200,33 @@ function ownedStyle(owners, s) {
   return `--c:${seat(shown[0]).hex};--bg:conic-gradient(${slices});--pc:#fff`;
 }
 
+/** For each die a card needs, the players covering it, in seat order. */
+function slotOwners(s, card) {
+  const used = new Map(); // per player, how many of each face already counted
+  return card.need.map((face) => s.players.map((_, p) => p).filter((p) => {
+    const key = `${p}:${face}`;
+    const c = used.get(key) || 0;
+    const has = card.placed[p].filter((f) => f === face).length;
+    used.set(key, c + 1);
+    return has > c;
+  }));
+}
+
+const nameList = (s, ps) => ps.map((p) => s.players[p].name).join(', ');
+
 function cardView(s, card, ci) {
   const accepts = ui.selected !== null && E.canPlace(s, ui.selected, ci);
-  const used = new Map(); // per player, how many of each face already counted
   const n = card.need.length;
   // [dice per row, die size in % of card width]; sized so the block fits between the two corner numbers.
-  const [cols, dz] = { 1: [1, 50], 2: [2, 42], 3: [3, 27], 4: [2, 40], 5: [3, 27] }[n] || [3, 24];
-    const slots = card.need.map((face) => {
-    const owners = s.players.map((_, p) => p).filter((p) => {
-      const key = `${p}:${face}`;
-      const c = used.get(key) || 0;
-      const has = card.placed[p].filter((f) => f === face).length;
-      used.set(key, c + 1);
-      return has > c;
-    });
-    return `<div class="slot" data-o="${owners.length}">${die(face, ownedClass(owners), `style="${ownedStyle(owners, s)}"`)}</div>`;
+  const [cols, dz] = { 1: [1, 50], 2: [2, 40], 3: [3, 26], 4: [2, 40], 5: [3, 26] }[n] || [3, 24];
+  const per = slotOwners(s, card);
+  const slots = card.need.map((face, si) => {
+    const owners = per[si];
+    const peeked = ui.peek && ui.peek.card === ci && ui.peek.slot === si ? ' peeked' : '';
+    const who = owners.length ? `covered by ${nameList(s, owners)}` : 'not covered yet';
+    const badge = owners.length > 1 ? `<span class="badge" aria-hidden="true">${owners.length}</span>` : '';
+    return `<button type="button" class="slot${peeked}" data-act="peek" data-card="${ci}" data-slot="${si}" data-o="${owners.length}" aria-label="Die ${face}, ${esc(who)}">
+      <span class="dwrap">${die(face, ownedClass(owners), `style="${ownedStyle(owners, s)}"`)}${badge}</span></button>`;
   }).join('');
   return `<div class="gcard ${accepts ? 'accepts' : ''} ${ui.hint?.card === ci ? 'hinted' : ''}" data-tier="${tierOf(card.points)}" data-act="pickCard" data-card="${ci}" role="group" aria-label="${card.points} point card">
     <div class="corner tl"><b>${card.points}</b></div>
@@ -274,6 +289,40 @@ function gameView() {
     </div>`;
 }
 
+/** Who covers the tapped die, and how far along each player is on this card. It follows the live game. */
+function peekView() {
+  const pk = ui.peek;
+  const s = ui.game;
+  const card = pk && s?.cards[pk.card];
+  if (!card || card.id !== pk.id) { ui.peek = null; return ''; } // the card was claimed or replaced
+  const owners = slotOwners(s, card)[pk.slot] || [];
+  const face = card.need[pk.slot];
+  const row = (p, extra = '') => `<div class="orow">${avatarHtml(seats()[p], p, 26)}<span>${esc(s.players[p].name)}${ui.online && p === net.mySeat ? ' <small>(you)</small>' : ''}</span>${extra}</div>`;
+  const who = owners.length ? owners.map((p) => row(p)).join('') : '<div class="none">Nobody has this die yet.</div>';
+  const total = card.need.length;
+  const progress = s.players.map((pl, p) => ({ p, n: card.placed[p].length })).filter((x) => x.n > 0).sort((a, b) => b.n - a.n);
+  const sum = progress.length
+    ? `<div class="sum"><div class="sumh">On this card</div>${progress.map((x) => row(x.p, `<b>${x.n}/${total}</b>`)).join('')}</div>`
+    : '';
+  return `<div class="peek" role="dialog" aria-label="Who has this die">
+    <h3>${die(face, 'ghost', 'style="--size:22px"')}<span>${card.points}-point card</span></h3>${who}${sum}</div>`;
+}
+
+/** Anchor the popover under (or above) the die it is about, wherever the layout has put it. */
+function positionPeek() {
+  const pop = app.querySelector('.peek');
+  const slot = ui.peek && app.querySelector(`.slot[data-card="${ui.peek.card}"][data-slot="${ui.peek.slot}"]`);
+  if (!pop || !slot) return;
+  const r = slot.getBoundingClientRect();
+  const width = Math.min(260, window.innerWidth - 16);
+  const left = Math.max(8, Math.min(window.innerWidth - width - 8, r.left + r.width / 2 - width / 2));
+  const room = window.innerHeight - (r.bottom + 8);
+  pop.style.width = `${width}px`;
+  pop.style.left = `${left}px`;
+  if (room >= pop.offsetHeight || room >= r.top - 8) pop.style.top = `${r.bottom + 8}px`;
+  else { pop.style.top = `${r.top - 8}px`; pop.style.transform = 'translateY(-100%)'; }
+}
+
 function editorView() {
   const ed = ui.ed;
   const taken = new Set(editorTaken());
@@ -314,7 +363,7 @@ function modalView() {
         <li><b>Score it!</b> Cover every picture on a card with <i>your own</i> dice to score it. All dice on a scored card go back to their owners, and a new card is flipped. Leftover dice from your roll may go on the new card.</li>
         <li><b>Take Back:</b> at the start of your turn, before rolling, you may take back <b>all</b> your dice from the cards and roll all six.</li>
       </ol>
-      <p>A die on a card is filled with the colour of the player covering it. If two or more players cover the same number, the die is split into slices of their colours. Other players' dice can't score cards for you, but they can beat you to them!</p>
+      <p>A die on a card is filled with the colour of the player covering it. If two or more players cover the same number, the die is split into slices of their colours and a number shows how many. <b>Tap any die on a card</b> to see who has it and how far along each player is on that card. Other players' dice can't score cards for you, but they can beat you to them!</p>
       <p>Play starts with a two-dice roll-off; 5+ players use two sets (60 cards) and four face-up cards.</p>
       <button class="btn primary" data-act="closeModal">Got it</button></div></div>`;
   }
@@ -874,6 +923,18 @@ const actions = {
   roll: () => { if (canAct() && ui.game.phase === 'start' && E.handSize(ui.game, ui.game.current) > 0) doRoll(); },
   end: () => { if (canAct() && ui.game.phase === 'placing') { clearTimeout(timer); commit(E.endTurn(ui.game)); } },
   takeBack: () => { if (canAct() && ui.game.phase === 'start') doTakeBack(); },
+  peek: ({ card, slot }, el) => {
+    // With a die selected, tapping a die on a card places it as before; otherwise show who covers it.
+    if (canAct() && ui.selected !== null && E.canPlace(ui.game, ui.selected, +card)) { placeDie(ui.selected, +card); return; }
+    const same = ui.peek && ui.peek.card === +card && ui.peek.slot === +slot;
+    clearTimeout(peekTimer);
+    if (same) ui.peek = null;
+    else {
+      ui.peek = { card: +card, slot: +slot, id: ui.game.cards[+card]?.id };
+      peekTimer = setTimeout(() => { ui.peek = null; render(); }, 8000);
+    }
+    render();
+  },
   hint: showHint,
   undo: undoPlacement,
   retryConn: () => net.ref?.retry?.(),
@@ -892,9 +953,10 @@ const actions = {
 };
 
 app.addEventListener('click', (e) => {
+  if (ui.peek && !e.target.closest('.peek') && !e.target.closest('[data-act="peek"]')) { ui.peek = null; clearTimeout(peekTimer); render(); }
   const el = e.target.closest('[data-act]');
   if (!el || (el.classList.contains('modal') && e.target !== el)) return;
-  actions[el.dataset.act]?.({ ...el.dataset });
+  actions[el.dataset.act]?.({ ...el.dataset }, el);
 });
 app.addEventListener('input', (e) => {
   if (e.target.id === 'myname') { profile.name = e.target.value; saveProfile(); return; }
