@@ -1,4 +1,4 @@
-// Bundles the app into one self-contained HTML body fragment (dist/roll-for-it.html)
+// Bundles the app into one self-contained HTML body fragment (dist/rollick.html)
 // for hosts that serve a single page: no modules, no service worker.
 import { readFileSync, writeFileSync } from 'node:fs';
 
@@ -18,7 +18,7 @@ const app = strip(read('src/app.js'))
 const css = read('src/style.css')
   .replace('padding: max(12px, env(safe-area-inset-top)) 16px max(12px, env(safe-area-inset-bottom));', 'padding-block: 12px;');
 
-const html = `<title>Roll for It</title>
+const html = `<title>Rollick</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <style>
 :root { color-scheme: dark; }
@@ -35,5 +35,5 @@ ${transport}
 ${app}
 </script>
 `;
-writeFileSync(new URL('../dist/roll-for-it.html', import.meta.url), html);
-console.log('wrote dist/roll-for-it.html', html.length, 'bytes');
+writeFileSync(new URL('../dist/rollick.html', import.meta.url), html);
+console.log('wrote dist/rollick.html', html.length, 'bytes');

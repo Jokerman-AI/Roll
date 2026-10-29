@@ -1,6 +1,6 @@
 {
-  "name": "Roll for It",
-  "short_name": "Roll for It",
+  "name": "Rollick",
+  "short_name": "Rollick",
   "description": "Roll dice, match the cards, race to 40 points.",
   "start_url": "./index.html",
   "scope": "./",

@@ -6,7 +6,7 @@
 
 import { freeColor, safeAvatar } from './profile.js';
 
-const PEER_PREFIX = 'rollforit-';
+const PEER_PREFIX = 'rollick-';
 const MAX_SEATS = 8;
 const keyOf = (code) => `rfi-room-${code}`;
 
