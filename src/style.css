@@ -390,3 +390,31 @@ h1 { font-size: 2.4rem; margin: 0; letter-spacing: -.02em; }
 @media (orientation: landscape) and (max-height: 430px) { .actions .btn { height: 2.7rem; } }
 .sheet.legal h3 { margin: 14px 0 4px; font-size: 1rem; }
 .sheet.legal small { line-height: 1.35; opacity: 0.8; }
+
+/* start-up screen */
+.setup { gap: 16px; padding-block: 8px; }
+.hero { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 2px; }
+.hero .logo { width: 84px; height: 84px; filter: drop-shadow(0 6px 10px #0006); }
+.hero h1 { font-size: 2.6rem; }
+.hero .tag { margin: 4px 0 0; }
+.panel { background: #ffffff12; border-radius: 20px; padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+.panel h2 { margin: 0; font-size: .78rem; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.prow { display: flex; gap: 10px; align-items: center; }
+.pmain { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.pmain input { width: 100%; padding: 9px 12px; border-radius: 10px; background: #0003; font-weight: 700; }
+.seg { display: grid; grid-template-columns: repeat(4, 1fr); background: #0003; border-radius: 10px; padding: 2px; gap: 2px; }
+.seg button { border: 0; background: none; border-radius: 8px; padding: 6px 2px; min-height: 32px; font-size: .8rem; font-weight: 700; color: var(--muted); }
+.seg button.on { background: #ffd34d; color: #3a2a00; }
+.prow .x { flex: none; width: 36px; height: 36px; border: 0; border-radius: 50%; background: #ffffff14; color: var(--muted); }
+.add { border: 2px dashed #ffffff30; background: none; border-radius: 14px; min-height: 46px; font-weight: 700; color: var(--muted); }
+.btn.big { font-size: 1.15rem; min-height: 56px; }
+.btn.resume { background: #ffffff26; }
+.links { display: flex; justify-content: center; align-items: center; gap: 10px; color: var(--muted); }
+.links button { border: 0; background: none; padding: 8px 4px; color: var(--muted); text-decoration: underline; text-underline-offset: 3px; }
+@media (orientation: landscape) and (max-height: 520px) {
+  .setup { justify-content: flex-start; }
+  .hero { flex-direction: row; gap: 12px; justify-content: center; }
+  .hero .logo { width: 48px; height: 48px; }
+  .hero h1 { font-size: 1.8rem; }
+}
+@media (max-width: 350px) { .seg button { font-size: .7rem; padding-inline: 0; } .prow { gap: 8px; } }

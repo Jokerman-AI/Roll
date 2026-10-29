@@ -105,25 +105,39 @@ function connBanner() {
     : '<div class="conn" role="status">Reconnecting…</div>';
 }
 
+const KINDS = [['human', 'Human'], ['easy', 'Easy'], ['normal', 'Normal'], ['hard', 'Hard']];
+const kindOf = (p) => (p.cpu ? (E.LEVEL_NAMES.includes(p.level) ? p.level : 'normal') : 'human');
+
+const LOGO = `<svg class="logo" viewBox="0 0 120 120" aria-hidden="true">
+  <g transform="rotate(-14 42 44)"><rect x="12" y="14" width="56" height="56" rx="13" fill="#fff8e7"/><g fill="#e5484d"><circle cx="27" cy="29" r="5.5"/><circle cx="53" cy="55" r="5.5"/><circle cx="40" cy="42" r="5.5"/></g></g>
+  <g transform="rotate(12 80 80)"><rect x="52" y="52" width="56" height="56" rx="13" fill="#3b82f6"/><g fill="#fff"><circle cx="67" cy="67" r="5.5"/><circle cx="93" cy="67" r="5.5"/><circle cx="67" cy="93" r="5.5"/><circle cx="93" cy="93" r="5.5"/></g></g>
+</svg>`;
+
 function setupView() {
   const rows = ui.setup.map((p, i) => `
     <div class="prow">
-      <button class="avbtn" data-act="editPlayer" data-i="${i}" aria-label="Customize ${esc(p.name)}">${avatarHtml(p, i, 44)}</button>
-      <input data-name="${i}" value="${esc(p.name)}" maxlength="12" aria-label="Player ${i + 1} name">
-      <button class="btn" data-act="toggleCpu" data-i="${i}">${p.cpu ? 'CPU' : 'Human'}</button>
-      ${p.cpu ? `<button class="btn" data-act="cycleLevel" data-i="${i}" aria-label="Difficulty: ${levelLabel(p.level)}">${levelLabel(p.level)}</button>` : ''}
-      ${ui.setup.length > 2 ? `<button class="btn" data-act="removePlayer" data-i="${i}" aria-label="Remove">✕</button>` : ''}
+      <button class="avbtn" data-act="editPlayer" data-i="${i}" aria-label="Customize ${esc(p.name)}">${avatarHtml(p, i, 48)}</button>
+      <div class="pmain">
+        <input data-name="${i}" value="${esc(p.name)}" maxlength="12" aria-label="Player ${i + 1} name">
+        <div class="seg" role="group" aria-label="${esc(p.name)} is">
+          ${KINDS.map(([k, label]) => `<button class="${kindOf(p) === k ? 'on' : ''}" data-act="setKind" data-i="${i}" data-k="${k}" aria-pressed="${kindOf(p) === k}">${label}</button>`).join('')}
+        </div>
+      </div>
+      ${ui.setup.length > 2 ? `<button class="x" data-act="removePlayer" data-i="${i}" aria-label="Remove ${esc(p.name)}">✕</button>` : ''}
     </div>`).join('');
+  const saved = net.store && savedSession();
   return `
     <div class="setup">
-      <div><h1>🎲 Rollick</h1><p class="tag">Roll dice, match the cards, race to ${E.TARGET_SCORE} points. Tap a face to draw your icon and pick your dice colour.</p></div>
-      ${rows}
-      ${ui.setup.length < MAX_PLAYERS ? '<button class="btn" data-act="addPlayer">+ Add player</button>' : ''}
-      <button class="btn primary" data-act="start">Start game</button>
+      <header class="hero">${LOGO}<h1>Rollick</h1><p class="tag">Roll the dice, fill the cards, be first to ${E.TARGET_SCORE}.</p></header>
+      ${saved ? `<button class="btn resume" data-act="resume">Return to room ${esc(saved.code)}</button>` : ''}
+      <section class="panel" aria-label="Players">
+        <h2>Players</h2>
+        ${rows}
+        ${ui.setup.length < MAX_PLAYERS ? '<button class="add" data-act="addPlayer">+ Add player</button>' : ''}
+      </section>
+      <button class="btn primary big" data-act="start">Start game</button>
       ${net.store ? '<button class="btn" data-act="goOnline">Play online with friends</button>' : ''}
-      ${net.store && savedSession() ? `<button class="btn" data-act="resume">Return to room ${esc(savedSession().code)}</button>` : ''}
-      <button class="btn" data-act="rules">How to play</button>
-      <button class="btn" data-act="about">About &amp; terms</button>
+      <nav class="links"><button data-act="rules">How to play</button><span aria-hidden="true">·</span><button data-act="about">About &amp; terms</button></nav>
     </div>`;
 }
 
@@ -922,8 +936,12 @@ async function startOnline() {
 }
 
 const actions = {
-  toggleCpu: ({ i }) => { ui.setup[i].cpu = !ui.setup[i].cpu; render(); },
-  cycleLevel: ({ i }) => { ui.setup[i].level = nextLevel(ui.setup[i].level); render(); },
+  setKind: ({ i, k }) => {
+    const p = ui.setup[i];
+    p.cpu = k !== 'human';
+    if (p.cpu) p.level = k;
+    render();
+  },
   cycleSeatLevel: ({ i }) => mutateRoom((room) => {
     if (room.hostUid !== net.uid || !room.seats[i]?.cpu) return null;
     room.seats[i].level = nextLevel(room.seats[i].level);
