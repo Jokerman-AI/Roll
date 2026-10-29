@@ -128,3 +128,6 @@ h1 { font-size: 2.4rem; margin: 0; letter-spacing: -.02em; }
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
 }
+
+.code { color: #ffd34d; letter-spacing: .15em; }
+.setup small { color: var(--muted); font-size: .75rem; }
