@@ -77,7 +77,7 @@ test('piles always add up to scores across whole games', () => {
     const rng = E.mulberry32(seed);
     let s = E.newGame([{ name: 'a' }, { name: 'b' }, { name: 'c' }], rng);
     for (let n = 0; s.phase !== 'over' && n < 20000; n++) {
-      const a = aiNextAction(s, rng);
+      const a = aiNextAction(s, { rng });
       if (a.type === 'takeback') s = E.takeBack(s);
       else if (a.type === 'roll') s = E.roll(s, rng);
       else if (a.type === 'place') s = E.place(s, a.rolled, a.card);
@@ -121,7 +121,7 @@ test('CPU vs CPU games always finish', () => {
     let s = E.newGame(Array.from({ length: 1 + (seed % 7) + 1 }, (_, i) => ({ name: `p${i}` })), rng);
     let steps = 0;
     while (s.phase !== 'over' && steps++ < 20000) {
-      const a = aiNextAction(s, rng);
+      const a = aiNextAction(s, { rng });
       if (a.type === 'takeback') s = E.takeBack(s);
       else if (a.type === 'roll') s = E.roll(s, rng);
       else if (a.type === 'place') s = E.place(s, a.rolled, a.card);
@@ -213,10 +213,41 @@ test('illegal moves are rejected and leave the game untouched', () => {
 test('hints are deterministic: the same state always gets the same advice', () => {
   for (let seed = 1; seed <= 20; seed++) {
     const rng = E.mulberry32(seed);
-    let s = E.roll(E.newGame(cfg, rng), rng);
-    const none = () => 0;
-    assert.deepEqual(bestPlacement(s, none), bestPlacement(s, none));
+    const s = E.roll(E.newGame(cfg, rng), rng);
+    assert.deepEqual(bestPlacement(s), bestPlacement(s));
+    assert.deepEqual(aiNextAction(s, { level: 'hard' }), aiNextAction(s, { level: 'hard' }));
     const start = E.newGame(cfg, rng);
-    assert.deepEqual(aiNextAction(start, none), aiNextAction(start, none));
+    assert.deepEqual(aiNextAction(start, { level: 'hard' }), aiNextAction(start, { level: 'hard' }));
   }
+});
+
+test('every strength of computer player finishes games, alone or mixed', () => {
+  for (const levels of [['easy', 'easy'], ['normal', 'normal', 'normal'], ['hard', 'hard'], ['hard', 'normal', 'easy', 'hard']]) {
+    for (let seed = 1; seed <= 12; seed++) {
+      const rng = E.mulberry32(seed * 31);
+      let s = E.newGame(levels.map((_, i) => ({ name: `p${i}` })), rng);
+      let steps = 0;
+      while (s.phase !== 'over' && steps++ < 40000) {
+        const a = aiNextAction(s, { level: levels[s.current], rng });
+        if (a.type === 'takeback') s = E.takeBack(s);
+        else if (a.type === 'roll') s = E.roll(s, rng);
+        else if (a.type === 'place') s = E.place(s, a.rolled, a.card);
+        else s = E.endTurn(s);
+      }
+      assert.equal(s.phase, 'over', `${levels.join('/')} seed ${seed} should finish`);
+    }
+  }
+});
+
+test('the computer takes a card that wins it the game', () => {
+  const s = E.newGame(cfg, E.mulberry32(3));
+  s.phase = 'placing';
+  const me = s.current;
+  s.players[me].score = 38; // any card wins
+  const card = s.cards[0];
+  card.placed[me] = card.need.slice(1); // one die short
+  s.rolled = [card.need[0], card.need[0]];
+  const a = aiNextAction(s, { level: 'hard' });
+  assert.equal(a.type, 'place');
+  assert.equal(a.card, 0, 'completes the card that wins');
 });

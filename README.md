@@ -36,6 +36,18 @@ up again. Moves are paused until it is back.
 - Each player draws their own icon and chooses their dice colour; every player in a game has a different colour.
   Your icon and colour are remembered on your device.
 
+## Computer players
+
+The computer only uses what every player can see. To choose a move it plays out the next few turns many times
+and picks the option that does best: where to put a die, whether to place it at all or keep it free to roll
+again, when to use Take Back, when a rival is about to finish a card, and always finishing a card that wins.
+
+There are three strengths in `src/ai.js`: **easy** (the original simple bot), **normal** (the default: about two
+wins in three against the original in a two-player game) and **hard** (full look-ahead, wins about nine in ten
+against the original). The hint button always uses the hard player's advice. To measure them:
+
+    node tools/bench-ai.mjs 300 easy,normal,hard
+
 ## Good to know
 
 - **Browsers:** the layout needs a recent browser: Safari 16.4 or newer (iOS 16.4+), Chrome or Edge 105+.

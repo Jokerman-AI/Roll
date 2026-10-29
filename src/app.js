@@ -1,5 +1,5 @@
 import * as E from './engine.js';
-import { aiNextAction, bestPlacement } from './ai.js';
+import { aiNextAction } from './ai.js';
 import { dbStore, p2pStore } from './transport.js';
 import {
   PALETTE, INK, BRUSHES, STAMPS, AVATAR_SIZE, cpuName, freeColor, safeAvatar, makeSketch, paintCanvas, pointOn, strokeSegment, stampAt, clearSketch, loadAvatar, exportAvatar,
@@ -629,14 +629,17 @@ function showHint() {
   const s = ui.game;
   clearTimeout(hintTimer);
   if (s.phase === 'start') {
-    const a = aiNextAction(s, () => 0); // no dice rolls: the same advice every time
+    const a = aiNextAction(s, { level: 'hard' }); // the best advice available, and the same every time
     ui.hint = { button: a.type === 'takeback' ? 'takeback' : 'roll' };
     say(a.type === 'takeback' ? 'Hint: take back your dice and roll all six' : `Hint: roll your ${E.handSize(s, s.current)} dice`, 3500);
   } else {
-    const best = bestPlacement(s, () => 0);
-    if (!best) { say('Hint: nothing fits. End your turn.', 3500); return; }
-    ui.hint = { rolled: best.rolled, card: best.card };
-    say(`Hint: put the ${s.rolled[best.rolled]} on the ${s.cards[best.card].points}-point card`, 3500);
+    const a = aiNextAction(s, { level: 'hard' });
+    if (a.type !== 'place') {
+      say(E.legalMoves(s).length ? 'Hint: placing more dice would not help. End your turn.' : 'Hint: nothing fits. End your turn.', 3500);
+      return;
+    }
+    ui.hint = { rolled: a.rolled, card: a.card };
+    say(`Hint: put the ${s.rolled[a.rolled]} on the ${s.cards[a.card].points}-point card`, 3500);
   }
   render();
   hintTimer = setTimeout(() => { ui.hint = null; render(); }, 4000);
