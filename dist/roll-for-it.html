@@ -74,7 +74,7 @@ h1 { font-size: 2.4rem; margin: 0; letter-spacing: -.02em; }
 @media (max-width: 360px) { .chip .s small { display: none; } }
 .chip .s small { font-size: .75rem; color: var(--muted); font-weight: 600; }
 
-.status { text-align: center; min-height: 1.4em; font-weight: 600; }
+.status { text-align: center; font-weight: 600; display: block; height: 1.6em; line-height: 1.6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } /* one fixed line, so a long message never resizes the table; the end is trimmed first */
 
 /* cards: laid out as a grid of playing cards, sized to whatever room the table has */
 .cards { container-type: size; min-width: 0; min-height: min(38dvh, 260px); }
@@ -86,9 +86,10 @@ h1 { font-size: 2.4rem; margin: 0; letter-spacing: -.02em; }
 .cardgrid[data-n="1"] { --cols: 1; }
 .cardgrid[data-n="2"] { --cols: 2; }
 .cardgrid[data-n="4"] { --cols: 4; }
-/* tall tables (portrait phones) use two rows; the free fourth place shows the deck */
-@container (max-aspect-ratio: 15/14) { .cardgrid[data-n="3"] { --cols: 2; --rows: 2; } .cardgrid[data-n="3"] .deckback { display: grid; } }
-@container (max-aspect-ratio: 10/7) { .cardgrid[data-n="4"] { --cols: 2; --rows: 2; } }
+/* Portrait phones tall enough use two rows, and the free fourth place shows the deck.
+   This is chosen from the screen's size only, never from the table's live size, so it cannot flip during a game. */
+@media (orientation: portrait) and (min-height: 700px) { .cardgrid[data-n="3"] { --cols: 2; --rows: 2; } .cardgrid[data-n="3"] .deckback { display: grid; } }
+@media (orientation: portrait) and (min-height: 540px) { .cardgrid[data-n="4"] { --cols: 2; --rows: 2; } }
 
 .gcard, .deckback {
   width: min(calc((100cqw - (var(--cols) - 1) * var(--gap)) / var(--cols)), calc((100cqh - (var(--rows) - 1) * var(--gap)) * 5 / (7 * var(--rows))), 200px);
@@ -149,6 +150,8 @@ h1 { font-size: 2.4rem; margin: 0; letter-spacing: -.02em; }
 /* a die covered by several players is split into slices of their colours; pips get an outline to stay readable */
 .die.shared i.on { box-shadow: 0 0 0 1px #0007; }
 .die.hand { opacity: .55; }
+.die.empty { --bg: transparent; box-shadow: none; border: 2px dashed #ffffff30; }
+.die.empty i { display: none; }
 
 /* tray */
 .tray { background: #00000030; border-radius: var(--radius); padding: 12px; }
@@ -266,7 +269,7 @@ h1 { font-size: 2.4rem; margin: 0; letter-spacing: -.02em; }
   .tray { padding: 6px; }
   .dice { gap: 6px; }
   .actions { margin-top: 6px; }
-  .status { font-size: .85rem; min-height: 0; line-height: 1.2; }
+  .status { font-size: .85rem; line-height: 1.2; }
   .score { gap: 4px; }
   .chip { padding: 3px 5px; }
   .actions .btn:not(.icon) { white-space: nowrap; font-size: .85rem; padding-inline: 8px; }
@@ -274,7 +277,7 @@ h1 { font-size: 2.4rem; margin: 0; letter-spacing: -.02em; }
 }
 
 /* ---- very small screens ---- */
-@media (max-height: 640px) { .pile i { width: 12px; height: 17px; font-size: 8px; line-height: 14px; } .game { gap: 6px; } .cardgrid { --gap: 6px; } .status { min-height: 0; } .score { gap: 6px; } .chip { padding: 5px 8px; } .chip .s { font-size: 1.1rem; } .chip .av { width: 24px; height: 24px; } .chip { gap: 6px; } .tray { padding: 8px; } .btn { min-height: 44px; padding: 10px 14px; } }
+@media (max-height: 640px) { .pile i { width: 12px; height: 17px; font-size: 8px; line-height: 14px; } .game { gap: 6px; } .cardgrid { --gap: 6px; } .score { gap: 6px; } .pile { min-height: 17px; } .chip { padding: 5px 8px; } .chip .s { font-size: 1.1rem; } .chip .av { width: 24px; height: 24px; } .chip { gap: 6px; } .tray { padding: 8px; } .btn { min-height: 44px; padding: 10px 14px; } }
 
 /* ---- player icons and the editor ---- */
 .av {
@@ -314,7 +317,9 @@ h1 { font-size: 2.4rem; margin: 0; letter-spacing: -.02em; }
 .chip.bump { animation: bump .6s ease-out; }
 @keyframes bump { 30% { transform: scale(1.08); box-shadow: 0 0 0 4px #ffd34d88; } }
 .chip { flex-wrap: wrap; }
-.pile { display: flex; align-items: center; flex: 1 0 100%; margin-top: 1px; padding-left: 2px; min-width: 0; overflow: hidden; }
+.pile { display: flex; align-items: center; flex: 1 0 100%; margin-top: 1px; padding-left: 2px; min-width: 0; overflow: hidden; min-height: 21px; }
+.pile.blank { visibility: hidden; }
+.score[data-rows="2"] .pile.blank { display: none; } /* tall scoreboards give the space back until a first card is claimed */
 .pile i {
   --tier: #5f8a62; width: 15px; height: 21px; margin-left: -6px; border-radius: 3px; flex: none;
   background: #fffdf4; border: 1.5px solid var(--tier); color: var(--tier);
@@ -379,6 +384,12 @@ h1 { font-size: 2.4rem; margin: 0; letter-spacing: -.02em; }
 @media (max-width: 360px) { .actions { gap: 6px; } .actions .btn { padding-inline: 4px; font-size: .82rem; } .actions .btn.icon { min-width: 42px; } }
 .actions .btn:not(.icon) { white-space: nowrap; }
 .actions .btn[data-act="roll"] { min-width: 60px; }
+
+
+/* The button row has one fixed height in every phase, so swapping between "Take back" and "End turn" never moves the table. */
+.actions .btn { height: 3.4rem; min-height: 0; padding-block: 0; }
+@media (max-height: 640px) { .actions .btn { height: 2.9rem; } }
+@media (orientation: landscape) and (max-height: 430px) { .actions .btn { height: 2.7rem; } }
 
 body { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
 #app { padding: 12px 0; }
@@ -1218,7 +1229,7 @@ function statusText(s) {
   if (cur.cpu) return `${esc(cur.name)} is thinking…${deck}`;
   if (ui.online && s.current !== net.mySeat) return (net.mySeat < 0 ? `Watching ${esc(cur.name)}…` : `${esc(cur.name)} is playing…`) + deck;
   if (s.phase === 'start') {
-    return (E.handSize(s, s.current) === 0 ? 'All your dice are on cards. Take them back to roll.' : `${esc(cur.name)}: roll your ${E.handSize(s, s.current)} dice`) + deck;
+    return (E.handSize(s, s.current) === 0 ? 'All your dice are on cards. Take them back.' : `${esc(cur.name)}: roll your ${E.handSize(s, s.current)} dice`) + deck;
   }
   if (!s.rolled.length) return 'All dice placed';
   if (!E.legalMoves(s).length) return 'No matches this time';
@@ -1227,7 +1238,7 @@ function statusText(s) {
 
 /** A staggered pile of the cards a player has claimed, with their points showing. */
 function pileHtml(pile = []) {
-  if (!pile.length) return '';
+  if (!pile.length) return '<span class="pile blank" aria-hidden="true"></span>';
   const shown = pile.slice(-6);
   const more = pile.length - shown.length;
   return `<span class="pile" aria-label="${pile.length} cards claimed">${more ? `<em>+${more}</em>` : ''}${shown.map((pts, k) => `<i data-tier="${tierOf(pts)}" style="--n:${k}">${pts}</i>`).join('')}</span>`;
@@ -1294,6 +1305,7 @@ function gameView() {
     </div>`).join('');
 
   let tray;
+  let live = 0; // dice shown in the tray; the rest of the six are on cards
   if (s.phase === 'placing') {
     tray = s.rolled.map((f, i) => {
       const fx = ui.fx[i] || { delay: 0, dur: 0, dx: 0, rot: 0 };
@@ -1302,11 +1314,14 @@ function gameView() {
       const face = spinning ? 1 + Math.floor(Math.random() * 6) : f;
       return die(face, `owned ${spinning ? 'rolling' : ''} ${ui.selected === i ? 'sel' : ''} ${ui.hint?.rolled === i ? 'hinted' : ''}`,
         `style="${style}" data-i="${i}" ${human && !ui.rolling ? `data-act="pickRolled"` : 'disabled'}`, 'button');
-    }).join('') || '<span class="hint">—</span>';
+    }).join('');
+    live = s.rolled.length;
   } else {
-    const n = E.handSize(s, s.current);
-    tray = n ? Array.from({ length: n }, () => die(1, 'owned hand', `style="${diceVars(mine, s.current)}"`)).join('').replace(/aria-label="1"/g, 'aria-label="die in hand"') : '<span class="hint">No dice in hand</span>';
+    live = E.handSize(s, s.current);
+    tray = Array.from({ length: live }, () => die(1, 'owned hand', `style="${diceVars(mine, s.current)}"`)).join('').replace(/aria-label="1"/g, 'aria-label="die in hand"');
   }
+  // Always six places, so the tray (and with it the whole table) never changes height from turn to turn.
+  tray += Array.from({ length: Math.max(0, E.DICE_PER_PLAYER - live) }, () => `<div class="die empty" aria-label="die on a card">${'<i></i>'.repeat(9)}</div>`).join('');
   const onCards = E.DICE_PER_PLAYER - E.handSize(s, s.current);
   const canTakeBack = human && s.phase === 'start' && onCards > 0;
   const mustTakeBack = canTakeBack && onCards === E.DICE_PER_PLAYER;
@@ -1317,8 +1332,8 @@ function gameView() {
   return `
     <div class="game">
     <div class="table">
-    <div class="score" style="--per:${Math.ceil(s.players.length / Math.ceil(s.players.length / 4))}">${chips}</div>
-    <div class="status">${statusText(s)}</div>
+    <div class="score" data-rows="${Math.ceil(s.players.length / 4) > 1 ? 2 : 1}" style="--per:${Math.ceil(s.players.length / Math.ceil(s.players.length / 4))}">${chips}</div>
+    <div class="status"><span>${statusText(s)}</span></div>
     <div class="cards"><div class="cardgrid" data-n="${s.cards.length}">${s.cards.map((c, i) => cardView(s, c, i)).join('')}<div class="deckback" aria-hidden="true"><b>${s.deck.length}</b><span>left</span></div></div></div>
     </div>
     <div class="tray">

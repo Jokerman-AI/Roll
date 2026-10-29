@@ -171,7 +171,7 @@ function statusText(s) {
   if (cur.cpu) return `${esc(cur.name)} is thinking…${deck}`;
   if (ui.online && s.current !== net.mySeat) return (net.mySeat < 0 ? `Watching ${esc(cur.name)}…` : `${esc(cur.name)} is playing…`) + deck;
   if (s.phase === 'start') {
-    return (E.handSize(s, s.current) === 0 ? 'All your dice are on cards. Take them back to roll.' : `${esc(cur.name)}: roll your ${E.handSize(s, s.current)} dice`) + deck;
+    return (E.handSize(s, s.current) === 0 ? 'All your dice are on cards. Take them back.' : `${esc(cur.name)}: roll your ${E.handSize(s, s.current)} dice`) + deck;
   }
   if (!s.rolled.length) return 'All dice placed';
   if (!E.legalMoves(s).length) return 'No matches this time';
@@ -180,7 +180,7 @@ function statusText(s) {
 
 /** A staggered pile of the cards a player has claimed, with their points showing. */
 function pileHtml(pile = []) {
-  if (!pile.length) return '';
+  if (!pile.length) return '<span class="pile blank" aria-hidden="true"></span>';
   const shown = pile.slice(-6);
   const more = pile.length - shown.length;
   return `<span class="pile" aria-label="${pile.length} cards claimed">${more ? `<em>+${more}</em>` : ''}${shown.map((pts, k) => `<i data-tier="${tierOf(pts)}" style="--n:${k}">${pts}</i>`).join('')}</span>`;
@@ -247,6 +247,7 @@ function gameView() {
     </div>`).join('');
 
   let tray;
+  let live = 0; // dice shown in the tray; the rest of the six are on cards
   if (s.phase === 'placing') {
     tray = s.rolled.map((f, i) => {
       const fx = ui.fx[i] || { delay: 0, dur: 0, dx: 0, rot: 0 };
@@ -255,11 +256,14 @@ function gameView() {
       const face = spinning ? 1 + Math.floor(Math.random() * 6) : f;
       return die(face, `owned ${spinning ? 'rolling' : ''} ${ui.selected === i ? 'sel' : ''} ${ui.hint?.rolled === i ? 'hinted' : ''}`,
         `style="${style}" data-i="${i}" ${human && !ui.rolling ? `data-act="pickRolled"` : 'disabled'}`, 'button');
-    }).join('') || '<span class="hint">—</span>';
+    }).join('');
+    live = s.rolled.length;
   } else {
-    const n = E.handSize(s, s.current);
-    tray = n ? Array.from({ length: n }, () => die(1, 'owned hand', `style="${diceVars(mine, s.current)}"`)).join('').replace(/aria-label="1"/g, 'aria-label="die in hand"') : '<span class="hint">No dice in hand</span>';
+    live = E.handSize(s, s.current);
+    tray = Array.from({ length: live }, () => die(1, 'owned hand', `style="${diceVars(mine, s.current)}"`)).join('').replace(/aria-label="1"/g, 'aria-label="die in hand"');
   }
+  // Always six places, so the tray (and with it the whole table) never changes height from turn to turn.
+  tray += Array.from({ length: Math.max(0, E.DICE_PER_PLAYER - live) }, () => `<div class="die empty" aria-label="die on a card">${'<i></i>'.repeat(9)}</div>`).join('');
   const onCards = E.DICE_PER_PLAYER - E.handSize(s, s.current);
   const canTakeBack = human && s.phase === 'start' && onCards > 0;
   const mustTakeBack = canTakeBack && onCards === E.DICE_PER_PLAYER;
@@ -270,8 +274,8 @@ function gameView() {
   return `
     <div class="game">
     <div class="table">
-    <div class="score" style="--per:${Math.ceil(s.players.length / Math.ceil(s.players.length / 4))}">${chips}</div>
-    <div class="status">${statusText(s)}</div>
+    <div class="score" data-rows="${Math.ceil(s.players.length / 4) > 1 ? 2 : 1}" style="--per:${Math.ceil(s.players.length / Math.ceil(s.players.length / 4))}">${chips}</div>
+    <div class="status"><span>${statusText(s)}</span></div>
     <div class="cards"><div class="cardgrid" data-n="${s.cards.length}">${s.cards.map((c, i) => cardView(s, c, i)).join('')}<div class="deckback" aria-hidden="true"><b>${s.deck.length}</b><span>left</span></div></div></div>
     </div>
     <div class="tray">
