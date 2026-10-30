@@ -72,7 +72,7 @@ const isHost = () => net.room?.hostUid === net.uid;
 const seats = () => (ui.online ? net.room?.seats : ui.cfg) || [];
 const swatch = (p, i) => PALETTE[Number.isInteger(p?.color) ? ((p.color % PALETTE.length) + PALETTE.length) % PALETTE.length : i % PALETTE.length];
 const hexOf = (i) => swatch(seats()[i], i).hex;
-const diceVars = (p, i) => { const c = swatch(p, i); return `--c:${c.hex};--pc:${c.pip}`; };
+const diceVars = (p, i) => { const c = swatch(p, i); return `--c:${c.hex};--pc:${c.pip};--pip:${c.pip}`; };
 
 function avatarHtml(p, i, size) {
   const c = swatch(p, i);
@@ -301,7 +301,7 @@ function gameView() {
       const style = `${diceVars(mine, s.current)};--d:${fx.delay}ms;--dur:${fx.dur}ms;--dx:${fx.dx}px;--rot:${fx.rot}deg`;
       const face = spinning ? 1 + Math.floor(Math.random() * 6) : f;
       return die(face, `owned ${spinning ? 'rolling' : ''} ${ui.selected === i ? 'sel' : ''} ${ui.hint?.rolled === i ? 'hinted' : ''}`,
-        `style="${style}" data-i="${i}" ${human && !ui.rolling ? `data-act="pickRolled"` : 'disabled'}`, 'button');
+        `style="${style}" data-i="${i}" ${human && !ui.rolling ? `data-act="pickRolled" role="button" tabindex="0"` : 'aria-disabled="true"'}`);
     }).join('');
     live = s.rolled.length;
   } else {
@@ -1091,3 +1091,8 @@ initNet();
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).catch(() => {});
 }
+
+// The dice in the tray are plain elements acting as buttons; let the keyboard use them too.
+document.addEventListener('keydown', (e) => {
+  if ((e.key === 'Enter' || e.key === ' ') && e.target?.matches?.('.dice .die[data-act]')) { e.preventDefault(); e.target.click(); }
+});
