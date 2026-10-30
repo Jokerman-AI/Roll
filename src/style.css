@@ -156,8 +156,8 @@ h1 { font-size: 2.4rem; margin: 0; letter-spacing: -.02em; }
 .tray { background: #00000030; border-radius: var(--radius); padding: 12px; }
 .dice { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; min-height: var(--td); align-items: center; }
 .dice .die { --size: var(--td); }
-.dice button.die { border: 0; }
-.dice button.die.sel { outline: 4px solid #ffd34d; outline-offset: 2px; }
+.dice .die[data-act] { cursor: pointer; }
+.dice .die.sel { outline: 4px solid #ffd34d; outline-offset: 2px; }
 /* tumbling roll: each die flies in, bounces, and lands upright at its own time */
 .dice .die { position: relative; z-index: 2; }
 .dice .die.rolling { animation: tumble var(--dur) cubic-bezier(.25, .7, .35, 1) var(--d) both; }
