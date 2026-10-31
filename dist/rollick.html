@@ -754,14 +754,16 @@ function endTurn(state, rng = Math.random) {
   if (isExtreme(s)) {
     s.events = [];
     s.bonus = 0; // an unused bonus is lost
+    const n = s.players.length;
+    const round = Math.floor(s.turn / n);
     s.turn++;
     if (s.skipNext) {
       s.skipNext = false;
       s.events.push({ type: 'skipped', player: s.current });
-      s.current = (s.current + 1) % s.players.length;
+      s.current = (s.current + 1) % n;
       s.turn++;
     }
-    if (s.turn % s.players.length === 0) newRound(s, rng);
+    if (Math.floor(s.turn / n) > round) newRound(s, rng); // also when a skipped turn carried us over the line
   }
   return s;
 }
@@ -1036,9 +1038,12 @@ function powerAction(s, level, rng) {
     s.cards.forEach((card, c) => {
       const left = E.missing(card, me);
       if (left.length !== 1 || hand.includes(left[0])) return; // already finishable, or not one die away
-      hand.forEach((f, r) => { if (!best || card.points > best.points) best = { type: 'power', kind: 'set', rolled: r, face: left[0], points: card.points, f }; });
+      hand.forEach((f, r) => {
+        const spare = !s.cards.some((other) => E.missing(other, me).includes(f)); // this die has nowhere to go
+        if (spare && (!best || card.points > best.points)) best = { type: 'power', kind: 'set', rolled: r, face: left[0], points: card.points };
+      });
     });
-    if (best) { delete best.points; delete best.f; return best; }
+    if (best) { delete best.points; return best; }
   }
   // A bonus is worth playing just before a card is finished.
   if (allowed('bonus') && !s.bonus && E.legalMoves(s).some((m) => completes(s.cards[m.card], s.rolled[m.rolled]))) return { type: 'power', kind: 'bonus' };
@@ -1579,15 +1584,15 @@ function p2pStore(Peer, options, uid, extraIce, brokers = DEFAULT_BROKERS) {
         if (e.type === 'unavailable-id') { bus?.close(); throw new Error('taken'); }
         if (!bus) throw new Error('network');
       }
-      if (bus) {
-        const up = await bus.ready(peer ? 1500 : 8000);
-        if (!peer && !up) { bus.close(); throw new Error('network'); }
-        if (!resume && up) { // is another room already using this code?
+      if (bus && !peer) { // hosting over the backup route alone: is another room already using this code?
+        const up = await bus.ready(8000);
+        if (!up) { bus.close(); throw new Error('network'); }
+        if (!resume) {
           let clash = false;
           bus.subscribe(`${home}/w`, (m) => { if (m.t === 'taken') clash = true; });
           bus.publish(`${home}/g`, { t: 'whois' });
           await sleep(1200);
-          if (clash) { peer?.destroy(); bus.close(); throw new Error('taken'); }
+          if (clash) { bus.close(); throw new Error('taken'); }
         }
       }
 
@@ -1708,9 +1713,9 @@ function p2pStore(Peer, options, uid, extraIce, brokers = DEFAULT_BROKERS) {
 
     async join(code) {
       const home = `${ROOT}/${code}`;
-      const bus = useRelay ? relayBus(brokers) : null;
+      let bus = null; // the backup route; only opened if the direct route is slow or fails
       let peer = null;
-      try { peer = new Peer(undefined, peerOptions); await open(peer); } catch { peer?.destroy(); peer = null; if (!bus) throw new Error('network'); }
+      try { peer = new Peer(undefined, peerOptions); await open(peer); } catch { peer?.destroy(); peer = null; if (!useRelay) throw new Error('network'); }
 
       let room = null; // the last room we were sent; kept while reconnecting
       let fresh = true; // the next room message is the first on a new connection
@@ -1722,6 +1727,9 @@ function p2pStore(Peer, options, uid, extraIce, brokers = DEFAULT_BROKERS) {
       const errors = new Set();
       const status = statusFeed();
       const relayOk = () => !!bus && Date.now() - relayLast < 45000;
+      let helloTimer = 0;
+      let raceDone = false;
+      let firstRelay = null;
       const notify = () => subs.forEach((cb) => cb(snapshotOf(room)));
 
       // Direct route.
@@ -1742,17 +1750,16 @@ function p2pStore(Peer, options, uid, extraIce, brokers = DEFAULT_BROKERS) {
           clearTimeout(timer);
           peer.off('error', onPeerError);
           room = msg.room;
-          if (fresh || !conn) { fresh = false; conn = c; status.set('online'); resolve(); }
+          if (fresh || !conn?.open) { fresh = false; conn = c; status.set('online'); resolve(); }
           notify();
         });
         c.on('close', () => { if (!closed && conn === c) reconnect(); });
       });
 
       // Backup route: say hello until the host answers, then keep saying it as a heartbeat.
-      let helloTimer = 0;
-      let raceDone = false;
-      const hello = () => bus.publish(`${home}/g`, { t: 'hello', uid, have: room ? hashOf(seatsKey(room)) : 0 });
+      const hello = () => bus?.publish(`${home}/g`, { t: 'hello', uid, have: room ? hashOf(seatsKey(room)) : 0 });
       const relayFirst = () => new Promise((resolve, reject) => {
+        bus = relayBus(brokers);
         let first = true;
         const timer = setTimeout(() => reject(new Error('timeout')), 8000);
         bus.subscribe(`${home}/h/${uid}`, (msg) => {
@@ -1762,13 +1769,21 @@ function p2pStore(Peer, options, uid, extraIce, brokers = DEFAULT_BROKERS) {
           else if (msg.t === 'game' && room) room = { ...room, game: msg.game, status: msg.status };
           else if (msg.t === 'game') { hello(); return; } // we missed the seats: ask for everything
           else return;
-          if (first) { first = false; clearTimeout(timer); fresh = false; status.set('online'); resolve(); }
+          if (first) {
+            first = false;
+            clearTimeout(timer);
+            status.set('online');
+            clearInterval(helloTimer);
+            helloTimer = setInterval(hello, 20000); // from now on just a heartbeat
+            resolve();
+          }
           notify();
         });
         bus.ready(8000).then((up) => {
           if (!up) { clearTimeout(timer); reject(new Error('network')); return; }
           hello();
-          if (!raceDone) helloTimer = setInterval(() => { if (!room || Date.now() - relayLast > 4000) hello(); }, 2000);
+          clearInterval(helloTimer);
+          helloTimer = setInterval(() => { if (!relayLast) hello(); }, 2000); // until the host first answers
         });
       });
 
@@ -1777,6 +1792,7 @@ function p2pStore(Peer, options, uid, extraIce, brokers = DEFAULT_BROKERS) {
       async function reconnect() {
         if (retrying || closed) return;
         retrying = true;
+        if (useRelay) ensureRelay().catch(() => {}); // if the direct link dropped, the backup route takes over
         if (!relayOk()) status.set('reconnecting');
         for (let i = 0; i < 30 && !closed; i++) {
           await sleep(Math.min(1500 + i * 500, 5000));
@@ -1795,9 +1811,14 @@ function p2pStore(Peer, options, uid, extraIce, brokers = DEFAULT_BROKERS) {
         errors.forEach((cb) => cb({ code: 'lost' }));
       }
 
-      // Take whichever route answers first. A wrong code is only reported once the backup route has had its say.
+      // Open the backup route on demand, once.
+      const ensureRelay = () => (useRelay ? (firstRelay ||= relayFirst()) : Promise.reject(new Error('network')));
+
+      // Take whichever route answers first. The backup route only starts if the direct one has not connected after
+      // a couple of seconds, so a normal game never touches the public servers. A wrong code is only reported once
+      // the backup route has had its say.
       const direct = connect().catch(async (e) => { if (e.message === 'notfound') await sleep(3000); throw e; });
-      const backup = bus ? relayFirst() : Promise.reject(new Error('network'));
+      const backup = !peer ? ensureRelay() : sleep(2000).then(() => (conn?.open ? new Promise(() => {}) : ensureRelay()));
       try {
         await Promise.any([direct, backup]);
       } catch (all) {
@@ -1805,6 +1826,7 @@ function p2pStore(Peer, options, uid, extraIce, brokers = DEFAULT_BROKERS) {
         peer?.destroy();
         bus?.close();
         clearInterval(helloTimer);
+        raceDone = true;
         throw errs.find((e) => e.message === 'notfound') || errs.find((e) => e.message === 'timeout') || errs[0] || new Error('network');
       }
       raceDone = true;
@@ -1820,10 +1842,11 @@ function p2pStore(Peer, options, uid, extraIce, brokers = DEFAULT_BROKERS) {
       const onVisible = () => {
         if (document.hidden || closed || retrying) return;
         if (!conn?.open || Date.now() - lastSeen > 25000) { try { conn?.close(); } catch { /* already closed */ } if (conn) reconnect(); }
-        if (bus) hello();
+        hello();
       };
       document.addEventListener('visibilitychange', onVisible);
-      if (bus) { clearInterval(helloTimer); helloTimer = setInterval(hello, 20000); }
+      clearInterval(helloTimer);
+      if (bus) helloTimer = setInterval(hello, 20000);
 
       return {
         async get() { return snapshotOf(room); },
@@ -2080,8 +2103,9 @@ const turnFraction = () => Math.max(0, Math.min(1, (ui.turnEnds - Date.now()) / 
 /** What just happened with the power cards and chaos rules, in a sentence. */
 function eventsText(s) {
   const who = (p) => s.players[p].name;
-  return (s.events || []).map((e) => {
-    const pw = E.POWERS[e.kind];
+  return (Array.isArray(s.events) ? s.events : []).map((e) => {
+    const pw = E.POWERS[e?.kind] || { icon: '', name: 'a card' };
+    if (!s.players[e?.player] && e?.type !== 'chaos') return '';
     if (e.type === 'lucky') return `${who(e.player)} rolled three of a kind and won ${pw.icon} ${pw.name}!`;
     if (e.type === 'earned') return `${who(e.player)} earned ${pw.icon} ${pw.name}.`;
     if (e.type === 'power') return `${who(e.player)} played ${pw.icon} ${pw.name}${e.target !== undefined ? ` on ${who(e.target)}` : ''}.`;
@@ -2096,7 +2120,7 @@ function powersView() {
   const s = ui.game;
   const holder = ui.online ? net.mySeat : s.current;
   if (!s || s.mode !== 'extreme' || holder < 0) return '';
-  const hand = s.players[holder].powers;
+  const hand = Array.isArray(s.players[holder].powers) ? s.players[holder].powers.filter((k) => E.POWERS[k]) : [];
   const myTurn = canAct() && s.phase === 'placing' && holder === s.current;
   const pw = ui.power;
   const close = '<button class="btn primary" data-act="closeModal">Close</button>';
@@ -2242,7 +2266,7 @@ function gameView() {
   const noMoves = canEnd && !E.legalMoves(s).length;
   const extreme = s.mode === 'extreme';
   const holder = ui.online ? net.mySeat : s.current; // whose power cards the bolt button shows
-  const held = extreme && holder >= 0 ? s.players[holder].powers.length : 0;
+  const held = extreme && holder >= 0 && Array.isArray(s.players[holder].powers) ? s.players[holder].powers.length : 0;
   const timed = extreme && human && s.phase !== 'over';
 
   return `
@@ -2368,7 +2392,7 @@ function modalView() {
       <h3>Privacy</h3>
       <ul>
         <li>Rollick has no accounts, ads or analytics. Your name, icon, colour and settings are saved only on your device.</li>
-        <li>Online games connect players directly (peer to peer) when they can. Your name, icon and moves are sent to the other players in your room. A signalling server and relay servers help devices find each other, and they can see network addresses and connection details while you play. If a direct connection is blocked, moves are passed through free public message servers instead. Anyone who knows your room code could see that traffic, so don't share the code publicly and don't put private information in your name or icon.</li>
+        <li>Online games connect players directly (peer to peer) when they can. Your name, icon and moves are sent to the other players in your room. A signalling server and relay servers help devices find each other, and they can see network addresses and connection details while you play. The host also keeps a connection open to free public message servers, so players whose network blocks direct connections can still join. When that backup route is used, moves pass through those servers. Anyone who knows your room code could see that traffic, so don't share the code publicly and don't put private information in your name or icon.</li>
         <li>Clear the site data or remove the app to delete everything stored on your device.</li>
       </ul>
       <h3>Open-source notices</h3>
