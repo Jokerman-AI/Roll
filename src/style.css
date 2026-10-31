@@ -543,3 +543,9 @@ html { background: var(--felt); }
 .coach.nudge { animation: nudge .4s; }
 @keyframes nudge { 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
 .btn.hinted { outline: 4px solid #ffd34d; outline-offset: 2px; }
+
+/* the icon buttons along the bottom of the start screen */
+.iconbar { display: flex; justify-content: center; gap: 12px; padding-top: 2px; }
+.iconbtn { width: 48px; height: 48px; border: 0; border-radius: 50%; background: #ffffff1a; color: var(--ink); display: grid; place-items: center; padding: 0; }
+.iconbtn:active { background: #ffffff33; }
+.iconbtn svg { display: block; }
