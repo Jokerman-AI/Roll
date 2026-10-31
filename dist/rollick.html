@@ -1642,6 +1642,7 @@ function lobbyList(urls = DEFAULT_BROKERS, onChange = () => {}, onState = () => 
     const live = opened && Date.now() - opened > 1500;
     const seen = live ? Date.now() : entry.t;
     if (Date.now() - seen > STALE_MS) return;
+    if (rooms.size >= 60 && !rooms.has(entry.code)) return; // anyone can publish here; keep the list a sensible size
     rooms.set(entry.code, { ...entry, seen });
     emit();
   });
@@ -1681,7 +1682,7 @@ function unlock() {
       master.gain.value = 0.5;
       master.connect(ctx.destination);
     }
-    if (ctx.state === 'suspended') ctx.resume();
+    if (ctx.state !== 'running') ctx.resume(); // 'suspended', or 'interrupted' on iPhones after a call or a lock
   } catch { /* no audio on this device */ }
 }
 
@@ -2512,7 +2513,7 @@ function roomsHtml() {
   if (state === 'down') return '<p class="tag">Could not reach the room list. You can still join with a code.</p>';
   if (state !== 'ready') return '<p class="tag">Looking for open rooms…</p>';
   if (!list.length) return '<p class="tag">No open rooms right now. Make one and switch on <b>Public room</b> to let others find it.</p>';
-  return list.map((r) => `<div class="rrow"><span class="rm" aria-hidden="true">${r.mode === 'extreme' ? '⚡' : '🎲'}</span>
+  return list.slice(0, 20).map((r) => `<div class="rrow"><span class="rm" aria-hidden="true">${r.mode === 'extreme' ? '⚡' : '🎲'}</span>
     <div class="rinfo"><b>${esc(r.host)}</b><small>${modeLabel(r.mode)} · ${r.n}/${r.max} players</small></div>
     <button class="btn small" data-act="joinListed" data-code="${r.code}" ${net.busy ? 'disabled' : ''}>Join</button></div>`).join('');
 }
@@ -2947,7 +2948,7 @@ function modalView() {
       <h3>Privacy</h3>
       <ul>
         <li>Rollick has no accounts, ads or analytics. Your name, icon, colour and settings are saved only on your device.</li>
-        <li>Online games connect players directly (peer to peer) when they can. Your name, icon and moves are sent to the other players in your room. A signalling server and relay servers help devices find each other, and they can see network addresses and connection details while you play. The host also keeps a connection open to free public message servers, so players whose network blocks direct connections can still join. When that backup route is used, moves pass through those servers. Anyone who knows your room code could see that traffic, so don't share the code publicly and don't put private information in your name or icon. If you switch on <b>Public room</b>, the room code, your name, the game and the player count are published on those servers so other people can find the room; switch it off and the listing is removed.</li>
+        <li>Online games connect players directly (peer to peer) when they can. Your name, icon and moves are sent to the other players in your room. A signalling server and relay servers help devices find each other, and they can see network addresses and connection details while you play. The host also keeps a connection open to free public message servers, so players whose network blocks direct connections can still join. When that backup route is used, moves pass through those servers. Anyone who knows your room code could see that traffic, so don't share the code publicly and don't put private information in your name or icon. Opening the Play online screen connects to those servers to show the Open rooms list. If you switch on <b>Public room</b>, the room code, your name, the game and the player count are published on those servers so other people can find the room; switch it off and the listing is removed.</li>
         <li>Clear the site data or remove the app to delete everything stored on your device.</li>
       </ul>
       <h3>Open-source notices</h3>

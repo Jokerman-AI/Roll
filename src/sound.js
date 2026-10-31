@@ -26,7 +26,7 @@ export function unlock() {
       master.gain.value = 0.5;
       master.connect(ctx.destination);
     }
-    if (ctx.state === 'suspended') ctx.resume();
+    if (ctx.state !== 'running') ctx.resume(); // 'suspended', or 'interrupted' on iPhones after a call or a lock
   } catch { /* no audio on this device */ }
 }
 

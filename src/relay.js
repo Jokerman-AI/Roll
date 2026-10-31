@@ -241,6 +241,7 @@ export function lobbyList(urls = DEFAULT_BROKERS, onChange = () => {}, onState =
     const live = opened && Date.now() - opened > 1500;
     const seen = live ? Date.now() : entry.t;
     if (Date.now() - seen > STALE_MS) return;
+    if (rooms.size >= 60 && !rooms.has(entry.code)) return; // anyone can publish here; keep the list a sensible size
     rooms.set(entry.code, { ...entry, seen });
     emit();
   });
