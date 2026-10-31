@@ -11,6 +11,7 @@ const levelLabel = (l) => (E.LEVEL_NAMES.includes(l) ? l : 'normal').replace(/^.
 import { dbStore, p2pStore, checkConnection } from './transport.js';
 import { checkFallback, DEFAULT_BROKERS, lobbyList, lobbyAnnouncer } from './relay.js';
 import { sfx, soundPrefs, setSound, setHaptics, canVibrate } from './sound.js';
+import { theme, TABLES, BACKS, DICE, setTheme } from './theme.js';
 import {
   PALETTE, INK, BRUSHES, STAMPS, AVATAR_SIZE, REACTIONS, cpuName, freeColor, safeAvatar, makeSketch, paintCanvas, pointOn, strokeSegment, stampAt, clearSketch, loadAvatar, exportAvatar,
 } from './profile.js';
@@ -48,6 +49,7 @@ const ui = {
   mode: store.get('rfi-mode') === 'extreme' ? 'extreme' : 'classic', // classic | extreme
   power: null, // the power card being played: { kind, rolled? }
   turnEnds: 0, // Extreme: when the current turn runs out
+  tut: null, // the guided first game: { step }
   react: false, // the emoji picker is open
   rooms: { state: 'idle', list: [] }, // the public room list on the online screen
   netTest: '', // result of the connection check on the online screen
@@ -135,6 +137,17 @@ function modePicker(enabled) {
   </div>`;
 }
 
+/** Small line icons for the buttons along the bottom of the start screen. */
+const ICONS = {
+  help: '<circle cx="12" cy="12" r="9"/><path d="M9.6 9.4a2.5 2.5 0 1 1 3.5 2.3c-.8.4-1.1.9-1.1 1.8"/><circle cx="12" cy="17" r=".6" fill="currentColor"/>',
+  cap: '<path d="M2.5 9.5 12 5l9.5 4.5L12 14 2.5 9.5Z"/><path d="M6.5 11.7v4.2c0 1.3 2.5 2.6 5.5 2.6s5.5-1.3 5.5-2.6v-4.2"/><path d="M21.5 9.5v5"/>',
+  palette: '<path d="M12 3a9 9 0 1 0 0 18c1.2 0 1.8-.8 1.8-1.7 0-1.2-1-1.4-1-2.5 0-1 .8-1.6 1.9-1.6H17a4 4 0 0 0 4-4C21 6.7 17 3 12 3Z"/><circle cx="7.5" cy="11" r="1.1" fill="currentColor"/><circle cx="10.5" cy="7.2" r="1.1" fill="currentColor"/><circle cx="15.2" cy="7.5" r="1.1" fill="currentColor"/>',
+  soundOn: '<path d="M4 9.5v5h3.5L12.5 19V5L7.5 9.5H4Z"/><path d="M16 9a4.2 4.2 0 0 1 0 6"/><path d="M18.6 6.5a8 8 0 0 1 0 11"/>',
+  soundOff: '<path d="M4 9.5v5h3.5L12.5 19V5L7.5 9.5H4Z"/><path d="m16.5 9.5 5 5"/><path d="m21.5 9.5-5 5"/>',
+  info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5.5"/><circle cx="12" cy="7.8" r=".6" fill="currentColor"/>',
+};
+const iconBtn = (act, icon, label) => `<button class="iconbtn" data-act="${act}" aria-label="${label}" title="${label}"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[icon]}</svg></button>`;
+
 function setupView() {
   const rows = ui.setup.map((p, i) => `
     <div class="prow">
@@ -151,6 +164,7 @@ function setupView() {
   return `
     <div class="setup">
       <header class="hero">${LOGO}<h1>Rollick</h1><p class="tag">${MODE_BLURB[ui.mode]}</p></header>
+      ${store.get('rfi-tutorial') ? '' : '<button class="btn learn" data-act="startTutorial">🎓 New here? Learn to play in a minute</button>'}
       ${modePicker(true)}
       ${saved ? `<button class="btn resume" data-act="resume">Return to room ${esc(saved.code)}</button>` : ''}
       <section class="panel" aria-label="Players">
@@ -160,7 +174,13 @@ function setupView() {
       </section>
       <button class="btn primary big" data-act="start">Start game</button>
       ${net.store ? '<button class="btn" data-act="goOnline">Play online with friends</button>' : ''}
-      <nav class="links"><button data-act="rules">How to play</button><span aria-hidden="true">·</span><button data-act="about">About &amp; terms</button><span aria-hidden="true">·</span><button data-act="toggleSound" aria-label="Sound ${soundPrefs.sound ? 'on' : 'off'}">${soundPrefs.sound ? '🔊' : '🔇'}</button></nav>
+      <nav class="iconbar" aria-label="More">
+        ${iconBtn('rules', 'help', 'How to play')}
+        ${iconBtn('startTutorial', 'cap', 'Tutorial')}
+        ${iconBtn('themes', 'palette', 'Themes')}
+        ${iconBtn('toggleSound', soundPrefs.sound ? 'soundOn' : 'soundOff', soundPrefs.sound ? 'Sound on' : 'Sound off')}
+        ${iconBtn('about', 'info', 'About and terms')}
+      </nav>
     </div>`;
 }
 
@@ -171,7 +191,7 @@ function roomsHtml() {
   if (state === 'down') return '<p class="tag">Could not reach the room list. You can still join with a code.</p>';
   if (state !== 'ready') return '<p class="tag">Looking for open rooms…</p>';
   if (!list.length) return '<p class="tag">No open rooms right now. Make one and switch on <b>Public room</b> to let others find it.</p>';
-  return list.map((r) => `<div class="rrow"><span class="rm" aria-hidden="true">${r.mode === 'extreme' ? '⚡' : '🎲'}</span>
+  return list.slice(0, 20).map((r) => `<div class="rrow"><span class="rm" aria-hidden="true">${r.mode === 'extreme' ? '⚡' : '🎲'}</span>
     <div class="rinfo"><b>${esc(r.host)}</b><small>${modeLabel(r.mode)} · ${r.n}/${r.max} players</small></div>
     <button class="btn small" data-act="joinListed" data-code="${r.code}" ${net.busy ? 'disabled' : ''}>Join</button></div>`).join('');
 }
@@ -359,6 +379,16 @@ function powersView() {
   return `<div class="modal"><div class="sheet powers">${body}</div></div>`;
 }
 
+/** Pick the table colour, the back of the deck and the dice. Changes show straight away. */
+function themesView() {
+  const opt = (part, id, label, preview) => `<button class="opt ${theme[part] === id ? 'on' : ''}" data-act="setTheme" data-part="${part}" data-id="${id}" aria-pressed="${theme[part] === id}">${preview}<span>${label}</span></button>`;
+  return `<div class="modal"><div class="sheet themes"><h2>🎨 Themes</h2>
+    <h3>Table</h3><div class="opts">${TABLES.map((t) => opt('table', t.id, t.name, `<span class="tb" data-tb="${t.id}"></span>`)).join('')}</div>
+    <h3>Deck back</h3><div class="opts">${BACKS.map((b) => opt('back', b.id, b.name, `<span class="bk" data-bk="${b.id}"></span>`)).join('')}</div>
+    <h3>Dice</h3><div class="opts">${DICE.map((d) => opt('dice', d.id, d.name, `<span class="dpv" data-ds="${d.id}">${die(5, '')}</span>`)).join('')}</div>
+    <button class="btn primary" data-act="closeModal">Done</button></div></div>`;
+}
+
 function statusText(s) {
   const cur = s.players[s.current];
   const deck = s.deck.length ? ` <small>· ${s.deck.length} cards left</small>` : '';
@@ -475,8 +505,8 @@ function gameView() {
     <div class="game">
     <div class="table">
     <div class="score" data-rows="${Math.ceil(s.players.length / 4) > 1 ? 2 : 1}" style="--per:${Math.ceil(s.players.length / Math.ceil(s.players.length / 4))}">${chips}</div>
-    <div class="status"><span>${statusText(s)}</span></div>
-    <div class="cards"><div class="cardgrid" data-n="${s.cards.length}">${s.cards.map((c, i) => cardView(s, c, i)).join('')}<div class="deckback ${extreme && s.chaos?.kind === 'double' ? 'x2on' : ''}" aria-hidden="true"><b>${s.deck.length}</b><span>left</span>${extreme && s.chaos?.kind === 'double' ? '<em class="x2">×2</em>' : ''}</div></div></div>
+    ${ui.tut ? coachView() : `<div class="status"><span>${statusText(s)}</span></div>`}
+    <div class="cards"><div class="cardgrid" data-n="${s.cards.length}">${s.cards.map((c, i) => cardView(s, c, i)).join('')}<div class="deckback ${extreme && s.chaos?.kind === 'double' ? 'x2on' : ''}" data-bk="${theme.back}" aria-hidden="true"><b>${s.deck.length}</b><span>left</span>${extreme && s.chaos?.kind === 'double' ? '<em class="x2">×2</em>' : ''}</div></div></div>
     </div>
     <div class="tray">
       ${timed ? `<div class="turnbar" style="--p:${turnFraction()}" aria-hidden="true"><i></i></div>` : ''}
@@ -485,7 +515,7 @@ function gameView() {
         ${s.phase === 'start' ? `
           <button class="btn primary ${canRoll ? 'pulse' : ''} ${ui.hint?.button === 'roll' ? 'hinted' : ''}" data-act="roll" ${canRoll ? '' : 'disabled'}>Roll</button>
           <button class="btn ${mustTakeBack ? 'primary pulse' : ''} ${ui.hint?.button === 'takeback' ? 'hinted' : ''}" data-act="takeBack" ${canTakeBack ? '' : 'disabled'} aria-label="Take back all your dice and roll all six">Take back<small>&amp; roll all</small></button>`
-          : `<button class="btn ${noMoves ? 'primary pulse' : ''}" data-act="end" ${canEnd ? '' : 'disabled'}>End turn</button>
+          : `<button class="btn ${noMoves ? 'primary pulse' : ''} ${ui.hint?.button === 'end' ? 'hinted' : ''}" data-act="end" ${canEnd ? '' : 'disabled'}>End turn</button>
           ${human && ui.undo.length ? '<button class="btn icon" data-act="undo" aria-label="Undo last placement" title="Undo">↶</button>' : ''}`}
         ${extreme ? `<button class="btn icon bolt" data-act="powers" aria-label="Power cards (${held})" title="Power cards" ${holder >= 0 ? '' : 'disabled'}>⚡${held ? `<span class="count">${held}</span>` : ''}</button>` : ''}
         <button class="btn icon" data-act="hint" aria-label="Hint" title="Hint" ${human && !ui.rolling ? '' : 'disabled'}>💡</button>
@@ -596,7 +626,7 @@ function modalView() {
       <h3>Privacy</h3>
       <ul>
         <li>Rollick has no accounts, ads or analytics. Your name, icon, colour and settings are saved only on your device.</li>
-        <li>Online games connect players directly (peer to peer) when they can. Your name, icon and moves are sent to the other players in your room. A signalling server and relay servers help devices find each other, and they can see network addresses and connection details while you play. The host also keeps a connection open to free public message servers, so players whose network blocks direct connections can still join. When that backup route is used, moves pass through those servers. Anyone who knows your room code could see that traffic, so don't share the code publicly and don't put private information in your name or icon. If you switch on <b>Public room</b>, the room code, your name, the game and the player count are published on those servers so other people can find the room; switch it off and the listing is removed.</li>
+        <li>Online games connect players directly (peer to peer) when they can. Your name, icon and moves are sent to the other players in your room. A signalling server and relay servers help devices find each other, and they can see network addresses and connection details while you play. The host also keeps a connection open to free public message servers, so players whose network blocks direct connections can still join. When that backup route is used, moves pass through those servers. Anyone who knows your room code could see that traffic, so don't share the code publicly and don't put private information in your name or icon. Opening the Play online screen connects to those servers to show the Open rooms list. If you switch on <b>Public room</b>, the room code, your name, the game and the player count are published on those servers so other people can find the room; switch it off and the listing is removed.</li>
         <li>Clear the site data or remove the app to delete everything stored on your device.</li>
       </ul>
       <h3>Open-source notices</h3>
@@ -606,11 +636,13 @@ function modalView() {
       <button class="btn primary" data-act="closeModal">Close</button></div></div>`;
   }
   if (ui.modal === 'powers') return powersView();
+  if (ui.modal === 'themes') return themesView();
   if (ui.modal === 'menu') {
     return `<div class="modal" data-act="closeModal"><div class="sheet"><h2>Menu</h2>
       <button class="btn" data-act="rules">How to play</button>
       <button class="btn" data-act="about">About &amp; terms</button>
       ${canReact() ? '<button class="btn" data-act="reactMenu">😀 Send an emoji</button>' : ''}
+      <button class="btn" data-act="themes">🎨 Themes</button>
       <button class="btn" data-act="toggleSound">${soundPrefs.sound ? '🔊 Sound: on' : '🔇 Sound: off'}</button>
       ${canVibrate() ? `<button class="btn" data-act="toggleHaptics">${soundPrefs.haptics ? '📳 Vibration: on' : '📴 Vibration: off'}</button>` : ''}
       ${ui.online && isHost() ? '<button class="btn" data-act="toLobby">Back to lobby</button>' : ''}
@@ -780,6 +812,7 @@ function receive(next) {
   if (flight) flyCard(flight);
   if (justWon) { confetti(next.winner); setTimeout(sfx.win, 300); }
   settle();
+  tutAfterState(next);
 }
 
 /** The claimed card shrinks into its owner's scoreboard chip while the score counts up. */
@@ -850,7 +883,7 @@ function settle() {
   if (!s || s.phase === 'over' || ui.rolling) return;
   if (s.players[s.current].cpu) {
     if (!ui.online || isHost()) timer = setTimeout(cpuStep, CPU_DELAY);
-  } else if (isMine(s) && s.phase === 'placing' && (!s.rolled.length || !E.legalMoves(s).length)) {
+  } else if (!ui.tut && isMine(s) && s.phase === 'placing' && (!s.rolled.length || !E.legalMoves(s).length)) { // (the tutorial waits for you to tap End turn)
     if (s.rolled.length) say('No matching cards. Turn passes.');
     timer = setTimeout(() => { if (ui.game === s) commit(E.endTurn(s)); }, ui.undo.length ? 2000 : 1300);
   }
@@ -930,7 +963,7 @@ function turnClock() {
 }
 setInterval(turnClock, 500);
 
-function doRoll() { commit(E.roll(ui.game)); }
+function doRoll() { commit(E.roll(ui.game, ui.tut ? E.scriptedRng(E.TUTORIAL_ROLL) : Math.random)); }
 function doTakeBack() { commit(E.roll(E.takeBack(ui.game))); }
 
 function cpuStep() {
@@ -951,7 +984,110 @@ function freshGame(configs, mode = 'classic') {
   return g;
 }
 
+/* ---------- the tutorial ---------- */
+
+// Each step is a tip and what it waits for: a tap on Next, or a move in the game. `faces` are the dice it lets you
+// place; `done` says when the step is over.
+const TUT = [
+  { text: 'Welcome! In Rollick you roll dice and place them on cards. Finish cards to score, and be first to 40 points.', next: true },
+  { text: 'Each card shows the dice it needs. The points are in its corner: harder cards are worth more.', next: true },
+  { text: 'Tap <b>Roll</b> to roll your six dice.', expect: 'roll', done: (s) => s.phase === 'placing' },
+  { text: 'You rolled a 3, and the <b>2-point card</b> needs a 3. Tap the 3.', faces: [3], done: (s) => s.players[0].score >= 2 },
+  { text: 'Card finished! The 4-point card needs two 5s. Tap a 5, then the other 5.', faces: [5], done: (s) => s.players[0].score >= 6 },
+  { text: 'Now the 3-point card: it needs a 2 and a 6. Tap each of them.', faces: [2, 6], done: (s) => s.players[0].score >= 9 },
+  { text: 'Nothing needs the 1, so it stays in your hand. Tap <b>End turn</b>.', expect: 'end', done: (s) => s.current !== 0 },
+  { text: 'Now Coach takes a turn…', auto: true, done: (s) => s.current === 0 && s.phase === 'start' },
+  { text: 'Your dice stay on cards until the card is finished. Each turn you roll only the dice in your hand. <b>Take back</b> returns all your dice so you can roll all six.', next: true },
+  { text: 'Tap a die on a card to see who else is covering it. A number badge means several players share it. The 💡 gives a hint.', next: true },
+  { text: 'You are ready! <b>Rollick Extreme</b> adds power cards, chaos rounds and a turn timer. Try it when you like.', next: true, last: true },
+];
+const TUT_ACTS = new Set(['roll', 'takeBack', 'end', 'pickRolled', 'pickCard', 'undo', 'hint', 'powers']);
+
+/** What to point at right now: the Roll button, the die and card to use, or End turn. */
+function tutHint(s) {
+  const step = TUT[ui.tut?.step];
+  if (!step || s.phase === 'over') return null;
+  if (step.expect === 'roll') return { button: 'roll' };
+  if (step.expect === 'end') return { button: 'end' };
+  if (step.faces && s.phase === 'placing') {
+    const r = s.rolled.findIndex((f) => step.faces.includes(f));
+    const c = r < 0 ? -1 : s.cards.findIndex((_, ci) => E.canPlace(s, r, ci));
+    if (r >= 0 && c >= 0) return { rolled: r, card: c };
+  }
+  return null;
+}
+
+function coachView() {
+  const n = ui.tut.step;
+  const step = TUT[n];
+  return `<div class="coach" role="status" aria-live="polite">
+    <div class="ctext"><small>Tutorial · ${n + 1} of ${TUT.length}</small><span>${step.text}</span></div>
+    <div class="cbtns">${step.next ? `<button class="btn primary small" data-act="tutNext">${step.last ? 'Finish' : 'Next'}</button>` : ''}${step.last ? '' : '<button class="linkbtn" data-act="tutSkip">Skip</button>'}</div>
+  </div>`;
+}
+
+/** May this tap do something right now? While teaching, only the move the tip asks for. */
+function tutAllows(act, data) {
+  const step = TUT[ui.tut.step];
+  if (step.next || step.auto) return false;
+  if (act === 'roll') return step.expect === 'roll';
+  if (act === 'end') return step.expect === 'end';
+  if (act === 'pickRolled') return !!step.faces?.includes(ui.game.rolled[+data.i]);
+  if (act === 'pickCard') return !!step.faces;
+  return false;
+}
+
+function tutNudge() {
+  sfx.error(); // the tip shakes; no toast, which would sit on top of it
+  const box = app.querySelector('.coach');
+  if (box) { box.classList.remove('nudge'); void box.offsetWidth; box.classList.add('nudge'); }
+}
+
+/** After every move: move to the next tip when this one is done, and point at what comes next. */
+function tutAfterState(s) {
+  if (!ui.tut) return;
+  const step = TUT[ui.tut.step];
+  if (step.done?.(s)) ui.tut.step++;
+  ui.hint = tutHint(s);
+  render();
+}
+
+function startTutorial() {
+  clearTimeout(timer);
+  ui.online = false;
+  ui.game = null;
+  ui.undo = [];
+  ui.cfg = [
+    { name: 'You', cpu: false, color: profile.color, avatar: profile.avatar },
+    { name: 'Coach', cpu: true, level: 'easy', color: freeColor([profile.color], 1), avatar: '' },
+  ];
+  ui.tut = { step: 0 };
+  keepAwake(true);
+  const g = E.tutorialGame();
+  g.rev = 0;
+  g.gid = `tutorial-${Math.random().toString(36).slice(2)}`;
+  ui.screen = 'game';
+  ui.rolling = false;
+  ui.modal = null;
+  receive(g);
+}
+
+function endTutorial(done) {
+  ui.tut = null;
+  ui.hint = null;
+  store.set('rfi-tutorial', '1');
+  clearTimeout(timer);
+  keepAwake(false);
+  ui.screen = 'setup';
+  ui.game = null;
+  ui.rolling = false;
+  ui.modal = null;
+  render();
+  if (done) say('Well done! Pick players and start a game.', 3200);
+}
+
 function startGame() {
+  ui.tut = null;
   clearTimeout(timer);
   ui.online = false;
   ui.game = null;
@@ -1267,6 +1403,17 @@ const actions = {
   },
   powerFace: ({ f }) => { if (ui.power?.kind === 'set') doPower('set', { rolled: ui.power.rolled, face: +f }); },
   powerKnock: ({ card, p }) => doPower('knock', { card: +card, player: +p }),
+  startTutorial,
+  tutNext: () => {
+    if (!ui.tut) return;
+    if (TUT[ui.tut.step].last) { endTutorial(true); return; }
+    ui.tut.step++;
+    ui.hint = tutHint(ui.game);
+    render();
+  },
+  tutSkip: () => endTutorial(false),
+  themes: () => { ui.modal = 'themes'; render(); },
+  setTheme: ({ part, id }) => { setTheme(part, id); render(); },
   reactMenu: () => { if (canReact()) { ui.modal = null; ui.react = !ui.react; render(); } },
   closeReact: () => { ui.react = false; render(); },
   sendReact: ({ e }) => {
@@ -1298,7 +1445,7 @@ const actions = {
     store.set('rfi-mode', m);
     return room;
   }),
-  toSetup: () => { if (ui.online || net.unsub) { leaveRoom(); return; } keepAwake(false); clearTimeout(timer); ui.screen = 'setup'; ui.modal = null; ui.game = null; ui.rolling = false; render(); },
+  toSetup: () => { ui.tut = null; ui.hint = null; if (ui.online || net.unsub) { leaveRoom(); return; } keepAwake(false); clearTimeout(timer); ui.screen = 'setup'; ui.modal = null; ui.game = null; ui.rolling = false; render(); },
   testNet: async () => {
     ui.netTest = 'running'; render();
     const [r, backup] = await Promise.all([checkConnection(window.RFI_ICE_SERVERS), checkFallback(window.RFI_RELAY_BROKERS ?? DEFAULT_BROKERS)]);
@@ -1349,6 +1496,7 @@ app.addEventListener('click', (e) => {
   if (ui.peek && !e.target.closest('.peek') && !e.target.closest('[data-act="peek"]')) { ui.peek = null; clearTimeout(peekTimer); render(); }
   const el = e.target.closest('[data-act]');
   if (!el || (el.classList.contains('modal') && e.target !== el)) return;
+  if (ui.tut && TUT_ACTS.has(el.dataset.act) && !tutAllows(el.dataset.act, el.dataset)) { tutNudge(); return; }
   actions[el.dataset.act]?.({ ...el.dataset }, el);
 });
 app.addEventListener('input', (e) => {

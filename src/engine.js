@@ -360,3 +360,41 @@ export function powerMoves(state) {
   }
   return out;
 }
+
+/* ---------- the guided first game ---------- */
+
+/** The dice the tutorial's first roll lands on, so every lesson has an obvious move. */
+export const TUTORIAL_ROLL = [3, 5, 5, 2, 6, 1];
+
+/** A generator that hands back exactly these faces, one per call, for `roll`. */
+export const scriptedRng = (faces) => {
+  const queue = [...faces];
+  return () => ((queue.shift() ?? 1) - 0.5) / 6;
+};
+
+/**
+ * A table set up for teaching: with TUTORIAL_ROLL, the 3 finishes the first card, the two 5s the second, the
+ * 2 and 6 the third, and the 1 fits nowhere. The cards that replace them avoid the numbers still to be placed.
+ */
+export function tutorialGame() {
+  const players = [
+    { name: 'You', cpu: false, level: 'normal', score: 0, pile: [] },
+    { name: 'Coach', cpu: true, level: 'easy', score: 0, pile: [] },
+  ];
+  const card = (id, points, need) => ({ id, points, need, placed: players.map(() => []) });
+  const queue = [{ points: 2, need: [4] }, { points: 4, need: [4, 4] }, { points: 3, need: [3, 4] }];
+  const rest = buildDeck(mulberry32(21), 1).filter((c) => !c.need.includes(1)); // nothing needs a 1 early on
+  return {
+    mode: 'classic',
+    players,
+    deck: [...queue, ...rest],
+    cards: [card(1, 2, [3]), card(2, 4, [5, 5]), card(3, 3, [2, 6])],
+    current: 0,
+    firstRoll: 0,
+    phase: 'start',
+    rolled: [],
+    winner: null,
+    lastClaim: null,
+    nextId: 4,
+  };
+}
