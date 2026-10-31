@@ -11,6 +11,8 @@ import { dbStore, p2pStore, checkConnection } from './transport.js';
 import { checkFallback, DEFAULT_BROKERS, lobbyList, lobbyAnnouncer } from './relay.js';
 import { sfx, soundPrefs, setSound, setHaptics, canVibrate } from './sound.js';
 import { theme, TABLES, BACKS, DICE, setTheme } from './theme.js';
+import { stats, isUnlocked, requirementText, recordGame } from './stats.js';
+import { installReporter, errorLog, clearErrors, buildReport, VERSION } from './report.js';
 import {
   PALETTE, INK, BRUSHES, STAMPS, AVATAR_SIZE, REACTIONS, cpuName, freeColor, safeAvatar, makeSketch, paintCanvas, pointOn, strokeSegment, stampAt, clearSketch, loadAvatar, exportAvatar,
 } from './profile.js';
@@ -50,6 +52,9 @@ const ui = {
   power: null, // the power card being played: { kind, rolled? }
   turnEnds: 0, // Extreme: when the current turn runs out
   tut: null, // the guided first game: { step }
+  reportNote: '', // what the person typed in Report a problem
+  recorded: '', // the game whose result is already in the stats
+  newUnlocks: [], // looks the last game unlocked
   react: false, // the emoji picker is open
   rooms: { state: 'idle', list: [] }, // the public room list on the online screen
   netTest: '', // result of the connection check on the online screen
@@ -406,11 +411,17 @@ function powersView() {
 
 /** Pick the table colour, the back of the deck and the dice. Changes show straight away. */
 function themesView() {
-  const opt = (part, id, label, preview) => `<button class="opt ${theme[part] === id ? 'on' : ''}" data-act="setTheme" data-part="${part}" data-id="${id}" aria-pressed="${theme[part] === id}">${preview}<span>${label}</span></button>`;
+  const opt = (part, id, label, preview) => {
+    const open = isUnlocked(part, id);
+    return `<button class="opt ${theme[part] === id ? 'on' : ''} ${open ? '' : 'locked'}" data-act="setTheme" data-part="${part}" data-id="${id}" aria-pressed="${theme[part] === id}" ${open ? '' : `aria-label="${label}, locked. ${requirementText(part, id)}"`}>
+      ${preview}<span>${label}</span>${open ? '' : `<small class="need">🔒 ${requirementText(part, id)}</small>`}</button>`;
+  };
   return `<div class="modal"><div class="sheet themes"><h2>🎨 Themes</h2>
-    <h3>Table</h3><div class="opts">${TABLES.map((t) => opt('table', t.id, t.name, `<span class="tb" data-tb="${t.id}"></span>`)).join('')}</div>
-    <h3>Deck back</h3><div class="opts">${BACKS.map((b) => opt('back', b.id, b.name, `<span class="bk" data-bk="${b.id}"></span>`)).join('')}</div>
-    <h3>Dice</h3><div class="opts">${DICE.map((d) => opt('dice', d.id, d.name, `<span class="dpv" data-ds="${d.id}">${die(5, '')}</span>`)).join('')}</div>
+    <p class="statline">${stats.games} games · ${stats.wins} wins · best streak ${stats.bestStreak} · ${stats.claims} cards claimed</p>
+    <h3>Table</h3><div class="opts">${TABLES.map((x) => opt('table', x.id, x.name, `<span class="tb" data-tb="${x.id}"></span>`)).join('')}</div>
+    <h3>Deck back</h3><div class="opts">${BACKS.map((x) => opt('back', x.id, x.name, `<span class="bk" data-bk="${x.id}"></span>`)).join('')}</div>
+    <h3>Dice</h3><div class="opts">${DICE.map((x) => opt('dice', x.id, x.name, `<span class="dpv" data-ds="${x.id}">${die(5, '')}</span>`)).join('')}</div>
+    <p class="tag">Play games to unlock more looks.</p>
     <button class="btn primary" data-act="closeModal">Done</button></div></div>`;
 }
 
@@ -605,6 +616,31 @@ function editorView() {
   </div></div>`;
 }
 
+const lookName = ({ part, id }) => `${({ table: TABLES, back: BACKS, dice: DICE }[part].find((x) => x.id === id) || { name: id }).name} ${({ table: 'table', back: 'deck back', dice: 'dice' })[part]}`;
+const unlockedLine = () => (ui.newUnlocks.length ? `<p class="unlock">🔓 Unlocked: ${ui.newUnlocks.map(lookName).join(', ')}. See 🎨 Themes.</p>` : '');
+
+/** What the app was doing, without anything personal: for a problem report. */
+const reportContext = () => ({
+  Screen: ui.screen,
+  Game: ui.game ? `${ui.game.mode}, ${ui.game.players.length} players, to ${E.targetOf(ui.game)}, ${E.diceOf(ui.game)} dice, phase ${ui.game.phase}` : 'none',
+  Online: ui.online ? `${net.store?.kind || '?'} (${ui.conn})` : 'no',
+});
+
+function reportView() {
+  const text = buildReport(ui.reportNote, reportContext());
+  const mail = typeof window.RFI_FEEDBACK_EMAIL === 'string' && window.RFI_FEEDBACK_EMAIL.includes('@');
+  const n = errorLog().length;
+  return `<div class="modal"><div class="sheet report"><h2>Report a problem</h2>
+    <p class="tag">Tell us what happened. The report holds your device and browser, what the app was doing, and the ${n} recent error${n === 1 ? '' : 's'} it noted. No names, room codes or drawings. Nothing is sent until you choose how.</p>
+    <textarea id="reportnote" rows="3" maxlength="1000" placeholder="What went wrong? What were you doing?" aria-label="What happened">${esc(ui.reportNote)}</textarea>
+    <details><summary>See the report</summary><pre>${esc(text)}</pre></details>
+    ${navigator.share ? '<button class="btn primary" data-act="reportShare">Share…</button>' : ''}
+    <button class="btn ${navigator.share ? '' : 'primary'}" data-act="reportCopy">Copy report</button>
+    ${mail ? '<button class="btn" data-act="reportMail">Email it</button>' : ''}
+    ${n ? '<button class="btn" data-act="reportClear">Clear the error log</button>' : ''}
+    <button class="btn" data-act="about">Back</button></div></div>`;
+}
+
 function modalView() {
   if (ui.ed) return editorView();
   if (ui.screen === 'game' && ui.game?.phase === 'over') {
@@ -612,6 +648,7 @@ function modalView() {
     const scores = s.players.map((p, i) => `<div class="srow">${avatarHtml(seats()[i], i, 24)}<span>${esc(p.name)}</span><b>${p.score}</b></div>`).join('');
     return `<div class="modal"><div class="sheet winner">
       <div class="trophy">${avatarHtml(seats()[s.winner], s.winner, 72)}</div><div class="big">${wins(s.players[s.winner].name)}</div><div class="scores">${scores}</div>
+      ${unlockedLine()}
       ${ui.online && !isHost() ? '<p>Waiting for the host to start a rematch…</p>' : '<button class="btn primary" data-act="rematch">Play again</button>'}
       ${ui.online && isHost() ? '<button class="btn" data-act="toLobby">Back to lobby</button>' : ''}
       <button class="btn" data-act="toSetup">${ui.online ? 'Leave room' : 'Main menu'}</button></div></div>`;
@@ -652,14 +689,17 @@ function modalView() {
       <ul>
         <li>Rollick has no accounts, ads or analytics. Your name, icon, colour and settings are saved only on your device.</li>
         <li>Online games connect players directly (peer to peer) when they can. Your name, icon and moves are sent to the other players in your room. A signalling server and relay servers help devices find each other, and they can see network addresses and connection details while you play. The host also keeps a connection open to free public message servers, so players whose network blocks direct connections can still join. When that backup route is used, moves pass through those servers. Anyone who knows your room code could see that traffic, so don't share the code publicly and don't put private information in your name or icon. Opening the Play online screen connects to those servers to show the Open rooms list. If you switch on <b>Public room</b>, the room code, your name, the game and the player count are published on those servers so other people can find the room; switch it off and the listing is removed.</li>
+        <li>If something breaks, Rollick keeps a short log of error messages on your device. Nothing is sent anywhere unless you choose Share, Copy or Email in <b>Report a problem</b>, and reports never include names, room codes or drawings.</li>
         <li>Clear the site data or remove the app to delete everything stored on your device.</li>
       </ul>
       <h3>Open-source notices</h3>
       <p>Online play uses <b>PeerJS</b> 1.5.4, released under the MIT licence. Copyright (c) 2015 Michelle Bu and Eric Zhang.</p>
       <p><small>Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions: The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software. THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.</small></p>
       <p>Emoji stamps use your device's own emoji font.</p>
+      <button class="btn" data-act="reportOpen">Report a problem</button>
       <button class="btn primary" data-act="closeModal">Close</button></div></div>`;
   }
+  if (ui.modal === 'report') return reportView();
   if (ui.modal === 'powers') return powersView();
   if (ui.modal === 'themes') return themesView();
   if (ui.modal === 'menu') {
@@ -770,6 +810,15 @@ const isMine = (s) => s.phase !== 'over' && (ui.online ? s.current === net.mySea
 const canAct = () => !!ui.game && !ui.rolling && ui.conn === 'online' && isMine(ui.game);
 
 /** Start the tumbling animation: each die lands at its own time, faces cycling until then. */
+/** Count a finished game for the stats, and note any looks it unlocked. Not for the tutorial or spectators. */
+function countGame(g) {
+  if (ui.tut || ui.recorded === g.gid) return;
+  const me = ui.online ? net.mySeat : ui.cfg.findIndex((p) => p.me);
+  if (me < 0 || !g.players[me]) return;
+  ui.recorded = g.gid;
+  ui.newUnlocks = recordGame({ won: g.winner === me, claims: (g.players[me].pile || []).length, score: g.players[me].score, mode: g.mode, online: ui.online });
+}
+
 function startRoll(count) {
   sfx.roll(count);
   const quick = reducedMotion();
@@ -835,7 +884,7 @@ function receive(next) {
   }
   render();
   if (flight) flyCard(flight);
-  if (justWon) { confetti(next.winner); setTimeout(sfx.win, 300); }
+  if (justWon) { confetti(next.winner); setTimeout(sfx.win, 300); countGame(next); }
   settle();
   tutAfterState(next);
 }
@@ -1113,6 +1162,7 @@ function endTutorial(done) {
 
 function startGame() {
   ui.tut = null;
+  ui.newUnlocks = [];
   clearTimeout(timer);
   ui.online = false;
   ui.game = null;
@@ -1438,7 +1488,11 @@ const actions = {
   },
   tutSkip: () => endTutorial(false),
   themes: () => { ui.modal = 'themes'; render(); },
-  setTheme: ({ part, id }) => { setTheme(part, id); render(); },
+  setTheme: ({ part, id }) => {
+    if (setTheme(part, id)) { sfx.tap(); render(); return; }
+    sfx.error();
+    say(`🔒 ${requirementText(part, id)} to unlock this`, 2600);
+  },
   reactMenu: () => { if (canReact()) { ui.modal = null; ui.react = !ui.react; render(); } },
   closeReact: () => { ui.react = false; render(); },
   sendReact: ({ e }) => {
@@ -1477,6 +1531,25 @@ const actions = {
     store.set('rfi-settings', JSON.stringify(ui.settings));
     return room;
   }),
+  reportOpen: () => { ui.modal = 'report'; render(); },
+  reportShare: async () => {
+    try { await navigator.share({ title: 'Rollick problem report', text: buildReport(ui.reportNote, reportContext()) }); } catch { /* cancelled */ }
+  },
+  reportCopy: async () => {
+    const text = buildReport(ui.reportNote, reportContext());
+    try { await navigator.clipboard.writeText(text); say('Report copied. Paste it into a message.', 2600); } catch {
+      const box = Object.assign(document.createElement('textarea'), { value: text });
+      document.body.appendChild(box); box.select();
+      let ok = false; try { ok = document.execCommand('copy'); } catch { /* not allowed */ }
+      box.remove();
+      say(ok ? 'Report copied. Paste it into a message.' : 'Could not copy. Open “See the report” and copy it by hand.', 3000);
+    }
+  },
+  reportMail: () => {
+    const body = buildReport(ui.reportNote, reportContext());
+    location.href = `mailto:${window.RFI_FEEDBACK_EMAIL}?subject=${encodeURIComponent(`Rollick problem report (${VERSION})`)}&body=${encodeURIComponent(body.slice(0, 1800))}`;
+  },
+  reportClear: () => { clearErrors(); say('Error log cleared', 1500); render(); },
   setMode: ({ m }) => { if (!E.MODES.includes(m)) return; ui.mode = m; store.set('rfi-mode', m); render(); },
   setRoomMode: ({ m }) => mutateRoom((room) => {
     if (room.hostUid !== net.uid || !E.MODES.includes(m) || room.status !== 'lobby') return null;
@@ -1541,6 +1614,12 @@ app.addEventListener('click', (e) => {
 });
 app.addEventListener('input', (e) => {
   if (e.target.id === 'myname') { profile.name = e.target.value; saveProfile(); return; }
+  if (e.target.id === 'reportnote') {
+    ui.reportNote = e.target.value;
+    const pre = app.querySelector('.sheet.report pre');
+    if (pre) pre.textContent = buildReport(ui.reportNote, reportContext()); // keep the preview current without redrawing the box being typed in
+    return;
+  }
   if (e.target.id === 'joincode') { ui.joinCode = e.target.value.toUpperCase(); return; }
   const i = e.target.dataset?.name;
   if (i !== undefined) {
@@ -1550,6 +1629,12 @@ app.addEventListener('input', (e) => {
 });
 
 render();
+let warned = false;
+installReporter(() => {
+  if (warned) return; // one nudge per visit is enough
+  warned = true;
+  try { say('Something went wrong. Open ⓘ, then Report a problem.', 4500); } catch { /* the screen is not ready */ }
+});
 initNet();
 
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {

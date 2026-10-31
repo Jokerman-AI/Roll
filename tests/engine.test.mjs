@@ -548,3 +548,36 @@ test('computer players finish games at every winning score and dice count, in bo
     }
   }
 });
+
+/* ---------- stats and unlockable looks ---------- */
+
+import { afterGame, isUnlocked, newlyUnlocked, requirementText, UNLOCKS } from '../src/stats.js';
+
+const fresh = { games: 0, wins: 0, claims: 0, streak: 0, bestStreak: 0, extremeWins: 0, online: 0, best: 0 };
+
+test('the first look in each group is free; the rest need playing', () => {
+  assert.ok(isUnlocked('table', 'felt', fresh));
+  assert.ok(isUnlocked('back', 'blue', fresh));
+  assert.ok(isUnlocked('dice', 'classic', fresh));
+  assert.ok(!isUnlocked('table', 'midnight', fresh));
+  assert.equal(requirementText('table', 'midnight'), 'Play 3 games');
+  assert.equal(requirementText('back', 'night'), 'Win a Rollick Extreme game');
+  assert.equal(requirementText('table', 'felt'), '');
+});
+
+test('finished games count, streaks reset on a loss, and looks unlock at their threshold', () => {
+  let s = afterGame(fresh, { won: true, claims: 4, score: 41, mode: 'classic', online: false });
+  assert.deepEqual([s.games, s.wins, s.streak, s.claims, s.best], [1, 1, 1, 4, 41]);
+  s = afterGame(s, { won: true, claims: 3, score: 40, mode: 'extreme', online: true });
+  assert.deepEqual([s.wins, s.streak, s.bestStreak, s.extremeWins, s.online], [2, 2, 2, 1, 1]);
+  s = afterGame(s, { won: false, claims: 1, score: 12, mode: 'classic', online: false });
+  assert.deepEqual([s.streak, s.bestStreak, s.games], [0, 2, 3]);
+  const opened = newlyUnlocked(fresh, s).map((u) => `${u.part}:${u.id}`).sort();
+  assert.deepEqual(opened, ['back:mint', 'back:night', 'dice:bubble', 'table:midnight', 'table:wine']);
+  assert.equal(newlyUnlocked(s, s).length, 0, 'nothing new the second time');
+});
+
+test('every look that can be locked has a requirement the stats can meet', () => {
+  const rich = { games: 99, wins: 99, claims: 99, streak: 0, bestStreak: 0, extremeWins: 9, online: 9, best: 99 };
+  for (const part of Object.keys(UNLOCKS)) for (const id of Object.keys(UNLOCKS[part])) assert.ok(isUnlocked(part, id, rich) && requirementText(part, id));
+});
