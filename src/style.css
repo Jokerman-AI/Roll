@@ -435,3 +435,33 @@ h1 { font-size: 2.4rem; margin: 0; letter-spacing: -.02em; }
 .tag.center { text-align: center; }
 .nettest { display: flex; flex-direction: column; gap: 10px; }
 .notice.ok { background: #2fb36d33; border-color: #2fb36d88; }
+
+/* game picker, and Rollick Extreme */
+.modes { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; background: #0003; border-radius: 14px; padding: 4px; }
+.modes button { border: 0; background: none; border-radius: 11px; min-height: 44px; font-weight: 800; color: var(--muted); }
+.modes button.on { background: #ffd34d; color: #3a2a00; }
+.modes button:disabled { opacity: .5; }
+.turnbar { position: absolute; left: 14px; right: 14px; top: 4px; height: 4px; border-radius: 4px; background: #ffffff1a; overflow: hidden; pointer-events: none; }
+.turnbar i { display: block; height: 100%; width: calc(var(--p, 1) * 100%); background: #ffd34d; border-radius: 4px; transition: width .5s linear; }
+.turnbar.low i { background: #e5484d; }
+.tray { position: relative; }
+.deckback { position: relative; }
+.deckback .x2 { position: absolute; top: 4px; right: 6px; font-style: normal; font-weight: 900; font-size: .8em; color: #ffd34d; }
+.btn.bolt { position: relative; }
+.btn.bolt .count { position: absolute; top: 2px; right: 3px; min-width: 18px; height: 18px; border-radius: 9px; background: #ffd34d; color: #3a2a00; font-size: .7rem; font-weight: 900; display: grid; place-items: center; padding: 0 4px; }
+.sheet.powers h2 { margin: 0 0 6px; }
+.sheet .pcard { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid #0001; }
+.sheet .pcard .pi { font-size: 1.7rem; flex: none; }
+.sheet .pcard div { flex: 1; display: flex; flex-direction: column; line-height: 1.25; }
+.sheet .pcard small { opacity: .75; }
+.sheet .pcard .btn { flex: none; width: auto; margin: 0; }
+.sheet .pickrow { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; padding: 8px 0 4px; }
+.sheet .pickrow .die { --size: 56px; cursor: pointer; }
+.sheet .btn.target { display: flex; align-items: center; gap: 10px; text-align: left; }
+.sheet .none { opacity: .7; }
+.sheet h3 { margin: 14px 0 4px; font-size: 1rem; }
+.sheet .orow { display: flex; align-items: center; gap: 8px; padding: 3px 0; }
+.sheet .orow span:not(.av) { flex: 1; }
+.sheet .orow .av { flex: none; }
+.sheet .sum { margin-top: 10px; }
+.sheet .sumh { font-size: .75rem; letter-spacing: .1em; text-transform: uppercase; opacity: .7; }

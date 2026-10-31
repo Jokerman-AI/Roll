@@ -8,9 +8,17 @@ const engine = read('src/engine.js');
 const names = [...engine.matchAll(/^export (?:const|function) (\w+)/gm)].map((m) => m[1]);
 const engineJs = `const E = (() => {\n${engine.replace(/^export /gm, '')}\nreturn { ${names.join(', ')} };\n})();`;
 
+// Modules that keep their own helper names go in a function of their own, so names such as `sleep` cannot clash.
+const wrap = (src) => {
+  const exported = [...src.matchAll(/^export (?:const|function) (\w+)/gm)].map((m) => m[1]);
+  const body = src.replace(/^import [\s\S]*?;\n/gm, '').replace(/^export /gm, '');
+  return `const { ${exported.join(', ')} } = (() => {\n${body}\nreturn { ${exported.join(', ')} };\n})();`;
+};
+
 const strip = (src) => src.replace(/^import [\s\S]*?;\n/gm, '').replace(/^export /gm, '');
 const profile = strip(read('src/profile.js'));
-const transport = strip(read('src/transport.js'));
+const relay = wrap(read('src/relay.js'));
+const transport = wrap(read('src/transport.js'));
 const ai = strip(read('src/ai.js'));
 const app = strip(read('src/app.js'))
   .replace(/\nif \('serviceWorker'[\s\S]*$/, '\n');
@@ -31,6 +39,7 @@ body { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: m
 ${engineJs}
 ${ai}
 ${profile}
+${relay}
 ${transport}
 ${app}
 </script>

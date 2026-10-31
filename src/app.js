@@ -1,6 +1,12 @@
 import * as E from './engine.js';
 import { aiNextAction } from './ai.js';
 
+const modeLabel = (m) => (m === 'extreme' ? 'Rollick Extreme' : 'Rollick');
+const MODE_BLURB = {
+  classic: `Roll the dice, fill the cards, be first to ${E.TARGET_SCORE}.`,
+  extreme: 'Power cards, bonus rolls, chaos rounds and a turn timer. First to 40.',
+};
+const TURN_MS = 60000; // Extreme: time for one turn
 const levelLabel = (l) => (E.LEVEL_NAMES.includes(l) ? l : 'normal').replace(/^./, (c) => c.toUpperCase());
 import { dbStore, p2pStore, checkConnection } from './transport.js';
 import { checkFallback, DEFAULT_BROKERS } from './relay.js';
@@ -38,6 +44,9 @@ const ui = {
   screen: 'setup', // setup | online | lobby | game
   online: false,
   joinCode: '',
+  mode: store.get('rfi-mode') === 'extreme' ? 'extreme' : 'classic', // classic | extreme
+  power: null, // the power card being played: { kind, rolled? }
+  turnEnds: 0, // Extreme: when the current turn runs out
   netTest: '', // result of the connection check on the online screen
   onlineError: '', // why the last create/join failed, shown on the online screen
   setup: [
@@ -115,6 +124,13 @@ const LOGO = `<svg class="logo" viewBox="0 0 120 120" aria-hidden="true">
   <g transform="rotate(12 80 80)"><rect x="52" y="52" width="56" height="56" rx="13" fill="#3b82f6"/><g fill="#fff"><circle cx="67" cy="67" r="5.5"/><circle cx="93" cy="67" r="5.5"/><circle cx="67" cy="93" r="5.5"/><circle cx="93" cy="93" r="5.5"/></g></g>
 </svg>`;
 
+/** Two games in one app: the original, and the one with power cards. */
+function modePicker(enabled) {
+  return `<div class="modes" role="group" aria-label="Game">
+    ${E.MODES.map((m) => `<button class="${ui.mode === m ? 'on' : ''}" data-act="setMode" data-m="${m}" aria-pressed="${ui.mode === m}" ${enabled ? '' : 'disabled'}>${m === 'extreme' ? '⚡ ' : ''}${modeLabel(m)}</button>`).join('')}
+  </div>`;
+}
+
 function setupView() {
   const rows = ui.setup.map((p, i) => `
     <div class="prow">
@@ -130,7 +146,8 @@ function setupView() {
   const saved = net.store && savedSession();
   return `
     <div class="setup">
-      <header class="hero">${LOGO}<h1>Rollick</h1><p class="tag">Roll the dice, fill the cards, be first to ${E.TARGET_SCORE}.</p></header>
+      <header class="hero">${LOGO}<h1>Rollick</h1><p class="tag">${MODE_BLURB[ui.mode]}</p></header>
+      ${modePicker(true)}
       ${saved ? `<button class="btn resume" data-act="resume">Return to room ${esc(saved.code)}</button>` : ''}
       <section class="panel" aria-label="Players">
         <h2>Players</h2>
@@ -196,6 +213,7 @@ function lobbyView() {
   return `
     <div class="setup">
       <header class="hero">${LOGO}<p class="tag">Room code</p><h1 class="code">${esc(room.code)}</h1></header>
+      ${host ? modePicker(true).replace(/data-act="setMode"/g, 'data-act="setRoomMode"') : `<p class="tag center">Game: <b>${modeLabel(room.mode)}</b></p>`}
       <button class="btn" data-act="invite">Invite friends</button>
       <section class="panel" aria-label="Players">
         <h2>Players · ${room.seats.length} of ${MAX_PLAYERS}</h2>
@@ -207,6 +225,65 @@ function lobbyView() {
         : '<p class="tag center">Waiting for the host to start…</p>'}
       <nav class="links"><button data-act="toSetup">Leave room</button></nav>
     </div>`;
+}
+
+const turnFraction = () => Math.max(0, Math.min(1, (ui.turnEnds - Date.now()) / TURN_MS)).toFixed(3);
+
+/** What just happened with the power cards and chaos rules, in a sentence. */
+function eventsText(s) {
+  const who = (p) => s.players[p].name;
+  return (Array.isArray(s.events) ? s.events : []).map((e) => {
+    const pw = E.POWERS[e?.kind] || { icon: '', name: 'a card' };
+    if (!s.players[e?.player] && e?.type !== 'chaos') return '';
+    if (e.type === 'lucky') return `${who(e.player)} rolled three of a kind and won ${pw.icon} ${pw.name}!`;
+    if (e.type === 'earned') return `${who(e.player)} earned ${pw.icon} ${pw.name}.`;
+    if (e.type === 'power') return `${who(e.player)} played ${pw.icon} ${pw.name}${e.target !== undefined ? ` on ${who(e.target)}` : ''}.`;
+    if (e.type === 'skipped') return `${who(e.player)} misses a turn.`;
+    if (e.type === 'chaos') return e.kind === 'double' ? '⚡ Double points this round!' : '⚡ Chaos! Every die goes home.';
+    return '';
+  }).filter(Boolean).join(' ');
+}
+
+/** The power-card sheet: your cards, and the little steps to play one. */
+function powersView() {
+  const s = ui.game;
+  const holder = ui.online ? net.mySeat : s.current;
+  if (!s || s.mode !== 'extreme' || holder < 0) return '';
+  const hand = Array.isArray(s.players[holder].powers) ? s.players[holder].powers.filter((k) => E.POWERS[k]) : [];
+  const myTurn = canAct() && s.phase === 'placing' && holder === s.current;
+  const pw = ui.power;
+  const close = '<button class="btn primary" data-act="closeModal">Close</button>';
+  let body;
+  if (pw && (pw.kind === 'reroll' || (pw.kind === 'set' && pw.rolled === undefined))) {
+    body = `<h2>${E.POWERS[pw.kind].icon} ${E.POWERS[pw.kind].name}</h2><p>Pick a die.</p>
+      <div class="pickrow">${s.rolled.map((f, i) => die(f, 'owned', `style="${diceVars(seats()[holder], holder)}" data-act="powerDie" data-i="${i}" role="button" tabindex="0"`)).join('')}</div>
+      <button class="btn" data-act="powerBack">Back</button>`;
+  } else if (pw?.kind === 'set') {
+    body = `<h2>${E.POWERS.set.icon} ${E.POWERS.set.name}</h2><p>Turn the ${s.rolled[pw.rolled]} into…</p>
+      <div class="pickrow">${[1, 2, 3, 4, 5, 6].filter((f) => f !== s.rolled[pw.rolled]).map((f) => die(f, 'owned', `style="${diceVars(seats()[holder], holder)}" data-act="powerFace" data-f="${f}" role="button" tabindex="0"`)).join('')}</div>
+      <button class="btn" data-act="powerBack">Back</button>`;
+  } else if (pw?.kind === 'knock') {
+    const rows = [];
+    s.cards.forEach((c, ci) => s.players.forEach((pl, p) => {
+      if (p !== holder && c.placed[p].length) rows.push(`<button class="btn target" data-act="powerKnock" data-card="${ci}" data-p="${p}">${avatarHtml(seats()[p], p, 26)}<span>${esc(pl.name)}: ${c.placed[p].length} on the ${c.points}-point card</span></button>`);
+    }));
+    body = `<h2>${E.POWERS.knock.icon} ${E.POWERS.knock.name}</h2><p>Remove one die from a rival.</p>${rows.join('') || '<p class="none">Nobody has dice on a card.</p>'}<button class="btn" data-act="powerBack">Back</button>`;
+  } else {
+    const list = hand.length
+      ? hand.map((k) => {
+        const info = E.POWERS[k];
+        const ok = myTurn && (k === 'bonus' || k === 'skip' ? !E.powerProblem(s, k) : E.powerMoves(s).some((m) => m.kind === k));
+        return `<div class="pcard"><span class="pi">${info.icon}</span><div><b>${info.name}</b><small>${info.text}</small></div><button class="btn small" data-act="playPower" data-k="${k}" ${ok ? '' : 'disabled'}>Play</button></div>`;
+      }).join('')
+      : '<p class="none">You have no power cards. Claim a card worth 7 or more points, or roll three of a kind, to win one.</p>';
+    const others = s.players.map((pl, p) => ({ pl, p })).filter(({ p }) => p !== holder && s.players[p].powers.length)
+      .map(({ pl, p }) => `<div class="orow">${avatarHtml(seats()[p], p, 22)}<span>${esc(pl.name)}</span><b>⚡ ${pl.powers.length}</b></div>`).join('');
+    body = `<h2>⚡ Power cards</h2>
+      ${myTurn ? '<p class="tag">Play cards during your turn, after you roll.</p>' : '<p class="tag">You can play these on your own turn, after you roll.</p>'}
+      ${list}
+      ${others ? `<div class="sum"><div class="sumh">Rivals hold</div>${others}</div>` : ''}${close}`;
+  }
+  return `<div class="modal"><div class="sheet powers">${body}</div></div>`;
 }
 
 function statusText(s) {
@@ -316,15 +393,20 @@ function gameView() {
   const canRoll = human && s.phase === 'start' && E.handSize(s, s.current) > 0;
   const canEnd = human && s.phase === 'placing' && !ui.rolling;
   const noMoves = canEnd && !E.legalMoves(s).length;
+  const extreme = s.mode === 'extreme';
+  const holder = ui.online ? net.mySeat : s.current; // whose power cards the bolt button shows
+  const held = extreme && holder >= 0 && Array.isArray(s.players[holder].powers) ? s.players[holder].powers.length : 0;
+  const timed = extreme && human && s.phase !== 'over';
 
   return `
     <div class="game">
     <div class="table">
     <div class="score" data-rows="${Math.ceil(s.players.length / 4) > 1 ? 2 : 1}" style="--per:${Math.ceil(s.players.length / Math.ceil(s.players.length / 4))}">${chips}</div>
     <div class="status"><span>${statusText(s)}</span></div>
-    <div class="cards"><div class="cardgrid" data-n="${s.cards.length}">${s.cards.map((c, i) => cardView(s, c, i)).join('')}<div class="deckback" aria-hidden="true"><b>${s.deck.length}</b><span>left</span></div></div></div>
+    <div class="cards"><div class="cardgrid" data-n="${s.cards.length}">${s.cards.map((c, i) => cardView(s, c, i)).join('')}<div class="deckback ${extreme && s.chaos?.kind === 'double' ? 'x2on' : ''}" aria-hidden="true"><b>${s.deck.length}</b><span>left</span>${extreme && s.chaos?.kind === 'double' ? '<em class="x2">×2</em>' : ''}</div></div></div>
     </div>
     <div class="tray">
+      ${timed ? `<div class="turnbar" style="--p:${turnFraction()}" aria-hidden="true"><i></i></div>` : ''}
       <div class="dice">${tray}</div>
       <div class="actions">
         ${s.phase === 'start' ? `
@@ -332,6 +414,7 @@ function gameView() {
           <button class="btn ${mustTakeBack ? 'primary pulse' : ''} ${ui.hint?.button === 'takeback' ? 'hinted' : ''}" data-act="takeBack" ${canTakeBack ? '' : 'disabled'} aria-label="Take back all your dice and roll all six">Take back<small>&amp; roll all</small></button>`
           : `<button class="btn ${noMoves ? 'primary pulse' : ''}" data-act="end" ${canEnd ? '' : 'disabled'}>End turn</button>
           ${human && ui.undo.length ? '<button class="btn icon" data-act="undo" aria-label="Undo last placement" title="Undo">↶</button>' : ''}`}
+        ${extreme ? `<button class="btn icon bolt" data-act="powers" aria-label="Power cards (${held})" title="Power cards" ${holder >= 0 ? '' : 'disabled'}>⚡${held ? `<span class="count">${held}</span>` : ''}</button>` : ''}
         <button class="btn icon" data-act="hint" aria-label="Hint" title="Hint" ${human && !ui.rolling ? '' : 'disabled'}>💡</button>
         <button class="btn icon" data-act="menu" aria-label="Menu">☰</button>
       </div>
@@ -415,6 +498,13 @@ function modalView() {
       </ol>
       <p>A die on a card is filled with the colour of the player covering it. If two or more players cover the same number, the die is split into slices of their colours and a number shows how many. <b>Tap any die on a card</b> to see who has it and how far along each player is on that card. Other players' dice can't score cards for you, but they can beat you to them!</p>
       <p>Play starts with a two-dice roll-off; 5+ players use two sets (60 cards) and four face-up cards.</p>
+      <h3>⚡ Rollick Extreme</h3>
+      <p>The same game with extra rules:</p>
+      <ul>
+        <li><b>Power cards.</b> Everyone starts with one and can hold three. Win another by claiming a card worth 7+ points or by rolling three of a kind. Play them on your turn after rolling: 🔄 Re-roll a die, 🎯 Set a die to any number, 💥 Knock a rival's die off a card, ⭐ Bonus +${E.BONUS_POINTS} on your next claim, ⏭️ Skip the next player.</li>
+        <li><b>Chaos rounds.</b> Each new round can bring double points, or send every die back home.</li>
+        <li><b>Turn timer.</b> You have a minute per turn. If it runs out, your turn is played for you.</li>
+      </ul>
       <button class="btn primary" data-act="closeModal">Got it</button></div></div>`;
   }
   if (ui.modal === 'about') {
@@ -431,7 +521,7 @@ function modalView() {
       <h3>Privacy</h3>
       <ul>
         <li>Rollick has no accounts, ads or analytics. Your name, icon, colour and settings are saved only on your device.</li>
-        <li>Online games connect players directly (peer to peer) when they can. Your name, icon and moves are sent to the other players in your room. A signalling server and relay servers help devices find each other, and they can see network addresses and connection details while you play. If a direct connection is blocked, moves are passed through free public message servers instead. Anyone who knows your room code could see that traffic, so don't share the code publicly and don't put private information in your name or icon.</li>
+        <li>Online games connect players directly (peer to peer) when they can. Your name, icon and moves are sent to the other players in your room. A signalling server and relay servers help devices find each other, and they can see network addresses and connection details while you play. The host also keeps a connection open to free public message servers, so players whose network blocks direct connections can still join. When that backup route is used, moves pass through those servers. Anyone who knows your room code could see that traffic, so don't share the code publicly and don't put private information in your name or icon.</li>
         <li>Clear the site data or remove the app to delete everything stored on your device.</li>
       </ul>
       <h3>Open-source notices</h3>
@@ -440,6 +530,7 @@ function modalView() {
       <p>Emoji stamps use your device's own emoji font.</p>
       <button class="btn primary" data-act="closeModal">Close</button></div></div>`;
   }
+  if (ui.modal === 'powers') return powersView();
   if (ui.modal === 'menu') {
     return `<div class="modal" data-act="closeModal"><div class="sheet"><h2>Menu</h2>
       <button class="btn" data-act="rules">How to play</button>
@@ -584,16 +675,20 @@ function receive(next) {
   ui.selected = null;
   ui.hint = null;
   if (!sameGame || next.current !== prev.current || next.phase !== 'placing') ui.undo = [];
+  if (!sameGame || next.current !== prev.current) ui.turnEnds = Date.now() + TURN_MS;
+  if (ui.modal === 'powers' && (!sameGame || next.current !== prev.current || next.phase !== 'placing')) { ui.modal = null; ui.power = null; }
+  const happened = sameGame && prev.rev !== next.rev ? eventsText(next) : '';
 
   // Remember the claimed card on screen before it is re-rendered away, so it can fly to its owner.
   let flight = null;
   if (next.lastClaim && sameGame && prev.rev !== next.rev) {
     const c = next.lastClaim;
-    say(`${next.players[c.player].name} claimed ${c.points} points!`);
+    say(`${next.players[c.player].name} claimed ${c.points} points!${happened ? ` ${happened}` : ''}`, happened ? 3200 : 1800);
     const gone = prev.cards.findIndex((card) => !next.cards.some((n) => n.id === card.id));
     const el = gone >= 0 ? app.querySelector(`.gcard[data-card="${gone}"]`) : null;
     if (el && !reducedMotion()) flight = { html: el.outerHTML, rect: el.getBoundingClientRect(), player: c.player, from: prev.players[c.player].score, to: next.players[c.player].score };
   }
+  if (happened && !next.lastClaim) say(happened, 3200);
   if (sameGame && prev.phase === 'start' && next.phase === 'placing') startRoll(next.rolled.length);
   const justWon = sameGame && next.phase === 'over' && prev.phase !== 'over';
   render();
@@ -704,6 +799,11 @@ function showHint() {
     say(a.type === 'takeback' ? 'Hint: take back your dice and roll all six' : `Hint: roll your ${E.handSize(s, s.current)} dice`, 3500);
   } else {
     const a = aiNextAction(s, { level: 'hard' });
+    if (a.type === 'power') {
+      const pw = E.POWERS[a.kind];
+      say(`Hint: play ${pw.icon} ${pw.name}`, 3500);
+      return;
+    }
     if (a.type !== 'place') {
       say(E.legalMoves(s).length ? 'Hint: placing more dice would not help. End your turn.' : 'Hint: nothing fits. End your turn.', 3500);
       return;
@@ -715,6 +815,34 @@ function showHint() {
   hintTimer = setTimeout(() => { ui.hint = null; render(); }, 4000);
 }
 
+/** Play a power card for the person at this device, then close the sheet. */
+function doPower(kind, args) {
+  if (!canAct()) return;
+  try {
+    const next = E.usePower(ui.game, kind, args);
+    ui.modal = null;
+    ui.power = null;
+    commit(next);
+  } catch (e) {
+    say(e.message);
+  }
+}
+
+/** Extreme: a turn that runs out is played for you: roll if you have not, otherwise end it. */
+function turnClock() {
+  const s = ui.game;
+  if (ui.screen !== 'game' || !s || s.mode !== 'extreme' || s.phase === 'over' || !isMine(s) || s.players[s.current].cpu) return;
+  const bar = app.querySelector('.turnbar');
+  if (bar) { bar.style.setProperty('--p', turnFraction()); bar.classList.toggle('low', ui.turnEnds - Date.now() < 10000); }
+  if (Date.now() < ui.turnEnds || !canAct()) return;
+  ui.modal = null;
+  ui.power = null;
+  ui.turnEnds = Date.now() + TURN_MS; // in case the move cannot be sent right now
+  say('Out of time!');
+  if (s.phase === 'start') { if (E.handSize(s, s.current) > 0) doRoll(); else doTakeBack(); } else { clearTimeout(timer); commit(E.endTurn(s)); }
+}
+setInterval(turnClock, 500);
+
 function doRoll() { commit(E.roll(ui.game)); }
 function doTakeBack() { commit(E.roll(E.takeBack(ui.game))); }
 
@@ -725,11 +853,12 @@ function cpuStep() {
   if (a.type === 'takeback') commit(E.takeBack(s));
   else if (a.type === 'roll') doRoll();
   else if (a.type === 'place') commit(E.place(s, a.rolled, a.card));
+  else if (a.type === 'power') commit(E.usePower(s, a.kind, a));
   else commit(E.endTurn(s));
 }
 
-function freshGame(configs) {
-  const g = E.newGame(configs);
+function freshGame(configs, mode = 'classic') {
+  const g = E.newGame(configs, Math.random, { mode });
   g.rev = 0;
   g.gid = Math.random().toString(36).slice(2);
   return g;
@@ -741,7 +870,7 @@ function startGame() {
   ui.game = null;
   ui.cfg = ui.setup.map((p) => ({ ...p }));
   keepAwake(true);
-  const g = freshGame(ui.cfg);
+  const g = freshGame(ui.cfg, ui.mode);
   ui.screen = 'game';
   ui.rolling = false;
   ui.modal = null;
@@ -899,7 +1028,7 @@ async function createRoom() {
     if (!ref) throw new Error('taken');
     attach(ref);
     saveSession(code, true);
-    await pushRoom({ code, hostUid: net.uid, status: 'lobby', seats: [{ uid: net.uid, ...mySeatData([]) }], game: null, createdAt: Date.now() });
+    await pushRoom({ code, hostUid: net.uid, status: 'lobby', mode: ui.mode, seats: [{ uid: net.uid, ...mySeatData([]) }], game: null, createdAt: Date.now() });
   } catch (e) { leaveRoom(); ui.screen = 'online'; ui.onlineError = net.store.kind === 'db' ? 'Could not create a room. The page needs to be shared with you as an editor.' : failText(e); }
   net.busy = false; render();
 }
@@ -961,7 +1090,7 @@ async function invite() {
 async function startOnline() {
   await mutateRoom((room) => {
     if (room.hostUid !== net.uid || room.seats.length < 2) return null;
-    room.game = freshGame(room.seats);
+    room.game = freshGame(room.seats, room.mode);
     room.status = 'playing';
     return room;
   });
@@ -1022,6 +1151,30 @@ const actions = {
     ui.modal = null;
     commit(g);
   },
+  powers: () => { if (ui.game?.mode === 'extreme') { ui.power = null; ui.modal = 'powers'; render(); } },
+  playPower: ({ k }) => {
+    if (!canAct() || ui.game.phase !== 'placing') return;
+    if (k === 'bonus' || k === 'skip') { doPower(k, {}); return; }
+    ui.power = { kind: k };
+    render();
+  },
+  powerBack: () => { ui.power = null; render(); },
+  powerDie: ({ i }) => {
+    if (!ui.power) return;
+    if (ui.power.kind === 'reroll') { doPower('reroll', { rolled: +i }); return; }
+    ui.power = { kind: 'set', rolled: +i };
+    render();
+  },
+  powerFace: ({ f }) => { if (ui.power?.kind === 'set') doPower('set', { rolled: ui.power.rolled, face: +f }); },
+  powerKnock: ({ card, p }) => doPower('knock', { card: +card, player: +p }),
+  setMode: ({ m }) => { if (!E.MODES.includes(m)) return; ui.mode = m; store.set('rfi-mode', m); render(); },
+  setRoomMode: ({ m }) => mutateRoom((room) => {
+    if (room.hostUid !== net.uid || !E.MODES.includes(m) || room.status !== 'lobby') return null;
+    room.mode = m;
+    ui.mode = m;
+    store.set('rfi-mode', m);
+    return room;
+  }),
   toSetup: () => { if (ui.online || net.unsub) { leaveRoom(); return; } keepAwake(false); clearTimeout(timer); ui.screen = 'setup'; ui.modal = null; ui.game = null; ui.rolling = false; render(); },
   testNet: async () => {
     ui.netTest = 'running'; render();
@@ -1036,7 +1189,7 @@ const actions = {
   rules: () => { ui.modal = 'rules'; render(); },
   about: () => { ui.modal = 'about'; render(); },
   menu: () => { ui.modal = 'menu'; render(); },
-  closeModal: () => { ui.modal = null; render(); },
+  closeModal: () => { ui.modal = null; ui.power = null; render(); },
   roll: () => { if (canAct() && ui.game.phase === 'start' && E.handSize(ui.game, ui.game.current) > 0) doRoll(); },
   end: () => { if (canAct() && ui.game.phase === 'placing') { clearTimeout(timer); commit(E.endTurn(ui.game)); } },
   takeBack: () => { if (canAct() && ui.game.phase === 'start') doTakeBack(); },
@@ -1094,5 +1247,5 @@ if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
 
 // The dice in the tray are plain elements acting as buttons; let the keyboard use them too.
 document.addEventListener('keydown', (e) => {
-  if ((e.key === 'Enter' || e.key === ' ') && e.target?.matches?.('.dice .die[data-act]')) { e.preventDefault(); e.target.click(); }
+  if ((e.key === 'Enter' || e.key === ' ') && e.target?.matches?.('.die[data-act][role="button"]')) { e.preventDefault(); e.target.click(); }
 });

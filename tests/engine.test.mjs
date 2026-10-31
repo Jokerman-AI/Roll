@@ -309,3 +309,160 @@ test('each computer player keeps its own difficulty', () => {
   const g = E.newGame([{ name: 'A', cpu: true, level: 'hard' }, { name: 'B', cpu: true, level: 'easy' }, { name: 'C', cpu: true, level: 'bogus' }, { name: 'D' }]);
   assert.deepEqual(g.players.map((p) => p.level), ['hard', 'easy', 'normal', 'normal']);
 });
+
+/* ---------- Rollick Extreme ---------- */
+
+const xcfg = [{ name: 'A' }, { name: 'B' }, { name: 'C' }];
+const extreme = (seed = 3) => E.newGame(xcfg, E.mulberry32(seed), { mode: 'extreme' });
+const placing = (s, rolled, powers = []) => {
+  const t = structuredClone(s);
+  t.phase = 'placing';
+  t.rolled = rolled;
+  t.players[t.current].powers = powers;
+  return t;
+};
+
+test('classic games have no power cards; extreme players start with one', () => {
+  const c = E.newGame(xcfg, E.mulberry32(1));
+  assert.equal(c.mode, 'classic');
+  assert.ok(c.players.every((p) => p.powers === undefined));
+  const x = extreme();
+  assert.equal(x.mode, 'extreme');
+  assert.ok(x.players.every((p) => p.powers.length === 1 && E.POWER_KINDS.includes(p.powers[0])));
+  assert.deepEqual(E.newGame(xcfg, E.mulberry32(1), { mode: 'bogus' }).mode, 'classic');
+});
+
+test('re-roll, set and bonus change the right things and use up the card', () => {
+  const s = placing(extreme(), [2, 3, 4], ['reroll', 'set', 'bonus']);
+  const r = E.usePower(s, 'reroll', { rolled: 1 }, () => 0.99);
+  assert.deepEqual(r.rolled, [2, 6, 4]);
+  assert.deepEqual(r.players[r.current].powers, ['set', 'bonus']);
+  const t = E.usePower(r, 'set', { rolled: 0, face: 5 });
+  assert.deepEqual(t.rolled, [5, 6, 4]);
+  const u = E.usePower(t, 'bonus');
+  assert.equal(u.bonus, E.BONUS_POINTS);
+  assert.deepEqual(u.players[u.current].powers, []);
+  assert.deepEqual(s.rolled, [2, 3, 4], 'the original state is untouched');
+});
+
+test('power cards are refused when they should be', () => {
+  const s = placing(extreme(), [2, 3], ['reroll']);
+  assert.throws(() => E.usePower(s, 'set', { rolled: 0, face: 2 }), /hold/);
+  assert.throws(() => E.usePower(s, 'reroll', { rolled: 9 }), /die/);
+  const start = structuredClone(s);
+  start.phase = 'start';
+  assert.throws(() => E.usePower(start, 'reroll', { rolled: 0 }), /Roll first/);
+  assert.throws(() => E.usePower(E.newGame(xcfg, E.mulberry32(1)), 'reroll', {}), /Extreme/);
+  const k = placing(extreme(), [2], ['knock']);
+  assert.throws(() => E.usePower(k, 'knock', { card: 0, player: k.current }), /rival/);
+  assert.throws(() => E.usePower(k, 'knock', { card: 0, player: (k.current + 1) % 3 }), /rival/, 'nothing to knock off');
+});
+
+test('knock off removes a rival die and skip makes the next player miss a turn', () => {
+  const s = placing(extreme(), [2], ['knock', 'skip']);
+  const rival = (s.current + 1) % 3;
+  s.cards[0].placed[rival] = [s.cards[0].need[0]];
+  const k = E.usePower(s, 'knock', { card: 0, player: rival });
+  assert.equal(k.cards[0].placed[rival].length, 0);
+  assert.equal(E.handSize(k, rival), E.DICE_PER_PLAYER);
+  const sk = E.usePower(k, 'skip');
+  assert.equal(sk.skipNext, true);
+  assert.throws(() => E.usePower(placing(sk, [1], ['skip']), 'skip'), /Already/);
+  const after = E.endTurn(sk, () => 0.9);
+  assert.equal(after.current, (s.current + 2) % 3, 'the next player was skipped');
+  assert.equal(after.skipNext, false);
+  assert.deepEqual(after.events[0].type, 'skipped');
+});
+
+test('a bonus is added to the next claim and lost if unused', () => {
+  const s = placing(extreme(), [], []);
+  const card = s.cards[0];
+  const me = s.current;
+  card.placed[me] = card.need.slice(1);
+  s.rolled = [card.need[0]];
+  s.bonus = E.BONUS_POINTS;
+  const claimed = E.place(s, 0, 0, () => 0.5);
+  assert.equal(claimed.lastClaim.points, card.points + E.BONUS_POINTS);
+  assert.equal(claimed.players[me].score, card.points + E.BONUS_POINTS);
+  assert.equal(claimed.bonus, 0);
+  const ended = E.endTurn(placing(extreme(), [1]));
+  assert.equal(ended.bonus, 0);
+  const lost = placing(extreme(), [1]);
+  lost.bonus = 3;
+  assert.equal(E.endTurn(lost).bonus, 0);
+});
+
+test('big claims and three-of-a-kind rolls earn power cards, up to the limit', () => {
+  const s = placing(extreme(), [], []);
+  const me = s.current;
+  s.cards[0].points = 9;
+  s.cards[0].placed[me] = s.cards[0].need.slice(1);
+  s.rolled = [s.cards[0].need[0]];
+  const won = E.place(s, 0, 0, () => 0.1);
+  assert.equal(won.players[me].powers.length, 1);
+  assert.equal(won.events[0].type, 'earned');
+  const small = placing(extreme(), [], []);
+  small.cards[0].points = 2;
+  small.cards[0].need = [4];
+  small.rolled = [4];
+  assert.equal(E.place(small, 0, 0, () => 0.1).players[me].powers.length, 0);
+  const lucky = E.roll({ ...extreme(), phase: 'start' }, () => 0.5); // every die shows the same number
+  assert.equal(lucky.players[lucky.current].powers.length, 2);
+  assert.equal(lucky.events[0].type, 'lucky');
+  const full = extreme();
+  full.players[full.current].powers = ['reroll', 'reroll', 'reroll'];
+  assert.equal(E.roll(full, () => 0.5).players[full.current].powers.length, E.MAX_POWERS);
+});
+
+test('chaos: a new round can double points or send every die home', () => {
+  const round = (r) => {
+    let s = extreme();
+    for (let i = 0; i < 3; i++) s = E.endTurn({ ...s, phase: 'placing', rolled: [] }, i === 2 ? () => r : () => 0.99);
+    return s;
+  };
+  assert.equal(round(0.1).chaos.kind, 'double');
+  assert.equal(round(0.99).chaos, null);
+  let s = extreme();
+  s.cards[0].placed[0] = [s.cards[0].need[0]];
+  for (let i = 0; i < 3; i++) s = E.endTurn({ ...s, phase: 'placing', rolled: [] }, i === 2 ? () => 0.35 : () => 0.99);
+  assert.ok(s.cards.every((c) => c.placed.every((p) => p.length === 0)), 'every die went home');
+  const d = placing({ ...extreme(), chaos: { kind: 'double' } }, [], []);
+  d.cards[0].placed[d.current] = d.cards[0].need.slice(1);
+  d.rolled = [d.cards[0].need[0]];
+  assert.equal(E.place(d, 0, 0, () => 0.9).lastClaim.points, d.cards[0].points * 2);
+});
+
+test('computer players play whole Extreme games, using power cards, without breaking the rules', () => {
+  let powersPlayed = 0;
+  for (let seed = 1; seed <= 24; seed++) {
+    const rng = E.mulberry32(seed);
+    const n = 2 + (seed % 4);
+    let s = E.newGame(Array.from({ length: n }, (_, i) => ({ name: `p${i}`, cpu: true, level: E.LEVEL_NAMES[(i + seed) % 3] })), rng, { mode: 'extreme' });
+    let steps = 0;
+    while (s.phase !== 'over' && steps++ < 4000) {
+      const a = aiNextAction(s, { level: s.players[s.current].level, rng });
+      if (a.type === 'takeback') s = E.takeBack(s);
+      else if (a.type === 'roll') s = E.roll(s, rng);
+      else if (a.type === 'place') s = E.place(s, a.rolled, a.card, rng);
+      else if (a.type === 'power') { s = E.usePower(s, a.kind, a, rng); powersPlayed++; } else s = E.endTurn(s, rng);
+      for (let p = 0; p < n; p++) {
+        assert.ok(E.handSize(s, p) >= 0 && E.handSize(s, p) <= E.DICE_PER_PLAYER);
+        assert.ok(s.players[p].powers.length <= E.MAX_POWERS);
+      }
+    }
+    assert.equal(s.phase, 'over', `game ${seed} finished`);
+  }
+  assert.ok(powersPlayed > 20, `the computer played ${powersPlayed} power cards`);
+});
+
+test('a skipped turn that carries play over a round boundary still starts the new round', () => {
+  let s = extreme();
+  s.current = 1;
+  s.turn = 2; // the last turn of round 0 (3 players)
+  s.skipNext = true;
+  s.phase = 'placing';
+  s.rolled = [];
+  const next = E.endTurn(s, () => 0.1); // turn 3 is skipped, so play moves to turn 4
+  assert.equal(next.turn, 4);
+  assert.equal(next.chaos?.kind, 'double', 'the new round began');
+});

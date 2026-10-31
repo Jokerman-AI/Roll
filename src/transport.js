@@ -140,15 +140,15 @@ export function p2pStore(Peer, options, uid, extraIce, brokers = DEFAULT_BROKERS
         if (e.type === 'unavailable-id') { bus?.close(); throw new Error('taken'); }
         if (!bus) throw new Error('network');
       }
-      if (bus) {
-        const up = await bus.ready(peer ? 1500 : 8000);
-        if (!peer && !up) { bus.close(); throw new Error('network'); }
-        if (!resume && up) { // is another room already using this code?
+      if (bus && !peer) { // hosting over the backup route alone: is another room already using this code?
+        const up = await bus.ready(8000);
+        if (!up) { bus.close(); throw new Error('network'); }
+        if (!resume) {
           let clash = false;
           bus.subscribe(`${home}/w`, (m) => { if (m.t === 'taken') clash = true; });
           bus.publish(`${home}/g`, { t: 'whois' });
           await sleep(1200);
-          if (clash) { peer?.destroy(); bus.close(); throw new Error('taken'); }
+          if (clash) { bus.close(); throw new Error('taken'); }
         }
       }
 
@@ -269,9 +269,9 @@ export function p2pStore(Peer, options, uid, extraIce, brokers = DEFAULT_BROKERS
 
     async join(code) {
       const home = `${ROOT}/${code}`;
-      const bus = useRelay ? relayBus(brokers) : null;
+      let bus = null; // the backup route; only opened if the direct route is slow or fails
       let peer = null;
-      try { peer = new Peer(undefined, peerOptions); await open(peer); } catch { peer?.destroy(); peer = null; if (!bus) throw new Error('network'); }
+      try { peer = new Peer(undefined, peerOptions); await open(peer); } catch { peer?.destroy(); peer = null; if (!useRelay) throw new Error('network'); }
 
       let room = null; // the last room we were sent; kept while reconnecting
       let fresh = true; // the next room message is the first on a new connection
@@ -283,6 +283,9 @@ export function p2pStore(Peer, options, uid, extraIce, brokers = DEFAULT_BROKERS
       const errors = new Set();
       const status = statusFeed();
       const relayOk = () => !!bus && Date.now() - relayLast < 45000;
+      let helloTimer = 0;
+      let raceDone = false;
+      let firstRelay = null;
       const notify = () => subs.forEach((cb) => cb(snapshotOf(room)));
 
       // Direct route.
@@ -303,17 +306,16 @@ export function p2pStore(Peer, options, uid, extraIce, brokers = DEFAULT_BROKERS
           clearTimeout(timer);
           peer.off('error', onPeerError);
           room = msg.room;
-          if (fresh || !conn) { fresh = false; conn = c; status.set('online'); resolve(); }
+          if (fresh || !conn?.open) { fresh = false; conn = c; status.set('online'); resolve(); }
           notify();
         });
         c.on('close', () => { if (!closed && conn === c) reconnect(); });
       });
 
       // Backup route: say hello until the host answers, then keep saying it as a heartbeat.
-      let helloTimer = 0;
-      let raceDone = false;
-      const hello = () => bus.publish(`${home}/g`, { t: 'hello', uid, have: room ? hashOf(seatsKey(room)) : 0 });
+      const hello = () => bus?.publish(`${home}/g`, { t: 'hello', uid, have: room ? hashOf(seatsKey(room)) : 0 });
       const relayFirst = () => new Promise((resolve, reject) => {
+        bus = relayBus(brokers);
         let first = true;
         const timer = setTimeout(() => reject(new Error('timeout')), 8000);
         bus.subscribe(`${home}/h/${uid}`, (msg) => {
@@ -323,13 +325,21 @@ export function p2pStore(Peer, options, uid, extraIce, brokers = DEFAULT_BROKERS
           else if (msg.t === 'game' && room) room = { ...room, game: msg.game, status: msg.status };
           else if (msg.t === 'game') { hello(); return; } // we missed the seats: ask for everything
           else return;
-          if (first) { first = false; clearTimeout(timer); fresh = false; status.set('online'); resolve(); }
+          if (first) {
+            first = false;
+            clearTimeout(timer);
+            status.set('online');
+            clearInterval(helloTimer);
+            helloTimer = setInterval(hello, 20000); // from now on just a heartbeat
+            resolve();
+          }
           notify();
         });
         bus.ready(8000).then((up) => {
           if (!up) { clearTimeout(timer); reject(new Error('network')); return; }
           hello();
-          if (!raceDone) helloTimer = setInterval(() => { if (!room || Date.now() - relayLast > 4000) hello(); }, 2000);
+          clearInterval(helloTimer);
+          helloTimer = setInterval(() => { if (!relayLast) hello(); }, 2000); // until the host first answers
         });
       });
 
@@ -338,6 +348,7 @@ export function p2pStore(Peer, options, uid, extraIce, brokers = DEFAULT_BROKERS
       async function reconnect() {
         if (retrying || closed) return;
         retrying = true;
+        if (useRelay) ensureRelay().catch(() => {}); // if the direct link dropped, the backup route takes over
         if (!relayOk()) status.set('reconnecting');
         for (let i = 0; i < 30 && !closed; i++) {
           await sleep(Math.min(1500 + i * 500, 5000));
@@ -356,9 +367,14 @@ export function p2pStore(Peer, options, uid, extraIce, brokers = DEFAULT_BROKERS
         errors.forEach((cb) => cb({ code: 'lost' }));
       }
 
-      // Take whichever route answers first. A wrong code is only reported once the backup route has had its say.
+      // Open the backup route on demand, once.
+      const ensureRelay = () => (useRelay ? (firstRelay ||= relayFirst()) : Promise.reject(new Error('network')));
+
+      // Take whichever route answers first. The backup route only starts if the direct one has not connected after
+      // a couple of seconds, so a normal game never touches the public servers. A wrong code is only reported once
+      // the backup route has had its say.
       const direct = connect().catch(async (e) => { if (e.message === 'notfound') await sleep(3000); throw e; });
-      const backup = bus ? relayFirst() : Promise.reject(new Error('network'));
+      const backup = !peer ? ensureRelay() : sleep(2000).then(() => (conn?.open ? new Promise(() => {}) : ensureRelay()));
       try {
         await Promise.any([direct, backup]);
       } catch (all) {
@@ -366,6 +382,7 @@ export function p2pStore(Peer, options, uid, extraIce, brokers = DEFAULT_BROKERS
         peer?.destroy();
         bus?.close();
         clearInterval(helloTimer);
+        raceDone = true;
         throw errs.find((e) => e.message === 'notfound') || errs.find((e) => e.message === 'timeout') || errs[0] || new Error('network');
       }
       raceDone = true;
@@ -381,10 +398,11 @@ export function p2pStore(Peer, options, uid, extraIce, brokers = DEFAULT_BROKERS
       const onVisible = () => {
         if (document.hidden || closed || retrying) return;
         if (!conn?.open || Date.now() - lastSeen > 25000) { try { conn?.close(); } catch { /* already closed */ } if (conn) reconnect(); }
-        if (bus) hello();
+        hello();
       };
       document.addEventListener('visibilitychange', onVisible);
-      if (bus) { clearInterval(helloTimer); helloTimer = setInterval(hello, 20000); }
+      clearInterval(helloTimer);
+      if (bus) helloTimer = setInterval(hello, 20000);
 
       return {
         async get() { return snapshotOf(room); },

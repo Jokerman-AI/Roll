@@ -36,6 +36,17 @@ up again. Moves are paused until it is back.
 - Each player draws their own icon and chooses their dice colour; every player in a game has a different colour.
   Your icon and colour are remembered on your device.
 
+## Rollick Extreme
+
+Pick **Rollick Extreme** on the start screen (or in an online lobby, as host) for the same game with extra rules:
+
+- **Power cards.** Everyone starts with one and can hold three. Claim a card worth 7+ points, or roll three of a kind, to win another. Played on your own turn after rolling: Re-roll a die, Set a die to any number, Knock a rival's die off a card, Bonus +3 on your next claim, or Skip the next player.
+- **Chaos rounds.** A new round can bring double points, or send every die back to its owner.
+- **Turn timer.** A minute per turn; when it runs out the turn is played for you.
+- Computer players use power cards too, at their own difficulty.
+
+The rules live in `src/engine.js` (`newGame(..., { mode: 'extreme' })`, `usePower`, `powerMoves`); the classic game is unchanged.
+
 ## Computer players
 
 The computer only uses what every player can see. It budgets its dice like a sensible player: it won't spend its
