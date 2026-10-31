@@ -41,6 +41,12 @@ up again. Moves are paused until it is back.
 - **Tutorial:** a guided first game on a prepared table (start screen: *Learn to play*, or *Tutorial* in the links). Tips tell you what to tap, highlight the die and card to use, and only let you make the move being taught.
 - **Themes:** table colour, deck back and dice style (start screen or Menu: *Themes*). Saved on the device and applied straight away.
 
+## Settings, unlocks and problem reports
+
+- **Game settings:** choose what a game plays to (20, 30, 40 or 60) and how many dice each player owns (4 to 8), on the start screen or, for the host, in an online lobby. With four dice, cards that need five are left out of the deck.
+- **Unlockable looks:** playing, winning and claiming cards (counted on the device only) unlock more table colours, deck backs and dice styles. The 🎨 Themes sheet shows what each one needs.
+- **Report a problem:** in About & terms. The app keeps a short log of error messages on the device; a report (device, what the app was doing, recent errors, and what you type) can be shared or copied, and emailed if `RFI_FEEDBACK_EMAIL` is set in `config.js`. Reports never include names, room codes or drawings, and nothing is sent automatically.
+
 ## Online extras
 
 - **Emoji:** in an online game, tap a player's name (or Menu, then Send an emoji) to send one of eight emoji; everyone sees it float up from your name.

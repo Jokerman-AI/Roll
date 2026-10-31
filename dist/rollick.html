@@ -3360,6 +3360,7 @@ function receive(next) {
   const prev = ui.game;
   if (prev && prev.gid === next.gid && next.rev <= prev.rev) return; // duplicate or stale
   const sameGame = !!prev && prev.gid === next.gid;
+  if (!sameGame) ui.newUnlocks = [];
   ui.game = next;
   ui.selected = null;
   ui.hint = null;
@@ -3387,7 +3388,12 @@ function receive(next) {
   }
   render();
   if (flight) flyCard(flight);
-  if (justWon) { confetti(next.winner); setTimeout(sfx.win, 300); countGame(next); }
+  if (justWon) {
+    confetti(next.winner);
+    setTimeout(sfx.win, 300);
+    countGame(next);
+    if (ui.newUnlocks.length) render(); // the winner screen shows what was just unlocked
+  }
   settle();
   tutAfterState(next);
 }
