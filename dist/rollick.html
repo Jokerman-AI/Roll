@@ -133,7 +133,6 @@ h1 { font-size: 2.4rem; margin: 0; letter-spacing: -.02em; }
 .slot.peeked .die { outline: 3px solid #ffd34d; outline-offset: 2px; }
 .deckback {
   display: none; place-items: center; align-content: center; color: #fff; text-align: center; line-height: 1.1;
-  background: repeating-linear-gradient(45deg, #1d4f8f 0 7px, #2a63ad 7px 14px);
   border: 3px solid #fffdf4; box-shadow: 0 8px 16px #0006;
 }
 .deckback b { font-size: 1.6rem; }
@@ -498,6 +497,56 @@ h1 { font-size: 2.4rem; margin: 0; letter-spacing: -.02em; }
 .btn.togglerow { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; }
 .btn.togglerow small { font-weight: 400; color: var(--muted); }
 .btn.togglerow.on { background: #2fb36d40; box-shadow: inset 0 0 0 2px #2fb36d; }
+
+/* themes: table colour, deck back, dice style */
+html { background: var(--felt); }
+[data-tb="felt"] { --felt: #0f3d2e; --felt-2: #14513d; --muted: #a9c4b8; }
+[data-tb="midnight"] { --felt: #0b1f3a; --felt-2: #12315c; --muted: #a3b8d6; }
+[data-tb="wine"] { --felt: #3a0f1d; --felt-2: #5a1830; --muted: #d4aab8; }
+[data-tb="violet"] { --felt: #26134a; --felt-2: #3d2275; --muted: #bfb0e0; }
+[data-tb="charcoal"] { --felt: #1b1e25; --felt-2: #2a2f3a; --muted: #a9b0bf; }
+
+[data-bk="blue"] { background: repeating-linear-gradient(45deg, #1d4f8f 0 7px, #2a63ad 7px 14px); }
+[data-bk="red"] { background: repeating-conic-gradient(from 45deg at 50% 50%, #a3243a 0 25%, #c93a52 0 50%) 0 0 / 18px 18px; }
+[data-bk="gold"] { background: repeating-linear-gradient(135deg, #8a6a1c 0 6px, #c9a13a 6px 12px); }
+[data-bk="mint"] { background: radial-gradient(circle at 50% 50%, #e8fff6 0 22%, transparent 24%) 0 0 / 16px 16px, #1c8a6c; }
+[data-bk="night"] { background: repeating-linear-gradient(0deg, #151a33 0 5px, #232b55 5px 6px), #151a33; }
+
+[data-ds="sharp"] .die { border-radius: calc(var(--size) * .07); }
+[data-ds="sharp"] .die i { border-radius: 0; }
+[data-ds="bubble"] .die { border-radius: calc(var(--size) * .36); }
+[data-ds="bubble"] .die i { margin: 6%; }
+
+.themes h3 { margin: 14px 0 6px; font-size: .8rem; letter-spacing: .1em; text-transform: uppercase; opacity: .7; }
+.themes .opts { display: flex; flex-wrap: wrap; gap: 10px; }
+.themes .opt { border: 3px solid transparent; background: none; border-radius: 14px; padding: 4px; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: .72rem; width: 76px; color: inherit; }
+.themes .opt.on { border-color: #ffd34d; background: #ffd34d33; }
+.themes .opt .tb { width: 52px; height: 36px; border-radius: 10px; background: radial-gradient(120% 90% at 50% 0%, var(--felt-2), var(--felt)); box-shadow: inset 0 0 0 1px #0004; }
+.themes .opt .bk { width: 34px; height: 48px; border-radius: 6px; border: 2px solid #fffdf4; box-shadow: 0 2px 4px #0004; }
+.themes .opt .dpv { display: flex; align-items: center; justify-content: center; height: 48px; }
+.themes .opt .dpv .die { --size: 38px; --bg: #e5484d; --pip: #fff; }
+.themes .dpv[data-ds="classic"] .die { border-radius: calc(var(--size) * .22); }
+.themes .dpv[data-ds="classic"] .die i { border-radius: 50%; margin: 12%; }
+.themes .dpv[data-ds="sharp"] .die { border-radius: calc(var(--size) * .07); }
+.themes .dpv[data-ds="sharp"] .die i { border-radius: 0; margin: 12%; }
+.themes .dpv[data-ds="bubble"] .die { border-radius: calc(var(--size) * .36); }
+.themes .dpv[data-ds="bubble"] .die i { border-radius: 50%; margin: 6%; }
+
+/* tutorial */
+.btn.learn { background: #2fb36d40; box-shadow: inset 0 0 0 2px #2fb36d; }
+.links { flex-wrap: wrap; row-gap: 0; }
+.coach {
+  grid-area: status; display: flex; align-items: center; gap: 10px; text-align: left; white-space: normal;
+  background: #ffd34d; color: #3a2a00; border-radius: 14px; padding: 8px 12px; font-size: .85rem; line-height: 1.25; min-height: 5.6em;
+}
+.coach .ctext { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.coach small { opacity: .7; font-weight: 700; font-size: .7rem; letter-spacing: .04em; text-transform: uppercase; }
+.coach .cbtns { display: flex; flex-direction: column; align-items: center; gap: 4px; flex: none; }
+.coach .btn.small { min-height: 36px; padding: 6px 14px; background: #3a2a00; color: #ffd34d; }
+.linkbtn { border: 0; background: none; text-decoration: underline; color: inherit; opacity: .7; padding: 4px; font-size: .75rem; }
+.coach.nudge { animation: nudge .4s; }
+@keyframes nudge { 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
+.btn.hinted { outline: 4px solid #ffd34d; outline-offset: 2px; }
 
 body { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
 #app { padding: 12px 0; }
@@ -868,7 +917,45 @@ function powerMoves(state) {
   return out;
 }
 
-return { DICE_PER_PLAYER, TARGET_SCORE, MAX_PLAYERS, mulberry32, buildDeck, cardsInPlay, missing, handSize, LEVEL_NAMES, MODES, MAX_POWERS, BONUS_POINTS, POWERS, POWER_KINDS, newGame, takeBack, roll, canPlace, legalMoves, place, endTurn, powerProblem, usePower, powerMoves };
+/* ---------- the guided first game ---------- */
+
+/** The dice the tutorial's first roll lands on, so every lesson has an obvious move. */
+const TUTORIAL_ROLL = [3, 5, 5, 2, 6, 1];
+
+/** A generator that hands back exactly these faces, one per call, for `roll`. */
+const scriptedRng = (faces) => {
+  const queue = [...faces];
+  return () => ((queue.shift() ?? 1) - 0.5) / 6;
+};
+
+/**
+ * A table set up for teaching: with TUTORIAL_ROLL, the 3 finishes the first card, the two 5s the second, the
+ * 2 and 6 the third, and the 1 fits nowhere. The cards that replace them avoid the numbers still to be placed.
+ */
+function tutorialGame() {
+  const players = [
+    { name: 'You', cpu: false, level: 'normal', score: 0, pile: [] },
+    { name: 'Coach', cpu: true, level: 'easy', score: 0, pile: [] },
+  ];
+  const card = (id, points, need) => ({ id, points, need, placed: players.map(() => []) });
+  const queue = [{ points: 2, need: [4] }, { points: 4, need: [4, 4] }, { points: 3, need: [3, 4] }];
+  const rest = buildDeck(mulberry32(21), 1).filter((c) => !c.need.includes(1)); // nothing needs a 1 early on
+  return {
+    mode: 'classic',
+    players,
+    deck: [...queue, ...rest],
+    cards: [card(1, 2, [3]), card(2, 4, [5, 5]), card(3, 3, [2, 6])],
+    current: 0,
+    firstRoll: 0,
+    phase: 'start',
+    rolled: [],
+    winner: null,
+    lastClaim: null,
+    nextId: 4,
+  };
+}
+
+return { DICE_PER_PLAYER, TARGET_SCORE, MAX_PLAYERS, mulberry32, buildDeck, cardsInPlay, missing, handSize, LEVEL_NAMES, MODES, MAX_POWERS, BONUS_POINTS, POWERS, POWER_KINDS, newGame, takeBack, roll, canPlace, legalMoves, place, endTurn, powerProblem, usePower, powerMoves, TUTORIAL_ROLL, scriptedRng, tutorialGame };
 })();
 
 // The computer player. It only uses what every player can see: the cards, everyone's dice and scores.
@@ -1707,6 +1794,62 @@ const sfx = {
 
 return { soundPrefs, setSound, setHaptics, canVibrate, unlock, sfx };
 })();
+const { TABLES, BACKS, DICE, theme, applyTheme, setTheme } = (() => {
+// Looks: the colour of the table, the back of the deck and the style of the dice. The choice is saved on
+// the device and applied by setting attributes on the page, which the stylesheet reacts to.
+
+const TABLES = [
+  { id: 'felt', name: 'Green', meta: '#0f3d2e' },
+  { id: 'midnight', name: 'Midnight', meta: '#0b1f3a' },
+  { id: 'wine', name: 'Wine', meta: '#3a0f1d' },
+  { id: 'violet', name: 'Violet', meta: '#26134a' },
+  { id: 'charcoal', name: 'Charcoal', meta: '#1b1e25' },
+];
+const BACKS = [
+  { id: 'blue', name: 'Blue stripes' },
+  { id: 'red', name: 'Red diamonds' },
+  { id: 'gold', name: 'Gold' },
+  { id: 'mint', name: 'Mint dots' },
+  { id: 'night', name: 'Night' },
+];
+const DICE = [
+  { id: 'classic', name: 'Classic' },
+  { id: 'sharp', name: 'Sharp' },
+  { id: 'bubble', name: 'Bubble' },
+];
+
+const KEY = 'rfi-theme';
+const read = () => { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch { return {}; } };
+const write = (t) => { try { localStorage.setItem(KEY, JSON.stringify(t)); } catch { /* storage unavailable */ } };
+const pick = (list, id) => (list.some((x) => x.id === id) ? id : list[0].id);
+
+const theme = (() => {
+  const saved = read();
+  return { table: pick(TABLES, saved.table), back: pick(BACKS, saved.back), dice: pick(DICE, saved.dice) };
+})();
+
+/** Put the current look on the page. */
+function applyTheme() {
+  const root = document.documentElement;
+  root.setAttribute('data-tb', theme.table);
+  root.setAttribute('data-ds', theme.dice);
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute('content', TABLES.find((t) => t.id === theme.table).meta);
+}
+
+/** part: 'table' | 'back' | 'dice' */
+function setTheme(part, id) {
+  const list = { table: TABLES, back: BACKS, dice: DICE }[part];
+  if (!list) return;
+  theme[part] = pick(list, id);
+  write(theme);
+  applyTheme();
+}
+
+applyTheme();
+
+return { TABLES, BACKS, DICE, theme, applyTheme, setTheme };
+})();
 const { dbStore, DEFAULT_ICE, checkConnection, p2pStore } = (() => {
 // Room transports. Both expose the same small "room store" shape to the game:
 //   host(code, {resume}) -> ref     create a room (throws 'taken' if the code is in use)
@@ -2221,6 +2364,7 @@ const ui = {
   mode: store.get('rfi-mode') === 'extreme' ? 'extreme' : 'classic', // classic | extreme
   power: null, // the power card being played: { kind, rolled? }
   turnEnds: 0, // Extreme: when the current turn runs out
+  tut: null, // the guided first game: { step }
   react: false, // the emoji picker is open
   rooms: { state: 'idle', list: [] }, // the public room list on the online screen
   netTest: '', // result of the connection check on the online screen
@@ -2324,6 +2468,7 @@ function setupView() {
   return `
     <div class="setup">
       <header class="hero">${LOGO}<h1>Rollick</h1><p class="tag">${MODE_BLURB[ui.mode]}</p></header>
+      ${store.get('rfi-tutorial') ? '' : '<button class="btn learn" data-act="startTutorial">🎓 New here? Learn to play in a minute</button>'}
       ${modePicker(true)}
       ${saved ? `<button class="btn resume" data-act="resume">Return to room ${esc(saved.code)}</button>` : ''}
       <section class="panel" aria-label="Players">
@@ -2333,7 +2478,7 @@ function setupView() {
       </section>
       <button class="btn primary big" data-act="start">Start game</button>
       ${net.store ? '<button class="btn" data-act="goOnline">Play online with friends</button>' : ''}
-      <nav class="links"><button data-act="rules">How to play</button><span aria-hidden="true">·</span><button data-act="about">About &amp; terms</button><span aria-hidden="true">·</span><button data-act="toggleSound" aria-label="Sound ${soundPrefs.sound ? 'on' : 'off'}">${soundPrefs.sound ? '🔊' : '🔇'}</button></nav>
+      <nav class="links"><button data-act="rules">How to play</button><span aria-hidden="true">·</span><button data-act="startTutorial">🎓 Tutorial</button><span aria-hidden="true">·</span><button data-act="about">About &amp; terms</button><span aria-hidden="true">·</span><button data-act="themes">🎨 Themes</button><span aria-hidden="true">·</span><button data-act="toggleSound" aria-label="Sound ${soundPrefs.sound ? 'on' : 'off'}">${soundPrefs.sound ? '🔊' : '🔇'}</button></nav>
     </div>`;
 }
 
@@ -2532,6 +2677,16 @@ function powersView() {
   return `<div class="modal"><div class="sheet powers">${body}</div></div>`;
 }
 
+/** Pick the table colour, the back of the deck and the dice. Changes show straight away. */
+function themesView() {
+  const opt = (part, id, label, preview) => `<button class="opt ${theme[part] === id ? 'on' : ''}" data-act="setTheme" data-part="${part}" data-id="${id}" aria-pressed="${theme[part] === id}">${preview}<span>${label}</span></button>`;
+  return `<div class="modal"><div class="sheet themes"><h2>🎨 Themes</h2>
+    <h3>Table</h3><div class="opts">${TABLES.map((t) => opt('table', t.id, t.name, `<span class="tb" data-tb="${t.id}"></span>`)).join('')}</div>
+    <h3>Deck back</h3><div class="opts">${BACKS.map((b) => opt('back', b.id, b.name, `<span class="bk" data-bk="${b.id}"></span>`)).join('')}</div>
+    <h3>Dice</h3><div class="opts">${DICE.map((d) => opt('dice', d.id, d.name, `<span class="dpv" data-ds="${d.id}">${die(5, '')}</span>`)).join('')}</div>
+    <button class="btn primary" data-act="closeModal">Done</button></div></div>`;
+}
+
 function statusText(s) {
   const cur = s.players[s.current];
   const deck = s.deck.length ? ` <small>· ${s.deck.length} cards left</small>` : '';
@@ -2648,8 +2803,8 @@ function gameView() {
     <div class="game">
     <div class="table">
     <div class="score" data-rows="${Math.ceil(s.players.length / 4) > 1 ? 2 : 1}" style="--per:${Math.ceil(s.players.length / Math.ceil(s.players.length / 4))}">${chips}</div>
-    <div class="status"><span>${statusText(s)}</span></div>
-    <div class="cards"><div class="cardgrid" data-n="${s.cards.length}">${s.cards.map((c, i) => cardView(s, c, i)).join('')}<div class="deckback ${extreme && s.chaos?.kind === 'double' ? 'x2on' : ''}" aria-hidden="true"><b>${s.deck.length}</b><span>left</span>${extreme && s.chaos?.kind === 'double' ? '<em class="x2">×2</em>' : ''}</div></div></div>
+    ${ui.tut ? coachView() : `<div class="status"><span>${statusText(s)}</span></div>`}
+    <div class="cards"><div class="cardgrid" data-n="${s.cards.length}">${s.cards.map((c, i) => cardView(s, c, i)).join('')}<div class="deckback ${extreme && s.chaos?.kind === 'double' ? 'x2on' : ''}" data-bk="${theme.back}" aria-hidden="true"><b>${s.deck.length}</b><span>left</span>${extreme && s.chaos?.kind === 'double' ? '<em class="x2">×2</em>' : ''}</div></div></div>
     </div>
     <div class="tray">
       ${timed ? `<div class="turnbar" style="--p:${turnFraction()}" aria-hidden="true"><i></i></div>` : ''}
@@ -2658,7 +2813,7 @@ function gameView() {
         ${s.phase === 'start' ? `
           <button class="btn primary ${canRoll ? 'pulse' : ''} ${ui.hint?.button === 'roll' ? 'hinted' : ''}" data-act="roll" ${canRoll ? '' : 'disabled'}>Roll</button>
           <button class="btn ${mustTakeBack ? 'primary pulse' : ''} ${ui.hint?.button === 'takeback' ? 'hinted' : ''}" data-act="takeBack" ${canTakeBack ? '' : 'disabled'} aria-label="Take back all your dice and roll all six">Take back<small>&amp; roll all</small></button>`
-          : `<button class="btn ${noMoves ? 'primary pulse' : ''}" data-act="end" ${canEnd ? '' : 'disabled'}>End turn</button>
+          : `<button class="btn ${noMoves ? 'primary pulse' : ''} ${ui.hint?.button === 'end' ? 'hinted' : ''}" data-act="end" ${canEnd ? '' : 'disabled'}>End turn</button>
           ${human && ui.undo.length ? '<button class="btn icon" data-act="undo" aria-label="Undo last placement" title="Undo">↶</button>' : ''}`}
         ${extreme ? `<button class="btn icon bolt" data-act="powers" aria-label="Power cards (${held})" title="Power cards" ${holder >= 0 ? '' : 'disabled'}>⚡${held ? `<span class="count">${held}</span>` : ''}</button>` : ''}
         <button class="btn icon" data-act="hint" aria-label="Hint" title="Hint" ${human && !ui.rolling ? '' : 'disabled'}>💡</button>
@@ -2779,11 +2934,13 @@ function modalView() {
       <button class="btn primary" data-act="closeModal">Close</button></div></div>`;
   }
   if (ui.modal === 'powers') return powersView();
+  if (ui.modal === 'themes') return themesView();
   if (ui.modal === 'menu') {
     return `<div class="modal" data-act="closeModal"><div class="sheet"><h2>Menu</h2>
       <button class="btn" data-act="rules">How to play</button>
       <button class="btn" data-act="about">About &amp; terms</button>
       ${canReact() ? '<button class="btn" data-act="reactMenu">😀 Send an emoji</button>' : ''}
+      <button class="btn" data-act="themes">🎨 Themes</button>
       <button class="btn" data-act="toggleSound">${soundPrefs.sound ? '🔊 Sound: on' : '🔇 Sound: off'}</button>
       ${canVibrate() ? `<button class="btn" data-act="toggleHaptics">${soundPrefs.haptics ? '📳 Vibration: on' : '📴 Vibration: off'}</button>` : ''}
       ${ui.online && isHost() ? '<button class="btn" data-act="toLobby">Back to lobby</button>' : ''}
@@ -2953,6 +3110,7 @@ function receive(next) {
   if (flight) flyCard(flight);
   if (justWon) { confetti(next.winner); setTimeout(sfx.win, 300); }
   settle();
+  tutAfterState(next);
 }
 
 /** The claimed card shrinks into its owner's scoreboard chip while the score counts up. */
@@ -3023,7 +3181,7 @@ function settle() {
   if (!s || s.phase === 'over' || ui.rolling) return;
   if (s.players[s.current].cpu) {
     if (!ui.online || isHost()) timer = setTimeout(cpuStep, CPU_DELAY);
-  } else if (isMine(s) && s.phase === 'placing' && (!s.rolled.length || !E.legalMoves(s).length)) {
+  } else if (!ui.tut && isMine(s) && s.phase === 'placing' && (!s.rolled.length || !E.legalMoves(s).length)) { // (the tutorial waits for you to tap End turn)
     if (s.rolled.length) say('No matching cards. Turn passes.');
     timer = setTimeout(() => { if (ui.game === s) commit(E.endTurn(s)); }, ui.undo.length ? 2000 : 1300);
   }
@@ -3103,7 +3261,7 @@ function turnClock() {
 }
 setInterval(turnClock, 500);
 
-function doRoll() { commit(E.roll(ui.game)); }
+function doRoll() { commit(E.roll(ui.game, ui.tut ? E.scriptedRng(E.TUTORIAL_ROLL) : Math.random)); }
 function doTakeBack() { commit(E.roll(E.takeBack(ui.game))); }
 
 function cpuStep() {
@@ -3124,7 +3282,110 @@ function freshGame(configs, mode = 'classic') {
   return g;
 }
 
+/* ---------- the tutorial ---------- */
+
+// Each step is a tip and what it waits for: a tap on Next, or a move in the game. `faces` are the dice it lets you
+// place; `done` says when the step is over.
+const TUT = [
+  { text: 'Welcome! In Rollick you roll dice and place them on cards. Finish cards to score, and be first to 40 points.', next: true },
+  { text: 'Each card shows the dice it needs. The points are in its corner: harder cards are worth more.', next: true },
+  { text: 'Tap <b>Roll</b> to roll your six dice.', expect: 'roll', done: (s) => s.phase === 'placing' },
+  { text: 'You rolled a 3, and the <b>2-point card</b> needs a 3. Tap the 3.', faces: [3], done: (s) => s.players[0].score >= 2 },
+  { text: 'Card finished! The 4-point card needs two 5s. Tap a 5, then the other 5.', faces: [5], done: (s) => s.players[0].score >= 6 },
+  { text: 'Now the 3-point card: it needs a 2 and a 6. Tap each of them.', faces: [2, 6], done: (s) => s.players[0].score >= 9 },
+  { text: 'Nothing needs the 1, so it stays in your hand. Tap <b>End turn</b>.', expect: 'end', done: (s) => s.current !== 0 },
+  { text: 'Now Coach takes a turn…', auto: true, done: (s) => s.current === 0 && s.phase === 'start' },
+  { text: 'Your dice stay on cards until the card is finished. Each turn you roll only the dice in your hand. <b>Take back</b> returns all your dice so you can roll all six.', next: true },
+  { text: 'Tap a die on a card to see who else is covering it. A number badge means several players share it. The 💡 gives a hint.', next: true },
+  { text: 'You are ready! <b>Rollick Extreme</b> adds power cards, chaos rounds and a turn timer. Try it when you like.', next: true, last: true },
+];
+const TUT_ACTS = new Set(['roll', 'takeBack', 'end', 'pickRolled', 'pickCard', 'undo', 'hint', 'powers']);
+
+/** What to point at right now: the Roll button, the die and card to use, or End turn. */
+function tutHint(s) {
+  const step = TUT[ui.tut?.step];
+  if (!step || s.phase === 'over') return null;
+  if (step.expect === 'roll') return { button: 'roll' };
+  if (step.expect === 'end') return { button: 'end' };
+  if (step.faces && s.phase === 'placing') {
+    const r = s.rolled.findIndex((f) => step.faces.includes(f));
+    const c = r < 0 ? -1 : s.cards.findIndex((_, ci) => E.canPlace(s, r, ci));
+    if (r >= 0 && c >= 0) return { rolled: r, card: c };
+  }
+  return null;
+}
+
+function coachView() {
+  const n = ui.tut.step;
+  const step = TUT[n];
+  return `<div class="coach" role="status" aria-live="polite">
+    <div class="ctext"><small>Tutorial · ${n + 1} of ${TUT.length}</small><span>${step.text}</span></div>
+    <div class="cbtns">${step.next ? `<button class="btn primary small" data-act="tutNext">${step.last ? 'Finish' : 'Next'}</button>` : ''}${step.last ? '' : '<button class="linkbtn" data-act="tutSkip">Skip</button>'}</div>
+  </div>`;
+}
+
+/** May this tap do something right now? While teaching, only the move the tip asks for. */
+function tutAllows(act, data) {
+  const step = TUT[ui.tut.step];
+  if (step.next || step.auto) return false;
+  if (act === 'roll') return step.expect === 'roll';
+  if (act === 'end') return step.expect === 'end';
+  if (act === 'pickRolled') return !!step.faces?.includes(ui.game.rolled[+data.i]);
+  if (act === 'pickCard') return !!step.faces;
+  return false;
+}
+
+function tutNudge() {
+  sfx.error(); // the tip shakes; no toast, which would sit on top of it
+  const box = app.querySelector('.coach');
+  if (box) { box.classList.remove('nudge'); void box.offsetWidth; box.classList.add('nudge'); }
+}
+
+/** After every move: move to the next tip when this one is done, and point at what comes next. */
+function tutAfterState(s) {
+  if (!ui.tut) return;
+  const step = TUT[ui.tut.step];
+  if (step.done?.(s)) ui.tut.step++;
+  ui.hint = tutHint(s);
+  render();
+}
+
+function startTutorial() {
+  clearTimeout(timer);
+  ui.online = false;
+  ui.game = null;
+  ui.undo = [];
+  ui.cfg = [
+    { name: 'You', cpu: false, color: profile.color, avatar: profile.avatar },
+    { name: 'Coach', cpu: true, level: 'easy', color: freeColor([profile.color], 1), avatar: '' },
+  ];
+  ui.tut = { step: 0 };
+  keepAwake(true);
+  const g = E.tutorialGame();
+  g.rev = 0;
+  g.gid = `tutorial-${Math.random().toString(36).slice(2)}`;
+  ui.screen = 'game';
+  ui.rolling = false;
+  ui.modal = null;
+  receive(g);
+}
+
+function endTutorial(done) {
+  ui.tut = null;
+  ui.hint = null;
+  store.set('rfi-tutorial', '1');
+  clearTimeout(timer);
+  keepAwake(false);
+  ui.screen = 'setup';
+  ui.game = null;
+  ui.rolling = false;
+  ui.modal = null;
+  render();
+  if (done) say('Well done! Pick players and start a game.', 3200);
+}
+
 function startGame() {
+  ui.tut = null;
   clearTimeout(timer);
   ui.online = false;
   ui.game = null;
@@ -3440,6 +3701,17 @@ const actions = {
   },
   powerFace: ({ f }) => { if (ui.power?.kind === 'set') doPower('set', { rolled: ui.power.rolled, face: +f }); },
   powerKnock: ({ card, p }) => doPower('knock', { card: +card, player: +p }),
+  startTutorial,
+  tutNext: () => {
+    if (!ui.tut) return;
+    if (TUT[ui.tut.step].last) { endTutorial(true); return; }
+    ui.tut.step++;
+    ui.hint = tutHint(ui.game);
+    render();
+  },
+  tutSkip: () => endTutorial(false),
+  themes: () => { ui.modal = 'themes'; render(); },
+  setTheme: ({ part, id }) => { setTheme(part, id); render(); },
   reactMenu: () => { if (canReact()) { ui.modal = null; ui.react = !ui.react; render(); } },
   closeReact: () => { ui.react = false; render(); },
   sendReact: ({ e }) => {
@@ -3471,7 +3743,7 @@ const actions = {
     store.set('rfi-mode', m);
     return room;
   }),
-  toSetup: () => { if (ui.online || net.unsub) { leaveRoom(); return; } keepAwake(false); clearTimeout(timer); ui.screen = 'setup'; ui.modal = null; ui.game = null; ui.rolling = false; render(); },
+  toSetup: () => { ui.tut = null; ui.hint = null; if (ui.online || net.unsub) { leaveRoom(); return; } keepAwake(false); clearTimeout(timer); ui.screen = 'setup'; ui.modal = null; ui.game = null; ui.rolling = false; render(); },
   testNet: async () => {
     ui.netTest = 'running'; render();
     const [r, backup] = await Promise.all([checkConnection(window.RFI_ICE_SERVERS), checkFallback(window.RFI_RELAY_BROKERS ?? DEFAULT_BROKERS)]);
@@ -3522,6 +3794,7 @@ app.addEventListener('click', (e) => {
   if (ui.peek && !e.target.closest('.peek') && !e.target.closest('[data-act="peek"]')) { ui.peek = null; clearTimeout(peekTimer); render(); }
   const el = e.target.closest('[data-act]');
   if (!el || (el.classList.contains('modal') && e.target !== el)) return;
+  if (ui.tut && TUT_ACTS.has(el.dataset.act) && !tutAllows(el.dataset.act, el.dataset)) { tutNudge(); return; }
   actions[el.dataset.act]?.({ ...el.dataset }, el);
 });
 app.addEventListener('input', (e) => {

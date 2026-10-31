@@ -466,3 +466,25 @@ test('a skipped turn that carries play over a round boundary still starts the ne
   assert.equal(next.turn, 4);
   assert.equal(next.chaos?.kind, 'double', 'the new round began');
 });
+
+test('the tutorial table teaches in order: 3, then the 5s, then the 2 and 6, and the 1 is left over', () => {
+  let s = E.tutorialGame();
+  assert.equal(s.cards.length, 3);
+  s = E.roll(s, E.scriptedRng(E.TUTORIAL_ROLL));
+  assert.deepEqual(s.rolled, E.TUTORIAL_ROLL);
+  const only = (face) => s.cards.map((_, c) => c).filter((c) => E.canPlace(s, s.rolled.indexOf(face), c));
+  assert.equal(only(3).length, 1);
+  s = E.place(s, s.rolled.indexOf(3), only(3)[0]);
+  assert.equal(s.players[0].score, 2);
+  assert.equal(only(5).length, 1);
+  s = E.place(s, s.rolled.indexOf(5), only(5)[0]);
+  s = E.place(s, s.rolled.indexOf(5), only(5)[0]);
+  assert.equal(s.players[0].score, 6);
+  s = E.place(s, s.rolled.indexOf(2), only(2)[0]);
+  s = E.place(s, s.rolled.indexOf(6), only(6)[0]);
+  assert.equal(s.players[0].score, 9);
+  assert.deepEqual(s.rolled, [1]);
+  assert.equal(E.legalMoves(s).length, 0, 'nothing takes the leftover 1');
+  assert.equal(s.cards.length, 3);
+  assert.equal(E.endTurn(s).current, 1);
+});

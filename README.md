@@ -36,6 +36,11 @@ up again. Moves are paused until it is back.
 - Each player draws their own icon and chooses their dice colour; every player in a game has a different colour.
   Your icon and colour are remembered on your device.
 
+## Tutorial and themes
+
+- **Tutorial:** a guided first game on a prepared table (start screen: *Learn to play*, or *Tutorial* in the links). Tips tell you what to tap, highlight the die and card to use, and only let you make the move being taught.
+- **Themes:** table colour, deck back and dice style (start screen or Menu: *Themes*). Saved on the device and applied straight away.
+
 ## Online extras
 
 - **Emoji:** in an online game, tap a player's name (or Menu, then Send an emoji) to send one of eight emoji; everyone sees it float up from your name.

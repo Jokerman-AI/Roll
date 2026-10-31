@@ -129,7 +129,6 @@ h1 { font-size: 2.4rem; margin: 0; letter-spacing: -.02em; }
 .slot.peeked .die { outline: 3px solid #ffd34d; outline-offset: 2px; }
 .deckback {
   display: none; place-items: center; align-content: center; color: #fff; text-align: center; line-height: 1.1;
-  background: repeating-linear-gradient(45deg, #1d4f8f 0 7px, #2a63ad 7px 14px);
   border: 3px solid #fffdf4; box-shadow: 0 8px 16px #0006;
 }
 .deckback b { font-size: 1.6rem; }
@@ -494,3 +493,53 @@ h1 { font-size: 2.4rem; margin: 0; letter-spacing: -.02em; }
 .btn.togglerow { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; }
 .btn.togglerow small { font-weight: 400; color: var(--muted); }
 .btn.togglerow.on { background: #2fb36d40; box-shadow: inset 0 0 0 2px #2fb36d; }
+
+/* themes: table colour, deck back, dice style */
+html { background: var(--felt); }
+[data-tb="felt"] { --felt: #0f3d2e; --felt-2: #14513d; --muted: #a9c4b8; }
+[data-tb="midnight"] { --felt: #0b1f3a; --felt-2: #12315c; --muted: #a3b8d6; }
+[data-tb="wine"] { --felt: #3a0f1d; --felt-2: #5a1830; --muted: #d4aab8; }
+[data-tb="violet"] { --felt: #26134a; --felt-2: #3d2275; --muted: #bfb0e0; }
+[data-tb="charcoal"] { --felt: #1b1e25; --felt-2: #2a2f3a; --muted: #a9b0bf; }
+
+[data-bk="blue"] { background: repeating-linear-gradient(45deg, #1d4f8f 0 7px, #2a63ad 7px 14px); }
+[data-bk="red"] { background: repeating-conic-gradient(from 45deg at 50% 50%, #a3243a 0 25%, #c93a52 0 50%) 0 0 / 18px 18px; }
+[data-bk="gold"] { background: repeating-linear-gradient(135deg, #8a6a1c 0 6px, #c9a13a 6px 12px); }
+[data-bk="mint"] { background: radial-gradient(circle at 50% 50%, #e8fff6 0 22%, transparent 24%) 0 0 / 16px 16px, #1c8a6c; }
+[data-bk="night"] { background: repeating-linear-gradient(0deg, #151a33 0 5px, #232b55 5px 6px), #151a33; }
+
+[data-ds="sharp"] .die { border-radius: calc(var(--size) * .07); }
+[data-ds="sharp"] .die i { border-radius: 0; }
+[data-ds="bubble"] .die { border-radius: calc(var(--size) * .36); }
+[data-ds="bubble"] .die i { margin: 6%; }
+
+.themes h3 { margin: 14px 0 6px; font-size: .8rem; letter-spacing: .1em; text-transform: uppercase; opacity: .7; }
+.themes .opts { display: flex; flex-wrap: wrap; gap: 10px; }
+.themes .opt { border: 3px solid transparent; background: none; border-radius: 14px; padding: 4px; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: .72rem; width: 76px; color: inherit; }
+.themes .opt.on { border-color: #ffd34d; background: #ffd34d33; }
+.themes .opt .tb { width: 52px; height: 36px; border-radius: 10px; background: radial-gradient(120% 90% at 50% 0%, var(--felt-2), var(--felt)); box-shadow: inset 0 0 0 1px #0004; }
+.themes .opt .bk { width: 34px; height: 48px; border-radius: 6px; border: 2px solid #fffdf4; box-shadow: 0 2px 4px #0004; }
+.themes .opt .dpv { display: flex; align-items: center; justify-content: center; height: 48px; }
+.themes .opt .dpv .die { --size: 38px; --bg: #e5484d; --pip: #fff; }
+.themes .dpv[data-ds="classic"] .die { border-radius: calc(var(--size) * .22); }
+.themes .dpv[data-ds="classic"] .die i { border-radius: 50%; margin: 12%; }
+.themes .dpv[data-ds="sharp"] .die { border-radius: calc(var(--size) * .07); }
+.themes .dpv[data-ds="sharp"] .die i { border-radius: 0; margin: 12%; }
+.themes .dpv[data-ds="bubble"] .die { border-radius: calc(var(--size) * .36); }
+.themes .dpv[data-ds="bubble"] .die i { border-radius: 50%; margin: 6%; }
+
+/* tutorial */
+.btn.learn { background: #2fb36d40; box-shadow: inset 0 0 0 2px #2fb36d; }
+.links { flex-wrap: wrap; row-gap: 0; }
+.coach {
+  grid-area: status; display: flex; align-items: center; gap: 10px; text-align: left; white-space: normal;
+  background: #ffd34d; color: #3a2a00; border-radius: 14px; padding: 8px 12px; font-size: .85rem; line-height: 1.25; min-height: 5.6em;
+}
+.coach .ctext { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.coach small { opacity: .7; font-weight: 700; font-size: .7rem; letter-spacing: .04em; text-transform: uppercase; }
+.coach .cbtns { display: flex; flex-direction: column; align-items: center; gap: 4px; flex: none; }
+.coach .btn.small { min-height: 36px; padding: 6px 14px; background: #3a2a00; color: #ffd34d; }
+.linkbtn { border: 0; background: none; text-decoration: underline; color: inherit; opacity: .7; padding: 4px; font-size: .75rem; }
+.coach.nudge { animation: nudge .4s; }
+@keyframes nudge { 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
+.btn.hinted { outline: 4px solid #ffd34d; outline-offset: 2px; }
