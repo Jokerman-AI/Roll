@@ -4,7 +4,7 @@
 // and a ref has get(), set(room), acquire(), onSnapshot(next, error), close().
 // A snapshot is { exists, data() } where data() is the whole room document.
 
-import { freeColor, safeAvatar } from './profile.js';
+import { freeColor, safeAvatar, REACTIONS } from './profile.js';
 import { relayBus, ROOT, DEFAULT_BROKERS } from './relay.js';
 
 const PEER_PREFIX = 'rollick-';
@@ -155,17 +155,34 @@ export function p2pStore(Peer, options, uid, extraIce, brokers = DEFAULT_BROKERS
       const subs = new Set();
       const status = statusFeed();
       const conns = new Map(); // connection -> player uid
-      const broadcast = () => {
-        const key = seatsKey(room);
-        const direct = new Set([...conns].filter(([c]) => !c.relay && c.open).map(([, u]) => u)); // guests already reached directly
+      const reactSubs = new Set();
+      /** The connections worth sending to: every open one, except a backup-route copy of a guest who is connected directly. */
+      const targets = () => {
+        const direct = new Set([...conns].filter(([c]) => !c.relay && c.open).map(([, u]) => u));
+        const out = [];
         for (const conn of [...conns.keys()]) {
           if (conn.relay && Date.now() - conn.last > 90000) { conns.delete(conn); continue; }
-          if (!conn.open || (conn.relay && direct.has(conns.get(conn)))) continue;
+          if (conn.open && !(conn.relay && direct.has(conns.get(conn)))) out.push(conn);
+        }
+        return out;
+      };
+      const broadcast = () => {
+        const key = seatsKey(room);
+        for (const conn of targets()) {
           // over the backup route, only resend the seats (which carry the icons) when they changed
           if (conn.relay && room.game && conn.seats === key) conn.send({ t: 'game', game: room.game, status: room.status });
           else { conn.send({ t: 'room', room }); conn.seats = key; }
         }
         subs.forEach((cb) => cb(snapshotOf(room)));
+      };
+      // An emoji from a seated player goes to everyone, at most one a second from each.
+      const lastReact = new Map();
+      const react = (uidFrom, emoji) => {
+        const seat = room?.seats.findIndex((p) => p.uid === uidFrom) ?? -1;
+        if (seat < 0 || !REACTIONS.includes(emoji) || Date.now() - (lastReact.get(uidFrom) || 0) < 900) return;
+        lastReact.set(uidFrom, Date.now());
+        for (const conn of targets()) conn.send({ t: 'react', seat, e: emoji });
+        reactSubs.forEach((cb) => cb(seat, emoji));
       };
       const publish = (next) => {
         room = next;
@@ -177,7 +194,9 @@ export function p2pStore(Peer, options, uid, extraIce, brokers = DEFAULT_BROKERS
       const onGuestMessage = (conn, msg) => {
         const sender = conns.get(conn);
         if (!room || !sender) return;
+        if (room.banned?.includes(sender)) { conn.send({ t: 'bye' }); return; } // removed by the host
         if (msg.t === 'ping') { conn.send({ t: 'pong' }); return; }
+        if (msg.t === 'react') { react(sender, msg.e); return; }
         if (msg.t === 'hello') { conn.send({ t: 'room', room }); conn.seats = seatsKey(room); return; }
         if (msg.t !== 'set' || !msg.room) return;
         if (room.status === 'lobby') {
@@ -256,6 +275,8 @@ export function p2pStore(Peer, options, uid, extraIce, brokers = DEFAULT_BROKERS
         async acquire() { return { acquired: true }; },
         onSnapshot(next) { subs.add(next); next(snapshotOf(room)); return () => subs.delete(next); },
         onStatus: status.on,
+        react: (emoji) => react(uid, emoji),
+        onReact: (cb) => { reactSubs.add(cb); return () => reactSubs.delete(cb); },
         retry: regainSignal,
         close() {
           clearTimeout(regain);
@@ -281,6 +302,7 @@ export function p2pStore(Peer, options, uid, extraIce, brokers = DEFAULT_BROKERS
       let relayLast = 0; // when the backup route last heard from the host
       const subs = new Set();
       const errors = new Set();
+      const reactSubs = new Set();
       const status = statusFeed();
       const relayOk = () => !!bus && Date.now() - relayLast < 45000;
       let helloTimer = 0;
@@ -301,7 +323,13 @@ export function p2pStore(Peer, options, uid, extraIce, brokers = DEFAULT_BROKERS
         c.on('data', (msg) => {
           if (c !== latest) return;
           lastSeen = Date.now();
-          if (msg.t === 'bye') { closed = true; errors.forEach((cb) => cb({ code: 'closed' })); return; }
+          if (msg.t === 'bye') {
+            closed = true;
+            if (!room) { clearTimeout(timer); reject(new Error('removed')); return; } // turned away before we got in
+            errors.forEach((cb) => cb({ code: 'closed' }));
+            return;
+          }
+          if (msg.t === 'react') { reactSubs.forEach((cb) => cb(msg.seat, msg.e)); return; }
           if (msg.t !== 'room') return;
           clearTimeout(timer);
           peer.off('error', onPeerError);
@@ -320,7 +348,13 @@ export function p2pStore(Peer, options, uid, extraIce, brokers = DEFAULT_BROKERS
         const timer = setTimeout(() => reject(new Error('timeout')), 8000);
         bus.subscribe(`${home}/h/${uid}`, (msg) => {
           relayLast = Date.now();
-          if (msg.t === 'bye') { closed = true; errors.forEach((cb) => cb({ code: 'closed' })); return; }
+          if (msg.t === 'bye') {
+            closed = true;
+            if (!room) { clearTimeout(timer); reject(new Error('removed')); return; }
+            errors.forEach((cb) => cb({ code: 'closed' }));
+            return;
+          }
+          if (msg.t === 'react') { reactSubs.forEach((cb) => cb(msg.seat, msg.e)); return; }
           if (msg.t === 'room') room = msg.room;
           else if (msg.t === 'game' && room) room = { ...room, game: msg.game, status: msg.status };
           else if (msg.t === 'game') { hello(); return; } // we missed the seats: ask for everything
@@ -383,7 +417,7 @@ export function p2pStore(Peer, options, uid, extraIce, brokers = DEFAULT_BROKERS
         bus?.close();
         clearInterval(helloTimer);
         raceDone = true;
-        throw errs.find((e) => e.message === 'notfound') || errs.find((e) => e.message === 'timeout') || errs[0] || new Error('network');
+        throw errs.find((e) => e.message === 'removed') || errs.find((e) => e.message === 'notfound') || errs.find((e) => e.message === 'timeout') || errs[0] || new Error('network');
       }
       raceDone = true;
       backup.catch(() => {}); // the loser may still fail later; that is fine
@@ -416,6 +450,11 @@ export function p2pStore(Peer, options, uid, extraIce, brokers = DEFAULT_BROKERS
         async acquire() { return { acquired: true }; },
         onSnapshot(next, error) { subs.add(next); if (error) errors.add(error); next(snapshotOf(room)); return () => { subs.delete(next); errors.delete(error); }; },
         onStatus: status.on,
+        async react(emoji) {
+          if (conn?.open) conn.send({ t: 'react', e: emoji });
+          else if (bus?.alive) bus.publish(`${home}/g`, { t: 'react', uid, e: emoji });
+        },
+        onReact: (cb) => { reactSubs.add(cb); return () => reactSubs.delete(cb); },
         retry: () => { try { conn?.close(); } catch { /* already closed */ } retrying = false; if (peer) reconnect(); else if (bus) hello(); },
         close() {
           closed = true;

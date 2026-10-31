@@ -18,6 +18,7 @@ const wrap = (src) => {
 const strip = (src) => src.replace(/^import [\s\S]*?;\n/gm, '').replace(/^export /gm, '');
 const profile = strip(read('src/profile.js'));
 const relay = wrap(read('src/relay.js'));
+const sound = wrap(read('src/sound.js'));
 const transport = wrap(read('src/transport.js'));
 const ai = strip(read('src/ai.js'));
 const app = strip(read('src/app.js'))
@@ -40,6 +41,7 @@ ${engineJs}
 ${ai}
 ${profile}
 ${relay}
+${sound}
 ${transport}
 ${app}
 </script>

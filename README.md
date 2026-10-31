@@ -36,6 +36,13 @@ up again. Moves are paused until it is back.
 - Each player draws their own icon and chooses their dice colour; every player in a game has a different colour.
   Your icon and colour are remembered on your device.
 
+## Online extras
+
+- **Emoji:** in an online game, tap a player's name (or Menu, then Send an emoji) to send one of eight emoji; everyone sees it float up from your name.
+- **Back to lobby / Play again:** the host can restart with the same players, or go back to the lobby to change the game, add computer players or remove someone.
+- **Public rooms:** the host can switch on *Public room* in the lobby. The room then shows in everyone's **Open rooms** list on the Play online screen (only while it is in the lobby with a free seat). The list is passed through the same free public message servers as the backup route, so it needs no server of your own. Hosts can remove players.
+- **Sound and vibration:** sound effects are made on the spot with Web Audio (no files); both can be switched off from the menu. Vibration works on Android browsers; iPhones do not allow it from web pages.
+
 ## Rollick Extreme
 
 Pick **Rollick Extreme** on the start screen (or in an online lobby, as host) for the same game with extra rules:
