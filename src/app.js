@@ -2,10 +2,9 @@ import * as E from './engine.js';
 import { aiNextAction } from './ai.js';
 
 const modeLabel = (m) => (m === 'extreme' ? 'Rollick Extreme' : 'Rollick');
-const MODE_BLURB = {
-  classic: `Roll the dice, fill the cards, be first to ${E.TARGET_SCORE}.`,
-  extreme: 'Power cards, bonus rolls, chaos rounds and a turn timer. First to 40.',
-};
+const modeBlurb = (m, target) => (m === 'extreme'
+  ? `Power cards, bonus rolls, chaos rounds and a turn timer. First to ${target}.`
+  : `Roll the dice, fill the cards, be first to ${target}.`);
 const TURN_MS = 60000; // Extreme: time for one turn
 const levelLabel = (l) => (E.LEVEL_NAMES.includes(l) ? l : 'normal').replace(/^./, (c) => c.toUpperCase());
 import { dbStore, p2pStore, checkConnection } from './transport.js';
@@ -47,6 +46,7 @@ const ui = {
   online: false,
   joinCode: '',
   mode: store.get('rfi-mode') === 'extreme' ? 'extreme' : 'classic', // classic | extreme
+  settings: loadSettings(), // { target, dice }: what a new game plays to, and the dice each player owns
   power: null, // the power card being played: { kind, rolled? }
   turnEnds: 0, // Extreme: when the current turn runs out
   tut: null, // the guided first game: { step }
@@ -130,6 +130,29 @@ const LOGO = `<svg class="logo" viewBox="0 0 120 120" aria-hidden="true">
   <g transform="rotate(12 80 80)"><rect x="52" y="52" width="56" height="56" rx="13" fill="#3b82f6"/><g fill="#fff"><circle cx="67" cy="67" r="5.5"/><circle cx="93" cy="67" r="5.5"/><circle cx="67" cy="93" r="5.5"/><circle cx="93" cy="93" r="5.5"/></g></g>
 </svg>`;
 
+/** What a new game plays to, and how many dice each player owns; kept on the device. */
+function loadSettings() {
+  let saved = {};
+  try { saved = JSON.parse(store.get('rfi-settings')) || {}; } catch { /* nothing saved */ }
+  return {
+    target: E.SETTINGS.targets.includes(saved.target) ? saved.target : E.TARGET_SCORE,
+    dice: E.SETTINGS.dice.includes(saved.dice) ? saved.dice : E.DICE_PER_PLAYER,
+  };
+}
+
+/** The two choices as sliding switches. `act` is the action to run with data-k=value. */
+function settingsPanel(current, act, enabled) {
+  const row = (label, key, values) => `<div class="setrow"><span>${label}</span>
+    <div class="seg" role="group" aria-label="${label}" style="grid-template-columns:repeat(${values.length},1fr)">
+      ${values.map((v) => `<button class="${current[key] === v ? 'on' : ''}" data-act="${act}" data-key="${key}" data-v="${v}" aria-pressed="${current[key] === v}" ${enabled ? '' : 'disabled'}>${v}</button>`).join('')}
+    </div></div>`;
+  return `<section class="panel settings" aria-label="Game settings">
+    <h2>Game settings</h2>
+    ${row('Play to', 'target', E.SETTINGS.targets)}
+    ${row('Dice each', 'dice', E.SETTINGS.dice)}
+  </section>`;
+}
+
 /** Two games in one app: the original, and the one with power cards. */
 function modePicker(enabled) {
   return `<div class="modes" role="group" aria-label="Game">
@@ -163,7 +186,7 @@ function setupView() {
   const saved = net.store && savedSession();
   return `
     <div class="setup">
-      <header class="hero">${LOGO}<h1>Rollick</h1><p class="tag">${MODE_BLURB[ui.mode]}</p></header>
+      <header class="hero">${LOGO}<h1>Rollick</h1><p class="tag">${modeBlurb(ui.mode, ui.settings.target)}</p></header>
       ${store.get('rfi-tutorial') ? '' : '<button class="btn learn" data-act="startTutorial">🎓 New here? Learn to play in a minute</button>'}
       ${modePicker(true)}
       ${saved ? `<button class="btn resume" data-act="resume">Return to room ${esc(saved.code)}</button>` : ''}
@@ -172,6 +195,7 @@ function setupView() {
         ${rows}
         ${ui.setup.length < MAX_PLAYERS ? '<button class="add" data-act="addPlayer">+ Add player</button>' : ''}
       </section>
+      ${settingsPanel(ui.settings, 'setSetting', true)}
       <button class="btn primary big" data-act="start">Start game</button>
       ${net.store ? '<button class="btn" data-act="goOnline">Play online with friends</button>' : ''}
       <nav class="iconbar" aria-label="More">
@@ -308,6 +332,7 @@ function lobbyView() {
       <button class="btn" data-act="invite">Invite friends</button>
       ${host && net.store?.kind === 'p2p' ? `<button class="btn togglerow ${room.public ? 'on' : ''}" data-act="togglePublic" aria-pressed="${!!room.public}">
         <span>🌐 Public room</span><small>${room.public ? 'Anyone can find and join this room from the Open rooms list' : 'Only people with the code can join'}</small></button>` : ''}
+      ${host ? settingsPanel(room.settings || ui.settings, 'setRoomSetting', true) : `<p class="tag center">Play to <b>${(room.settings || {}).target || E.TARGET_SCORE}</b> · <b>${(room.settings || {}).dice || E.DICE_PER_PLAYER}</b> dice each</p>`}
       <section class="panel" aria-label="Players">
         <h2>Players · ${room.seats.length} of ${MAX_PLAYERS}</h2>
         ${rows}
@@ -468,7 +493,7 @@ function gameView() {
   const chips = s.players.map((p, i) => `
     <div class="chip ${i === s.current && s.phase !== 'over' ? 'active' : ''}" data-p="${i}" style="--c:${hexOf(i)}" ${canReact() ? 'data-act="reactMenu" role="button" tabindex="0" aria-label="Send an emoji"' : ''}>
       ${avatarHtml(seats()[i], i, 28)}
-      <span class="meta"><span class="n">${esc(p.name)}${ui.online && i === net.mySeat ? ' (you)' : ''}</span><span class="s"><b class="num">${p.score}</b><small> / ${E.TARGET_SCORE}</small></span></span>
+      <span class="meta"><span class="n">${esc(p.name)}${ui.online && i === net.mySeat ? ' (you)' : ''}</span><span class="s"><b class="num">${p.score}</b><small> / ${E.targetOf(s)}</small></span></span>
       ${pileHtml(p.pile)}
     </div>`).join('');
 
@@ -489,10 +514,10 @@ function gameView() {
     tray = Array.from({ length: live }, () => die(1, 'owned hand', `style="${diceVars(mine, s.current)}"`)).join('').replace(/aria-label="1"/g, 'aria-label="die in hand"');
   }
   // Always six places, so the tray (and with it the whole table) never changes height from turn to turn.
-  tray += Array.from({ length: Math.max(0, E.DICE_PER_PLAYER - live) }, () => `<div class="die empty" aria-label="die on a card">${'<i></i>'.repeat(9)}</div>`).join('');
-  const onCards = E.DICE_PER_PLAYER - E.handSize(s, s.current);
+  tray += Array.from({ length: Math.max(0, E.diceOf(s) - live) }, () => `<div class="die empty" aria-label="die on a card">${'<i></i>'.repeat(9)}</div>`).join('');
+  const onCards = E.diceOf(s) - E.handSize(s, s.current);
   const canTakeBack = human && s.phase === 'start' && onCards > 0;
-  const mustTakeBack = canTakeBack && onCards === E.DICE_PER_PLAYER;
+  const mustTakeBack = canTakeBack && onCards === E.diceOf(s);
   const canRoll = human && s.phase === 'start' && E.handSize(s, s.current) > 0;
   const canEnd = human && s.phase === 'placing' && !ui.rolling;
   const noMoves = canEnd && !E.legalMoves(s).length;
@@ -593,9 +618,9 @@ function modalView() {
   }
   if (ui.modal === 'rules') {
     return `<div class="modal" data-act="closeModal"><div class="sheet"><h2>How to play</h2>
-      <p>Be the first to score <b>${E.TARGET_SCORE} points</b>. Cards are worth 2–15 points, and the harder a card is to finish, the more it's worth.</p>
+      <p>Be the first to score <b>${ui.game ? E.targetOf(ui.game) : ui.settings.target} points</b> (rooms can change this). Cards are worth 2–15 points, and the harder a card is to finish, the more it's worth.</p>
       <ol>
-        <li><b>Roll.</b> Roll all the dice in your hand (you own ${E.DICE_PER_PLAYER}), once per turn.</li>
+        <li><b>Roll.</b> Roll all the dice in your hand (you own ${ui.game ? E.diceOf(ui.game) : ui.settings.dice}), once per turn.</li>
         <li><b>Place.</b> Tap a die, then a card that shows that number. Each die matches one picture on one card. Once placed, a die can't move. You may choose not to place a die; unplaced dice stay in your hand.</li>
         <li><b>Claim.</b> Cover every picture on a card with <i>your own</i> dice to score it. All dice on a scored card go back to their owners, and a new card is flipped. Leftover dice from your roll may go on the new card.</li>
         <li><b>Take Back:</b> at the start of your turn, before rolling, you may take back <b>all</b> your dice from the cards and roll all six.</li>
@@ -977,8 +1002,8 @@ function cpuStep() {
   else commit(E.endTurn(s));
 }
 
-function freshGame(configs, mode = 'classic') {
-  const g = E.newGame(configs, Math.random, { mode });
+function freshGame(configs, mode = 'classic', settings = {}) {
+  const g = E.newGame(configs, Math.random, { mode, target: settings.target, dice: settings.dice });
   g.rev = 0;
   g.gid = Math.random().toString(36).slice(2);
   return g;
@@ -1093,7 +1118,7 @@ function startGame() {
   ui.game = null;
   ui.cfg = ui.setup.map((p) => ({ ...p }));
   keepAwake(true);
-  const g = freshGame(ui.cfg, ui.mode);
+  const g = freshGame(ui.cfg, ui.mode, ui.settings);
   ui.screen = 'game';
   ui.rolling = false;
   ui.modal = null;
@@ -1264,7 +1289,7 @@ async function createRoom() {
     if (!ref) throw new Error('taken');
     attach(ref);
     saveSession(code, true);
-    await pushRoom({ code, hostUid: net.uid, status: 'lobby', mode: ui.mode, seats: [{ uid: net.uid, ...mySeatData([]) }], game: null, createdAt: Date.now() });
+    await pushRoom({ code, hostUid: net.uid, status: 'lobby', mode: ui.mode, settings: { ...ui.settings }, seats: [{ uid: net.uid, ...mySeatData([]) }], game: null, createdAt: Date.now() });
   } catch (e) { leaveRoom(); ui.screen = 'online'; ui.onlineError = net.store.kind === 'db' ? 'Could not create a room. The page needs to be shared with you as an editor.' : failText(e); }
   net.busy = false; render();
 }
@@ -1326,7 +1351,7 @@ async function invite() {
 async function startOnline() {
   await mutateRoom((room) => {
     if (room.hostUid !== net.uid || room.seats.length < 2) return null;
-    room.game = freshGame(room.seats, room.mode);
+    room.game = freshGame(room.seats, room.mode, room.settings);
     room.status = 'playing';
     return room;
   });
@@ -1437,6 +1462,21 @@ const actions = {
     return room;
   }),
   joinListed: ({ code }) => { if (/^[A-Z]{4}$/.test(code)) { ui.joinCode = code; joinRoom(); } },
+  setSetting: ({ key, v }) => {
+    const value = +v;
+    if (!(key === 'target' ? E.SETTINGS.targets : key === 'dice' ? E.SETTINGS.dice : []).includes(value)) return;
+    ui.settings = { ...ui.settings, [key]: value };
+    store.set('rfi-settings', JSON.stringify(ui.settings));
+    render();
+  },
+  setRoomSetting: ({ key, v }) => mutateRoom((room) => {
+    const value = +v;
+    if (room.hostUid !== net.uid || room.status !== 'lobby' || !(key === 'target' ? E.SETTINGS.targets : key === 'dice' ? E.SETTINGS.dice : []).includes(value)) return null;
+    room.settings = { ...(room.settings || ui.settings), [key]: value };
+    ui.settings = { ...room.settings };
+    store.set('rfi-settings', JSON.stringify(ui.settings));
+    return room;
+  }),
   setMode: ({ m }) => { if (!E.MODES.includes(m)) return; ui.mode = m; store.set('rfi-mode', m); render(); },
   setRoomMode: ({ m }) => mutateRoom((room) => {
     if (room.hostUid !== net.uid || !E.MODES.includes(m) || room.status !== 'lobby') return null;

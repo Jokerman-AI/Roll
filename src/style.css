@@ -549,3 +549,9 @@ html { background: var(--felt); }
 .iconbtn { width: 48px; height: 48px; border: 0; border-radius: 50%; background: #ffffff1a; color: var(--ink); display: grid; place-items: center; padding: 0; }
 .iconbtn:active { background: #ffffff33; }
 .iconbtn svg { display: block; }
+
+/* game settings */
+.setrow { display: flex; align-items: center; gap: 10px; }
+.setrow > span { flex: none; width: 5.2em; font-weight: 700; font-size: .85rem; }
+.setrow .seg { flex: 1; }
+.panel.settings { gap: 10px; }
