@@ -581,3 +581,10 @@ test('every look that can be locked has a requirement the stats can meet', () =>
   const rich = { games: 99, wins: 99, claims: 99, streak: 0, bestStreak: 0, extremeWins: 9, online: 9, best: 99 };
   for (const part of Object.keys(UNLOCKS)) for (const id of Object.keys(UNLOCKS[part])) assert.ok(isUnlocked(part, id, rich) && requirementText(part, id));
 });
+
+test('settings from outside are always turned into safe numbers', () => {
+  assert.deepEqual(E.cleanSettings({ target: '30', dice: '5' }), { target: 30, dice: 5 });
+  assert.deepEqual(E.cleanSettings({ target: '<img src=x onerror=alert(1)>', dice: { a: 1 } }), { target: E.TARGET_SCORE, dice: E.DICE_PER_PLAYER });
+  assert.deepEqual(E.cleanSettings(null), { target: E.TARGET_SCORE, dice: E.DICE_PER_PLAYER });
+  assert.deepEqual(E.cleanSettings({ target: 31, dice: 3 }), { target: E.TARGET_SCORE, dice: E.DICE_PER_PLAYER });
+});

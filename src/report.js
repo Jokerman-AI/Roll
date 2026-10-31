@@ -11,7 +11,8 @@ const write = (list) => { try { localStorage.setItem(KEY, JSON.stringify(list));
 let log = read().filter((e) => e && typeof e.msg === 'string').slice(-KEEP);
 
 /** Noise that is not about Rollick: browser quirks and scripts from elsewhere. */
-const ignorable = (msg, file) => /ResizeObserver|Script error|Non-Error promise rejection/i.test(msg) || (file && !file.startsWith(location.origin) && !file.startsWith('blob:') && !file.startsWith('about:'));
+const ignorable = (msg, file) => /ResizeObserver|Script error|Non-Error promise rejection/i.test(msg)
+  || (file && (/^(chrome|moz|safari|webkit)-?(extension|web-extension)?:/i.test(file) || (/^https?:/i.test(file) && !file.startsWith(location.origin) && file !== location.href)));
 
 function note(msg, where, onError) {
   const text = String(msg ?? 'unknown error').slice(0, 200);

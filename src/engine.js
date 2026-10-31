@@ -148,6 +148,14 @@ function grantPower(s, player, rng) {
 
 const pickSetting = (value, list, fallback) => (list.includes(value) ? value : fallback);
 
+/** Settings from outside (a saved file, or another player's room) turned into safe numbers. */
+export function cleanSettings(raw) {
+  return {
+    target: pickSetting(Number(raw?.target), SETTINGS.targets, TARGET_SCORE),
+    dice: pickSetting(Number(raw?.dice), SETTINGS.dice, DICE_PER_PLAYER),
+  };
+}
+
 export function newGame(configs, rng = Math.random, { mode = 'classic', target, dice } = {}) {
   if (configs.length < 2 || configs.length > MAX_PLAYERS) throw new Error('2-8 players');
   const players = configs.map((c) => ({ name: c.name, cpu: !!c.cpu, level: LEVEL_NAMES.includes(c.level) ? c.level : 'normal', score: 0, pile: [] })); // pile: points of cards claimed

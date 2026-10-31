@@ -728,6 +728,14 @@ function grantPower(s, player, rng) {
 
 const pickSetting = (value, list, fallback) => (list.includes(value) ? value : fallback);
 
+/** Settings from outside (a saved file, or another player's room) turned into safe numbers. */
+function cleanSettings(raw) {
+  return {
+    target: pickSetting(Number(raw?.target), SETTINGS.targets, TARGET_SCORE),
+    dice: pickSetting(Number(raw?.dice), SETTINGS.dice, DICE_PER_PLAYER),
+  };
+}
+
 function newGame(configs, rng = Math.random, { mode = 'classic', target, dice } = {}) {
   if (configs.length < 2 || configs.length > MAX_PLAYERS) throw new Error('2-8 players');
   const players = configs.map((c) => ({ name: c.name, cpu: !!c.cpu, level: LEVEL_NAMES.includes(c.level) ? c.level : 'normal', score: 0, pile: [] })); // pile: points of cards claimed
@@ -993,7 +1001,7 @@ function tutorialGame() {
   };
 }
 
-return { DICE_PER_PLAYER, TARGET_SCORE, SETTINGS, MAX_PLAYERS, mulberry32, buildDeck, cardsInPlay, missing, targetOf, diceOf, handSize, LEVEL_NAMES, MODES, MAX_POWERS, BONUS_POINTS, POWERS, POWER_KINDS, newGame, takeBack, roll, canPlace, legalMoves, place, endTurn, powerProblem, usePower, powerMoves, TUTORIAL_ROLL, scriptedRng, tutorialGame };
+return { DICE_PER_PLAYER, TARGET_SCORE, SETTINGS, MAX_PLAYERS, mulberry32, buildDeck, cardsInPlay, missing, targetOf, diceOf, handSize, LEVEL_NAMES, MODES, MAX_POWERS, BONUS_POINTS, POWERS, POWER_KINDS, cleanSettings, newGame, takeBack, roll, canPlace, legalMoves, place, endTurn, powerProblem, usePower, powerMoves, TUTORIAL_ROLL, scriptedRng, tutorialGame };
 })();
 
 // The computer player. It only uses what every player can see: the cards, everyone's dice and scores.
@@ -1929,7 +1937,8 @@ const write = (list) => { try { localStorage.setItem(KEY, JSON.stringify(list));
 let log = read().filter((e) => e && typeof e.msg === 'string').slice(-KEEP);
 
 /** Noise that is not about Rollick: browser quirks and scripts from elsewhere. */
-const ignorable = (msg, file) => /ResizeObserver|Script error|Non-Error promise rejection/i.test(msg) || (file && !file.startsWith(location.origin) && !file.startsWith('blob:') && !file.startsWith('about:'));
+const ignorable = (msg, file) => /ResizeObserver|Script error|Non-Error promise rejection/i.test(msg)
+  || (file && (/^(chrome|moz|safari|webkit)-?(extension|web-extension)?:/i.test(file) || (/^https?:/i.test(file) && !file.startsWith(location.origin) && file !== location.href)));
 
 function note(msg, where, onError) {
   const text = String(msg ?? 'unknown error').slice(0, 200);
@@ -2642,10 +2651,7 @@ const LOGO = `<svg class="logo" viewBox="0 0 120 120" aria-hidden="true">
 function loadSettings() {
   let saved = {};
   try { saved = JSON.parse(store.get('rfi-settings')) || {}; } catch { /* nothing saved */ }
-  return {
-    target: E.SETTINGS.targets.includes(saved.target) ? saved.target : E.TARGET_SCORE,
-    dice: E.SETTINGS.dice.includes(saved.dice) ? saved.dice : E.DICE_PER_PLAYER,
-  };
+  return E.cleanSettings(saved);
 }
 
 /** The two choices as sliding switches. `act` is the action to run with data-k=value. */
@@ -2840,7 +2846,7 @@ function lobbyView() {
       <button class="btn" data-act="invite">Invite friends</button>
       ${host && net.store?.kind === 'p2p' ? `<button class="btn togglerow ${room.public ? 'on' : ''}" data-act="togglePublic" aria-pressed="${!!room.public}">
         <span>🌐 Public room</span><small>${room.public ? 'Anyone can find and join this room from the Open rooms list' : 'Only people with the code can join'}</small></button>` : ''}
-      ${host ? settingsPanel(room.settings || ui.settings, 'setRoomSetting', true) : `<p class="tag center">Play to <b>${(room.settings || {}).target || E.TARGET_SCORE}</b> · <b>${(room.settings || {}).dice || E.DICE_PER_PLAYER}</b> dice each</p>`}
+      ${host ? settingsPanel(E.cleanSettings(room.settings || ui.settings), 'setRoomSetting', true) : `<p class="tag center">Play to <b>${E.cleanSettings(room.settings).target}</b> · <b>${E.cleanSettings(room.settings).dice}</b> dice each</p>`}
       <section class="panel" aria-label="Players">
         <h2>Players · ${room.seats.length} of ${MAX_PLAYERS}</h2>
         ${rows}
@@ -3316,7 +3322,7 @@ const canAct = () => !!ui.game && !ui.rolling && ui.conn === 'online' && isMine(
 /** Count a finished game for the stats, and note any looks it unlocked. Not for the tutorial or spectators. */
 function countGame(g) {
   if (ui.tut || ui.recorded === g.gid) return;
-  const me = ui.online ? net.mySeat : ui.cfg.findIndex((p) => p.me);
+  const me = ui.online ? net.mySeat : ui.cfg.findIndex((p) => p.me && !p.cpu); // your own row, unless you made it a computer player
   if (me < 0 || !g.players[me]) return;
   ui.recorded = g.gid;
   ui.newUnlocks = recordGame({ won: g.winner === me, claims: (g.players[me].pile || []).length, score: g.players[me].score, mode: g.mode, online: ui.online });

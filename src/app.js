@@ -139,10 +139,7 @@ const LOGO = `<svg class="logo" viewBox="0 0 120 120" aria-hidden="true">
 function loadSettings() {
   let saved = {};
   try { saved = JSON.parse(store.get('rfi-settings')) || {}; } catch { /* nothing saved */ }
-  return {
-    target: E.SETTINGS.targets.includes(saved.target) ? saved.target : E.TARGET_SCORE,
-    dice: E.SETTINGS.dice.includes(saved.dice) ? saved.dice : E.DICE_PER_PLAYER,
-  };
+  return E.cleanSettings(saved);
 }
 
 /** The two choices as sliding switches. `act` is the action to run with data-k=value. */
@@ -337,7 +334,7 @@ function lobbyView() {
       <button class="btn" data-act="invite">Invite friends</button>
       ${host && net.store?.kind === 'p2p' ? `<button class="btn togglerow ${room.public ? 'on' : ''}" data-act="togglePublic" aria-pressed="${!!room.public}">
         <span>🌐 Public room</span><small>${room.public ? 'Anyone can find and join this room from the Open rooms list' : 'Only people with the code can join'}</small></button>` : ''}
-      ${host ? settingsPanel(room.settings || ui.settings, 'setRoomSetting', true) : `<p class="tag center">Play to <b>${(room.settings || {}).target || E.TARGET_SCORE}</b> · <b>${(room.settings || {}).dice || E.DICE_PER_PLAYER}</b> dice each</p>`}
+      ${host ? settingsPanel(E.cleanSettings(room.settings || ui.settings), 'setRoomSetting', true) : `<p class="tag center">Play to <b>${E.cleanSettings(room.settings).target}</b> · <b>${E.cleanSettings(room.settings).dice}</b> dice each</p>`}
       <section class="panel" aria-label="Players">
         <h2>Players · ${room.seats.length} of ${MAX_PLAYERS}</h2>
         ${rows}
@@ -813,7 +810,7 @@ const canAct = () => !!ui.game && !ui.rolling && ui.conn === 'online' && isMine(
 /** Count a finished game for the stats, and note any looks it unlocked. Not for the tutorial or spectators. */
 function countGame(g) {
   if (ui.tut || ui.recorded === g.gid) return;
-  const me = ui.online ? net.mySeat : ui.cfg.findIndex((p) => p.me);
+  const me = ui.online ? net.mySeat : ui.cfg.findIndex((p) => p.me && !p.cpu); // your own row, unless you made it a computer player
   if (me < 0 || !g.players[me]) return;
   ui.recorded = g.gid;
   ui.newUnlocks = recordGame({ won: g.winner === me, claims: (g.players[me].pile || []).length, score: g.players[me].score, mode: g.mode, online: ui.online });
