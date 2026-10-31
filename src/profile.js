@@ -11,6 +11,9 @@ export const PALETTE = [
   { name: 'Black', hex: '#2a2f3a', pip: '#ffffff' },
 ];
 
+// Emoji people can send to each other during an online game.
+export const REACTIONS = ['👏', '😂', '😱', '🔥', '🎲', '😈', '👍', '💀'];
+
 // Names for computer players, all short enough for a scoreboard chip.
 const CPU_NAMES = [
   'Dicey', 'Snake Eyes', 'Lucky', 'Boxcars', 'Rollo', 'Pips', 'Tumbler', 'Cubert', 'Ace', 'Jinx',

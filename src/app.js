@@ -9,9 +9,10 @@ const MODE_BLURB = {
 const TURN_MS = 60000; // Extreme: time for one turn
 const levelLabel = (l) => (E.LEVEL_NAMES.includes(l) ? l : 'normal').replace(/^./, (c) => c.toUpperCase());
 import { dbStore, p2pStore, checkConnection } from './transport.js';
-import { checkFallback, DEFAULT_BROKERS } from './relay.js';
+import { checkFallback, DEFAULT_BROKERS, lobbyList, lobbyAnnouncer } from './relay.js';
+import { sfx, soundPrefs, setSound, setHaptics, canVibrate } from './sound.js';
 import {
-  PALETTE, INK, BRUSHES, STAMPS, AVATAR_SIZE, cpuName, freeColor, safeAvatar, makeSketch, paintCanvas, pointOn, strokeSegment, stampAt, clearSketch, loadAvatar, exportAvatar,
+  PALETTE, INK, BRUSHES, STAMPS, AVATAR_SIZE, REACTIONS, cpuName, freeColor, safeAvatar, makeSketch, paintCanvas, pointOn, strokeSegment, stampAt, clearSketch, loadAvatar, exportAvatar,
 } from './profile.js';
 
 const MAX_PLAYERS = E.MAX_PLAYERS;
@@ -47,6 +48,8 @@ const ui = {
   mode: store.get('rfi-mode') === 'extreme' ? 'extreme' : 'classic', // classic | extreme
   power: null, // the power card being played: { kind, rolled? }
   turnEnds: 0, // Extreme: when the current turn runs out
+  react: false, // the emoji picker is open
+  rooms: { state: 'idle', list: [] }, // the public room list on the online screen
   netTest: '', // result of the connection check on the online screen
   onlineError: '', // why the last create/join failed, shown on the online screen
   setup: [
@@ -103,10 +106,11 @@ function setFace(el, face) {
 /* ---------- rendering ---------- */
 
 function render() {
-  app.innerHTML = ({ setup: setupView, online: onlineView, lobby: lobbyView, game: gameView }[ui.screen])() + connBanner() + modalView() + peekView();
+  app.innerHTML = ({ setup: setupView, online: onlineView, lobby: lobbyView, game: gameView }[ui.screen])() + connBanner() + modalView() + peekView() + reactView();
   const cv = document.getElementById('avcv');
   if (cv && ui.ed) paintCanvas(cv, ui.ed.sk);
   positionPeek();
+  watchRooms();
 }
 
 function connBanner() {
@@ -156,8 +160,70 @@ function setupView() {
       </section>
       <button class="btn primary big" data-act="start">Start game</button>
       ${net.store ? '<button class="btn" data-act="goOnline">Play online with friends</button>' : ''}
-      <nav class="links"><button data-act="rules">How to play</button><span aria-hidden="true">·</span><button data-act="about">About &amp; terms</button></nav>
+      <nav class="links"><button data-act="rules">How to play</button><span aria-hidden="true">·</span><button data-act="about">About &amp; terms</button><span aria-hidden="true">·</span><button data-act="toggleSound" aria-label="Sound ${soundPrefs.sound ? 'on' : 'off'}">${soundPrefs.sound ? '🔊' : '🔇'}</button></nav>
     </div>`;
+}
+
+/* ---------- the public room list ---------- */
+
+function roomsHtml() {
+  const { state, list } = ui.rooms;
+  if (state === 'down') return '<p class="tag">Could not reach the room list. You can still join with a code.</p>';
+  if (state !== 'ready') return '<p class="tag">Looking for open rooms…</p>';
+  if (!list.length) return '<p class="tag">No open rooms right now. Make one and switch on <b>Public room</b> to let others find it.</p>';
+  return list.map((r) => `<div class="rrow"><span class="rm" aria-hidden="true">${r.mode === 'extreme' ? '⚡' : '🎲'}</span>
+    <div class="rinfo"><b>${esc(r.host)}</b><small>${modeLabel(r.mode)} · ${r.n}/${r.max} players</small></div>
+    <button class="btn small" data-act="joinListed" data-code="${r.code}" ${net.busy ? 'disabled' : ''}>Join</button></div>`).join('');
+}
+
+const paintRooms = () => { const el = document.getElementById('rooms'); if (el) el.innerHTML = roomsHtml(); };
+
+/** Watch the list only while the online screen is showing. */
+function watchRooms() {
+  const want = ui.screen === 'online' && net.store?.kind === 'p2p';
+  if (want && !net.list) {
+    ui.rooms = { state: 'connecting', list: [] };
+    net.list = lobbyList(window.RFI_RELAY_BROKERS ?? DEFAULT_BROKERS, (list) => { ui.rooms.list = list; paintRooms(); }, (up) => { ui.rooms.state = up ? 'ready' : 'down'; paintRooms(); });
+  } else if (!want && net.list) {
+    net.list.close();
+    net.list = null;
+  }
+}
+
+/** A host who made the room public keeps it on the list, as long as it is in the lobby with a free seat. */
+function syncDirectory(room) {
+  const open = isHost() && net.store?.kind === 'p2p' && room?.public && room.status === 'lobby' && room.seats.length < MAX_PLAYERS;
+  if (open) {
+    net.dir ||= lobbyAnnouncer(window.RFI_RELAY_BROKERS ?? DEFAULT_BROKERS);
+    const me = room.seats.find((p) => p.uid === room.hostUid);
+    net.dir.announce({ code: room.code, host: me?.name || 'Player', mode: room.mode === 'extreme' ? 'extreme' : 'classic', n: room.seats.length, max: MAX_PLAYERS });
+  } else if (net.dir) {
+    net.dir.withdraw();
+  }
+}
+
+/* ---------- emoji ---------- */
+
+/** Reactions need a live online game, a seat at the table and a connection that can carry them. */
+const canReact = () => ui.online && ui.screen === 'game' && net.mySeat >= 0 && typeof net.ref?.react === 'function';
+
+function reactView() {
+  if (!ui.react || !canReact()) return '';
+  return `<div class="reactbar" role="dialog" aria-label="Send an emoji">${REACTIONS.map((e) => `<button data-act="sendReact" data-e="${e}" aria-label="Send ${e}">${e}</button>`).join('')}<button class="x" data-act="closeReact" aria-label="Close">✕</button></div>`;
+}
+
+/** An emoji floats up from the sender's name for a moment. */
+function showReaction(seat, emoji) {
+  if (ui.screen !== 'game' || !REACTIONS.includes(emoji)) return;
+  const chip = app.querySelector(`.chip[data-p="${seat}"]`);
+  if (!chip) return;
+  const r = chip.getBoundingClientRect();
+  const bubble = Object.assign(document.createElement('div'), { className: 'rbubble', textContent: emoji });
+  bubble.style.left = `${r.left + r.width / 2}px`;
+  bubble.style.top = `${r.bottom - 6}px`;
+  document.body.appendChild(bubble);
+  setTimeout(() => bubble.remove(), 1900);
+  sfx.react();
 }
 
 function onlineView() {
@@ -173,6 +239,10 @@ function onlineView() {
       </section>
       ${ui.onlineError ? `<p class="notice" role="alert">${esc(ui.onlineError)}</p>` : ''}
       <button class="btn primary big" data-act="createRoom" ${net.busy ? 'disabled' : ''}>${net.busy ? 'Connecting…' : 'Create room'}</button>
+      ${net.store?.kind === 'p2p' ? `<section class="panel" aria-label="Open rooms">
+        <h2>Open rooms</h2>
+        <div id="rooms">${roomsHtml()}</div>
+      </section>` : ''}
       <section class="panel" aria-label="Join a room">
         <h2>Join a room</h2>
         <div class="joinrow">
@@ -208,6 +278,7 @@ function lobbyView() {
           : `<div class="pmeta">${cpu ? `CPU · ${levelLabel(p.level)}` : i === net.mySeat ? 'Tap your face to change icon and colour' : 'Player'}</div>`}
       </div>
       ${host && cpu ? `<button class="x" data-act="removeSeat" data-i="${i}" aria-label="Remove ${esc(p.name)}">✕</button>` : ''}
+      ${host && !cpu && p.uid !== room.hostUid ? `<button class="x" data-act="kickSeat" data-i="${i}" aria-label="Remove ${esc(p.name)} from the room" title="Remove from the room">✕</button>` : ''}
     </div>`;
   }).join('');
   return `
@@ -215,6 +286,8 @@ function lobbyView() {
       <header class="hero">${LOGO}<p class="tag">Room code</p><h1 class="code">${esc(room.code)}</h1></header>
       ${host ? modePicker(true).replace(/data-act="setMode"/g, 'data-act="setRoomMode"') : `<p class="tag center">Game: <b>${modeLabel(room.mode)}</b></p>`}
       <button class="btn" data-act="invite">Invite friends</button>
+      ${host && net.store?.kind === 'p2p' ? `<button class="btn togglerow ${room.public ? 'on' : ''}" data-act="togglePublic" aria-pressed="${!!room.public}">
+        <span>🌐 Public room</span><small>${room.public ? 'Anyone can find and join this room from the Open rooms list' : 'Only people with the code can join'}</small></button>` : ''}
       <section class="panel" aria-label="Players">
         <h2>Players · ${room.seats.length} of ${MAX_PLAYERS}</h2>
         ${rows}
@@ -363,7 +436,7 @@ function gameView() {
   const human = isMine(s);
   const mine = seats()[s.current];
   const chips = s.players.map((p, i) => `
-    <div class="chip ${i === s.current && s.phase !== 'over' ? 'active' : ''}" data-p="${i}" style="--c:${hexOf(i)}">
+    <div class="chip ${i === s.current && s.phase !== 'over' ? 'active' : ''}" data-p="${i}" style="--c:${hexOf(i)}" ${canReact() ? 'data-act="reactMenu" role="button" tabindex="0" aria-label="Send an emoji"' : ''}>
       ${avatarHtml(seats()[i], i, 28)}
       <span class="meta"><span class="n">${esc(p.name)}${ui.online && i === net.mySeat ? ' (you)' : ''}</span><span class="s"><b class="num">${p.score}</b><small> / ${E.TARGET_SCORE}</small></span></span>
       ${pileHtml(p.pile)}
@@ -484,7 +557,8 @@ function modalView() {
     const scores = s.players.map((p, i) => `<div class="srow">${avatarHtml(seats()[i], i, 24)}<span>${esc(p.name)}</span><b>${p.score}</b></div>`).join('');
     return `<div class="modal"><div class="sheet winner">
       <div class="trophy">${avatarHtml(seats()[s.winner], s.winner, 72)}</div><div class="big">${wins(s.players[s.winner].name)}</div><div class="scores">${scores}</div>
-      ${ui.online && !isHost() ? '<p>Waiting for the host to start a rematch…</p>' : '<button class="btn primary" data-act="rematch">Rematch</button>'}
+      ${ui.online && !isHost() ? '<p>Waiting for the host to start a rematch…</p>' : '<button class="btn primary" data-act="rematch">Play again</button>'}
+      ${ui.online && isHost() ? '<button class="btn" data-act="toLobby">Back to lobby</button>' : ''}
       <button class="btn" data-act="toSetup">${ui.online ? 'Leave room' : 'Main menu'}</button></div></div>`;
   }
   if (ui.modal === 'rules') {
@@ -516,12 +590,13 @@ function modalView() {
         <li>Player names and drawn icons are shown to everyone in your game. Keep them kind and legal: no hateful, sexual, harassing or infringing content, and no impersonating others. Anyone who breaks this may be asked to leave by the room host.</li>
         <li>You are responsible for what you draw and type. Do not use anyone else's artwork or trademarks.</li>
         <li>Don't try to cheat, disrupt other players' games or attack the service.</li>
+        <li>Public rooms can be joined by anyone who sees them. Hosts can remove players from their room, and you can leave at any time. Emoji and names are visible to everyone in the room, so keep them friendly.</li>
         <li>These terms may change. Continuing to use Rollick means you accept them.</li>
       </ul>
       <h3>Privacy</h3>
       <ul>
         <li>Rollick has no accounts, ads or analytics. Your name, icon, colour and settings are saved only on your device.</li>
-        <li>Online games connect players directly (peer to peer) when they can. Your name, icon and moves are sent to the other players in your room. A signalling server and relay servers help devices find each other, and they can see network addresses and connection details while you play. The host also keeps a connection open to free public message servers, so players whose network blocks direct connections can still join. When that backup route is used, moves pass through those servers. Anyone who knows your room code could see that traffic, so don't share the code publicly and don't put private information in your name or icon.</li>
+        <li>Online games connect players directly (peer to peer) when they can. Your name, icon and moves are sent to the other players in your room. A signalling server and relay servers help devices find each other, and they can see network addresses and connection details while you play. The host also keeps a connection open to free public message servers, so players whose network blocks direct connections can still join. When that backup route is used, moves pass through those servers. Anyone who knows your room code could see that traffic, so don't share the code publicly and don't put private information in your name or icon. If you switch on <b>Public room</b>, the room code, your name, the game and the player count are published on those servers so other people can find the room; switch it off and the listing is removed.</li>
         <li>Clear the site data or remove the app to delete everything stored on your device.</li>
       </ul>
       <h3>Open-source notices</h3>
@@ -535,6 +610,10 @@ function modalView() {
     return `<div class="modal" data-act="closeModal"><div class="sheet"><h2>Menu</h2>
       <button class="btn" data-act="rules">How to play</button>
       <button class="btn" data-act="about">About &amp; terms</button>
+      ${canReact() ? '<button class="btn" data-act="reactMenu">😀 Send an emoji</button>' : ''}
+      <button class="btn" data-act="toggleSound">${soundPrefs.sound ? '🔊 Sound: on' : '🔇 Sound: off'}</button>
+      ${canVibrate() ? `<button class="btn" data-act="toggleHaptics">${soundPrefs.haptics ? '📳 Vibration: on' : '📴 Vibration: off'}</button>` : ''}
+      ${ui.online && isHost() ? '<button class="btn" data-act="toLobby">Back to lobby</button>' : ''}
       ${ui.online && isHost() && ui.game?.phase !== 'over' && ui.game.current !== net.mySeat ? '<button class="btn" data-act="skipTurn">Skip current player</button>' : ''}
       ${ui.online ? '' : '<button class="btn" data-act="rematch">Restart game</button>'}
       <button class="btn" data-act="toSetup">${ui.online ? 'Leave room' : 'Main menu'}</button>
@@ -635,6 +714,7 @@ const canAct = () => !!ui.game && !ui.rolling && ui.conn === 'online' && isMine(
 
 /** Start the tumbling animation: each die lands at its own time, faces cycling until then. */
 function startRoll(count) {
+  sfx.roll(count);
   const quick = reducedMotion();
   ui.fx = Array.from({ length: count }, (_, i) => ({
     delay: quick ? 0 : i * 70 + Math.floor(Math.random() * 110),
@@ -691,9 +771,14 @@ function receive(next) {
   if (happened && !next.lastClaim) say(happened, 3200);
   if (sameGame && prev.phase === 'start' && next.phase === 'placing') startRoll(next.rolled.length);
   const justWon = sameGame && next.phase === 'over' && prev.phase !== 'over';
+  if (sameGame && prev.rev !== next.rev) {
+    if (next.lastClaim) sfx.claim();
+    else if ((next.events || []).some((e) => e.type === 'power' || e.type === 'chaos' || e.type === 'lucky')) sfx.power();
+    if (next.current !== prev.current && next.phase !== 'over' && isMine(next) && !next.players[next.current].cpu && !justWon) setTimeout(sfx.turn, 400);
+  }
   render();
   if (flight) flyCard(flight);
-  if (justWon) confetti(next.winner);
+  if (justWon) { confetti(next.winner); setTimeout(sfx.win, 300); }
   settle();
 }
 
@@ -773,6 +858,7 @@ function settle() {
 
 /** A person's placement: kept so it can be undone, unless it claimed a card (which draws a new one). */
 function placeDie(rolled, card) {
+  sfx.place();
   const before = ui.game;
   const next = E.place(before, rolled, card);
   if (next.lastClaim) ui.undo = [];
@@ -824,6 +910,7 @@ function doPower(kind, args) {
     ui.power = null;
     commit(next);
   } catch (e) {
+    sfx.error();
     say(e.message);
   }
 }
@@ -941,6 +1028,8 @@ function attach(ref) {
     render();
     if (state === 'online') settle();
   });
+  net.offReact?.();
+  net.offReact = ref.onReact?.(showReaction);
   net.unsub = ref.onSnapshot(onRoom, (e) => {
     if (e?.code === 'lost') return; // the banner offers Retry
     if (e?.code === 'closed') { say('The host ended the room'); leaveRoom(); return; }
@@ -955,7 +1044,11 @@ function onRoom(snap) {
   const room = snap.data();
   net.room = room;
   net.mySeat = room.seats.findIndex((p) => p.uid === net.uid);
+  if (net.seated && net.mySeat < 0) { say('The host removed you from the room', 3000); leaveRoom(); return; }
+  net.seated = net.mySeat >= 0;
   ui.online = true;
+  ui.react = ui.react && room.status !== 'lobby';
+  syncDirectory(room);
   if (room.status === 'lobby') {
     clearTimeout(timer);
     ui.game = null;
@@ -972,6 +1065,12 @@ function leaveRoom() {
   clearTimeout(timer);
   net.unsub?.();
   net.unsub = null;
+  net.offReact?.();
+  net.offReact = null;
+  net.dir?.close();
+  net.dir = null;
+  net.seated = false;
+  ui.react = false;
   net.offStatus?.();
   net.offStatus = null;
   net.ref?.close?.();
@@ -1009,7 +1108,8 @@ async function mutateRoom(fn) {
 const myName = () => (profile.name.trim() || 'Player').slice(0, 12);
 const mySeatData = (taken) => ({ name: myName(), cpu: false, color: freeColor(taken, profile.color), avatar: profile.avatar });
 
-const failText = (e) => (e.message === 'notfound' ? 'No room with that code. Check it with your friend, and make sure they are still on the lobby screen.'
+const failText = (e) => (e.message === 'removed' ? 'The host removed you from this room.'
+  : e.message === 'notfound' ? 'No room with that code. Check it with your friend, and make sure they are still on the lobby screen.'
   : e.message === 'timeout' ? 'Could not reach that room. Check the code, and that both phones are online. The host must keep Rollick open.'
   : e.message === 'network' ? 'Could not reach the connection service. Check your internet, turn off any VPN or content blocker, and try again.'
   : e.message === 'taken' ? 'Could not find a free room code. Try again.'
@@ -1167,6 +1267,29 @@ const actions = {
   },
   powerFace: ({ f }) => { if (ui.power?.kind === 'set') doPower('set', { rolled: ui.power.rolled, face: +f }); },
   powerKnock: ({ card, p }) => doPower('knock', { card: +card, player: +p }),
+  reactMenu: () => { if (canReact()) { ui.modal = null; ui.react = !ui.react; render(); } },
+  closeReact: () => { ui.react = false; render(); },
+  sendReact: ({ e }) => {
+    ui.react = false;
+    render();
+    if (REACTIONS.includes(e) && canReact()) net.ref.react(e);
+  },
+  toggleSound: () => { setSound(!soundPrefs.sound); if (soundPrefs.sound) sfx.react(); render(); },
+  toggleHaptics: () => { setHaptics(!soundPrefs.haptics); sfx.tap(); render(); },
+  toLobby: () => { if (!ui.online || !isHost()) return; ui.modal = null; mutateRoom((room) => { room.status = 'lobby'; room.game = null; return room; }); },
+  togglePublic: () => mutateRoom((room) => {
+    if (room.hostUid !== net.uid || room.status !== 'lobby') return null;
+    room.public = !room.public;
+    return room;
+  }),
+  kickSeat: ({ i }) => mutateRoom((room) => {
+    const seat = room.seats[+i];
+    if (room.hostUid !== net.uid || !seat || seat.cpu || seat.uid === room.hostUid) return null;
+    room.banned = [...(room.banned || []), seat.uid].slice(-30);
+    room.seats.splice(+i, 1);
+    return room;
+  }),
+  joinListed: ({ code }) => { if (/^[A-Z]{4}$/.test(code)) { ui.joinCode = code; joinRoom(); } },
   setMode: ({ m }) => { if (!E.MODES.includes(m)) return; ui.mode = m; store.set('rfi-mode', m); render(); },
   setRoomMode: ({ m }) => mutateRoom((room) => {
     if (room.hostUid !== net.uid || !E.MODES.includes(m) || room.status !== 'lobby') return null;
@@ -1212,7 +1335,7 @@ const actions = {
     if (!canAct() || ui.game.phase !== 'placing') return;
     const idx = +i;
     const targets = ui.game.cards.map((_, c) => c).filter((c) => E.canPlace(ui.game, idx, c));
-    if (!targets.length) { say('No card needs that number'); return; }
+    if (!targets.length) { sfx.error(); say('No card needs that number'); return; }
     if (targets.length === 1) { placeDie(idx, targets[0]); return; }
     ui.selected = ui.selected === idx ? null : idx;
     render();
@@ -1247,5 +1370,5 @@ if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
 
 // The dice in the tray are plain elements acting as buttons; let the keyboard use them too.
 document.addEventListener('keydown', (e) => {
-  if ((e.key === 'Enter' || e.key === ' ') && e.target?.matches?.('.die[data-act][role="button"]')) { e.preventDefault(); e.target.click(); }
+  if ((e.key === 'Enter' || e.key === ' ') && e.target?.matches?.('[data-act][role="button"]')) { e.preventDefault(); e.target.click(); }
 });

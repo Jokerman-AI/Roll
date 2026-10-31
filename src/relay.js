@@ -109,9 +109,17 @@ function mqttClient(url, onMessage) {
   return {
     client,
     subscribe(topic) { topics.add(topic); if (client.open) subscribe(topic); },
-    publish(topic, bytes) { if (client.open) send(packet(3, 0, [...str(topic), ...bytes])); },
+    publish(topic, bytes, retain = false) { if (client.open) send(packet(3, retain ? 1 : 0, [...str(topic), ...bytes])); },
     close() { closed = true; clearTimeout(timer); clearInterval(ping); try { ws?.close(); } catch { /* closed */ } },
   };
+}
+
+/** Does a subscription filter ("a/+/c" allows any one level in the middle) cover this topic? */
+function matches(filter, topic) {
+  if (filter === topic) return true;
+  const f = filter.split('/');
+  const t = topic.split('/');
+  return f.length === t.length && f.every((part, i) => part === '+' || part === t[i]);
 }
 
 /** Several brokers behaving as one: subscribe(topic, cb), publish(topic, object), ready(ms). */
@@ -129,7 +137,7 @@ export function relayBus(urls = DEFAULT_BROKERS) {
       order.push(msg._m);
       if (order.length > 400) seen.delete(order.shift());
     }
-    subs.get(topic)?.forEach((cb) => cb(msg));
+    for (const [filter, cbs] of subs) if (matches(filter, topic)) cbs.forEach((cb) => cb(msg, topic));
   }));
   return {
     get alive() { return clients.some((c) => c.client.open); },
@@ -137,9 +145,10 @@ export function relayBus(urls = DEFAULT_BROKERS) {
       if (!subs.has(topic)) { subs.set(topic, new Set()); clients.forEach((c) => c.subscribe(topic)); }
       subs.get(topic).add(cb);
     },
-    publish(topic, obj) {
-      const bytes = enc.encode(JSON.stringify({ ...obj, _m: rand() }));
-      clients.forEach((c) => c.publish(topic, bytes));
+    /** Send an object. With `retain` the broker keeps the latest one for people who subscribe later; null clears it. */
+    publish(topic, obj, { retain = false } = {}) {
+      const bytes = obj === null ? new Uint8Array(0) : enc.encode(JSON.stringify({ ...obj, _m: rand() }));
+      clients.forEach((c) => c.publish(topic, bytes, retain));
     },
     /** Resolves true as soon as any broker is connected, or false after `ms`. */
     ready(ms = 6000) {
@@ -163,4 +172,79 @@ export async function checkFallback(urls = DEFAULT_BROKERS, ms = 6000) {
   const ok = await bus.ready(ms);
   bus.close();
   return ok;
+}
+
+/* ---------- the public room list ---------- */
+
+const LOBBY = `${ROOT}/lobby`;
+const BEACON_MS = 10000; // how often an open room says it is still there
+const STALE_MS = 35000; // an entry nobody has refreshed for this long is dropped
+
+/** Is this really a room announcement? Anyone can publish to a public broker, so check everything. */
+function cleanEntry(msg, code) {
+  if (!msg || typeof msg !== 'object' || !/^[A-Z]{4}$/.test(code)) return null;
+  const n = Number(msg.n);
+  const max = Number(msg.max);
+  if (!Number.isInteger(n) || !Number.isInteger(max) || n < 1 || max < 2 || max > 8 || n > max) return null;
+  return {
+    code,
+    host: String(msg.host ?? '').replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, 12) || 'Player',
+    mode: msg.mode === 'extreme' ? 'extreme' : 'classic',
+    n,
+    max,
+    t: Number.isFinite(msg.t) ? msg.t : 0,
+  };
+}
+
+/** For a host who made their room public: keeps saying "this room is open" until withdrawn. */
+export function lobbyAnnouncer(urls = DEFAULT_BROKERS) {
+  const bus = relayBus(urls);
+  let timer = 0;
+  let current = null;
+  const send = () => { if (current) bus.publish(`${LOBBY}/${current.code}`, { ...current, t: Date.now() }, { retain: true }); };
+  return {
+    /** info: { code, host, mode, n, max } */
+    announce(info) {
+      current = info;
+      send();
+      clearInterval(timer);
+      timer = setInterval(send, BEACON_MS);
+    },
+    withdraw() {
+      clearInterval(timer);
+      if (current) {
+        bus.publish(`${LOBBY}/${current.code}`, { gone: true }); // for people watching right now
+        bus.publish(`${LOBBY}/${current.code}`, null, { retain: true }); // and for people who look later
+      }
+      current = null;
+    },
+    close() { this.withdraw(); setTimeout(() => bus.close(), 400); },
+  };
+}
+
+/** Watches the public room list. onChange gets the rooms that are open right now, fullest last. */
+export function lobbyList(urls = DEFAULT_BROKERS, onChange = () => {}, onState = () => {}) {
+  const bus = relayBus(urls);
+  const rooms = new Map(); // code -> entry, plus when we last heard it
+  let opened = 0;
+  let timer = 0;
+  const emit = () => {
+    const now = Date.now();
+    for (const [code, e] of rooms) if (now - e.seen > STALE_MS) rooms.delete(code);
+    onChange([...rooms.values()].sort((a, b) => b.n - a.n || a.code.localeCompare(b.code)));
+  };
+  bus.subscribe(`${LOBBY}/+`, (msg, topic) => {
+    if (msg?.gone === true) { if (rooms.delete(topic.split('/').pop())) emit(); return; }
+    const entry = cleanEntry(msg, topic.split('/').pop());
+    if (!entry) return;
+    // A saved announcement arrives as soon as we connect, so trust its own clock; later ones are live.
+    const live = opened && Date.now() - opened > 1500;
+    const seen = live ? Date.now() : entry.t;
+    if (Date.now() - seen > STALE_MS) return;
+    rooms.set(entry.code, { ...entry, seen });
+    emit();
+  });
+  bus.ready(10000).then((up) => { if (up) opened = Date.now(); onState(up); });
+  timer = setInterval(emit, 5000);
+  return { close() { clearInterval(timer); bus.close(); } };
 }
