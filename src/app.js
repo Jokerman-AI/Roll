@@ -232,8 +232,9 @@ const turnFraction = () => Math.max(0, Math.min(1, (ui.turnEnds - Date.now()) / 
 /** What just happened with the power cards and chaos rules, in a sentence. */
 function eventsText(s) {
   const who = (p) => s.players[p].name;
-  return (s.events || []).map((e) => {
-    const pw = E.POWERS[e.kind];
+  return (Array.isArray(s.events) ? s.events : []).map((e) => {
+    const pw = E.POWERS[e?.kind] || { icon: '', name: 'a card' };
+    if (!s.players[e?.player] && e?.type !== 'chaos') return '';
     if (e.type === 'lucky') return `${who(e.player)} rolled three of a kind and won ${pw.icon} ${pw.name}!`;
     if (e.type === 'earned') return `${who(e.player)} earned ${pw.icon} ${pw.name}.`;
     if (e.type === 'power') return `${who(e.player)} played ${pw.icon} ${pw.name}${e.target !== undefined ? ` on ${who(e.target)}` : ''}.`;
@@ -248,7 +249,7 @@ function powersView() {
   const s = ui.game;
   const holder = ui.online ? net.mySeat : s.current;
   if (!s || s.mode !== 'extreme' || holder < 0) return '';
-  const hand = s.players[holder].powers;
+  const hand = Array.isArray(s.players[holder].powers) ? s.players[holder].powers.filter((k) => E.POWERS[k]) : [];
   const myTurn = canAct() && s.phase === 'placing' && holder === s.current;
   const pw = ui.power;
   const close = '<button class="btn primary" data-act="closeModal">Close</button>';
@@ -394,7 +395,7 @@ function gameView() {
   const noMoves = canEnd && !E.legalMoves(s).length;
   const extreme = s.mode === 'extreme';
   const holder = ui.online ? net.mySeat : s.current; // whose power cards the bolt button shows
-  const held = extreme && holder >= 0 ? s.players[holder].powers.length : 0;
+  const held = extreme && holder >= 0 && Array.isArray(s.players[holder].powers) ? s.players[holder].powers.length : 0;
   const timed = extreme && human && s.phase !== 'over';
 
   return `
@@ -520,7 +521,7 @@ function modalView() {
       <h3>Privacy</h3>
       <ul>
         <li>Rollick has no accounts, ads or analytics. Your name, icon, colour and settings are saved only on your device.</li>
-        <li>Online games connect players directly (peer to peer) when they can. Your name, icon and moves are sent to the other players in your room. A signalling server and relay servers help devices find each other, and they can see network addresses and connection details while you play. If a direct connection is blocked, moves are passed through free public message servers instead. Anyone who knows your room code could see that traffic, so don't share the code publicly and don't put private information in your name or icon.</li>
+        <li>Online games connect players directly (peer to peer) when they can. Your name, icon and moves are sent to the other players in your room. A signalling server and relay servers help devices find each other, and they can see network addresses and connection details while you play. The host also keeps a connection open to free public message servers, so players whose network blocks direct connections can still join. When that backup route is used, moves pass through those servers. Anyone who knows your room code could see that traffic, so don't share the code publicly and don't put private information in your name or icon.</li>
         <li>Clear the site data or remove the app to delete everything stored on your device.</li>
       </ul>
       <h3>Open-source notices</h3>

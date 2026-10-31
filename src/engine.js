@@ -276,14 +276,16 @@ export function endTurn(state, rng = Math.random) {
   if (isExtreme(s)) {
     s.events = [];
     s.bonus = 0; // an unused bonus is lost
+    const n = s.players.length;
+    const round = Math.floor(s.turn / n);
     s.turn++;
     if (s.skipNext) {
       s.skipNext = false;
       s.events.push({ type: 'skipped', player: s.current });
-      s.current = (s.current + 1) % s.players.length;
+      s.current = (s.current + 1) % n;
       s.turn++;
     }
-    if (s.turn % s.players.length === 0) newRound(s, rng);
+    if (Math.floor(s.turn / n) > round) newRound(s, rng); // also when a skipped turn carried us over the line
   }
   return s;
 }

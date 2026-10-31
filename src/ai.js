@@ -196,9 +196,12 @@ function powerAction(s, level, rng) {
     s.cards.forEach((card, c) => {
       const left = E.missing(card, me);
       if (left.length !== 1 || hand.includes(left[0])) return; // already finishable, or not one die away
-      hand.forEach((f, r) => { if (!best || card.points > best.points) best = { type: 'power', kind: 'set', rolled: r, face: left[0], points: card.points, f }; });
+      hand.forEach((f, r) => {
+        const spare = !s.cards.some((other) => E.missing(other, me).includes(f)); // this die has nowhere to go
+        if (spare && (!best || card.points > best.points)) best = { type: 'power', kind: 'set', rolled: r, face: left[0], points: card.points };
+      });
     });
-    if (best) { delete best.points; delete best.f; return best; }
+    if (best) { delete best.points; return best; }
   }
   // A bonus is worth playing just before a card is finished.
   if (allowed('bonus') && !s.bonus && E.legalMoves(s).some((m) => completes(s.cards[m.card], s.rolled[m.rolled]))) return { type: 'power', kind: 'bonus' };

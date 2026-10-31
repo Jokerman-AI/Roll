@@ -454,3 +454,15 @@ test('computer players play whole Extreme games, using power cards, without brea
   }
   assert.ok(powersPlayed > 20, `the computer played ${powersPlayed} power cards`);
 });
+
+test('a skipped turn that carries play over a round boundary still starts the new round', () => {
+  let s = extreme();
+  s.current = 1;
+  s.turn = 2; // the last turn of round 0 (3 players)
+  s.skipNext = true;
+  s.phase = 'placing';
+  s.rolled = [];
+  const next = E.endTurn(s, () => 0.1); // turn 3 is skipped, so play moves to turn 4
+  assert.equal(next.turn, 4);
+  assert.equal(next.chaos?.kind, 'double', 'the new round began');
+});
