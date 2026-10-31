@@ -239,10 +239,6 @@ function onlineView() {
       </section>
       ${ui.onlineError ? `<p class="notice" role="alert">${esc(ui.onlineError)}</p>` : ''}
       <button class="btn primary big" data-act="createRoom" ${net.busy ? 'disabled' : ''}>${net.busy ? 'Connecting…' : 'Create room'}</button>
-      ${net.store?.kind === 'p2p' ? `<section class="panel" aria-label="Open rooms">
-        <h2>Open rooms</h2>
-        <div id="rooms">${roomsHtml()}</div>
-      </section>` : ''}
       <section class="panel" aria-label="Join a room">
         <h2>Join a room</h2>
         <div class="joinrow">
@@ -250,6 +246,10 @@ function onlineView() {
           <button class="btn" data-act="joinRoom" ${net.busy ? 'disabled' : ''}>Join</button>
         </div>
       </section>
+      ${net.store?.kind === 'p2p' ? `<section class="panel" aria-label="Open rooms">
+        <h2>Open rooms</h2>
+        <div id="rooms">${roomsHtml()}</div>
+      </section>` : ''}
       ${net.store?.kind === 'p2p' ? `<div class="nettest">
         <button class="btn" data-act="testNet" ${ui.netTest === 'running' ? 'disabled' : ''}>${ui.netTest === 'running' ? 'Checking…' : 'Test my connection'}</button>
         ${ui.netTest && ui.netTest !== 'running' ? `<p class="notice ${ui.netTest.startsWith('Good') ? 'ok' : ''}">${esc(ui.netTest)}</p>` : ''}
