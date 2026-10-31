@@ -1,4 +1,4 @@
-const CACHE = 'rollick-v6';
+const CACHE = 'rollick-v7';
 const ASSETS = [
   './', './index.html', './manifest.webmanifest', './config.js',
   './src/style.css', './src/app.js', './src/engine.js', './src/ai.js', './src/transport.js', './src/profile.js', './vendor/peerjs.min.js',

@@ -174,10 +174,64 @@ export const LEVELS = {
 };
 export const DEFAULT_LEVEL = 'normal';
 
+/**
+ * Rollick Extreme: should the computer play a power card now? Returns an action or null.
+ * Easy players only think of the simple cards, and only some of the time; Hard players always do.
+ */
+function powerAction(s, level, rng) {
+  const me = s.current;
+  const held = new Set(s.players[me].powers || []);
+  if (!held.size || s.phase !== 'placing') return null;
+  const chance = level === 'hard' ? 1 : level === 'easy' ? 0.4 : 0.8;
+  const allowed = (kind) => held.has(kind) && (level !== 'easy' || kind === 'reroll' || kind === 'bonus') && rng() < chance;
+  const hand = s.rolled;
+  const completes = (card, face) => {
+    const left = E.missing(card, me);
+    return left.length === 1 && left[0] === face;
+  };
+
+  // Turn a spare die into the number that finishes a card.
+  if (allowed('set')) {
+    let best = null;
+    s.cards.forEach((card, c) => {
+      const left = E.missing(card, me);
+      if (left.length !== 1 || hand.includes(left[0])) return; // already finishable, or not one die away
+      hand.forEach((f, r) => { if (!best || card.points > best.points) best = { type: 'power', kind: 'set', rolled: r, face: left[0], points: card.points, f }; });
+    });
+    if (best) { delete best.points; delete best.f; return best; }
+  }
+  // A bonus is worth playing just before a card is finished.
+  if (allowed('bonus') && !s.bonus && E.legalMoves(s).some((m) => completes(s.cards[m.card], s.rolled[m.rolled]))) return { type: 'power', kind: 'bonus' };
+  // Knock a die off a card a rival is about to finish.
+  if (allowed('knock')) {
+    let best = null;
+    s.cards.forEach((card, c) => s.players.forEach((_, p) => {
+      if (p === me || !card.placed[p].length || E.missing(card, p).length > 1) return;
+      if (card.points >= 5 && (!best || card.points > best.points)) best = { type: 'power', kind: 'knock', card: c, player: p, points: card.points };
+    }));
+    if (best) { delete best.points; return best; }
+  }
+  // Re-roll a die that has nowhere to go.
+  if (allowed('reroll')) {
+    const useless = hand.findIndex((f) => !s.cards.some((card) => E.missing(card, me).includes(f)));
+    if (useless >= 0) return { type: 'power', kind: 'reroll', rolled: useless };
+  }
+  // Make a rival who is close to winning miss a turn (or get rid of a spare card).
+  if (allowed('skip') && !s.skipNext) {
+    const close = s.players.some((p, i) => i !== me && p.score >= E.TARGET_SCORE - 12);
+    if (close || held.size >= E.MAX_POWERS) return { type: 'power', kind: 'skip' };
+  }
+  return null;
+}
+
 /** Decide the CPU's next single action for the current state. */
 export function aiNextAction(s, { level = DEFAULT_LEVEL, rng = Math.random } = {}) {
   const { smartTakeBack, smartPlace, minFree, nearDone } = LEVELS[level] || LEVELS[DEFAULT_LEVEL];
   if (s.phase === 'start') return smartTakeBack ? smartStart(s, minFree, nearDone) : greedyAction(s, rng, minFree, nearDone);
+  if (s.mode === 'extreme') {
+    const power = powerAction(s, level, rng);
+    if (power) return power;
+  }
   return smartPlace >= 1 || rng() < smartPlace ? smartPlacing(s) : greedyAction(s, rng, minFree, nearDone);
 }
 

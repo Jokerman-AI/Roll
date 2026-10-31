@@ -100,11 +100,53 @@ function rollOff(count, rng) {
 
 export const LEVEL_NAMES = ['easy', 'normal', 'hard'];
 
-export function newGame(configs, rng = Math.random) {
+/* ---------- Rollick Extreme ---------- */
+
+export const MODES = ['classic', 'extreme'];
+export const MAX_POWERS = 3; // power cards a player can hold
+export const BONUS_POINTS = 3;
+
+/** One-use cards, played during your own turn after rolling. */
+export const POWERS = {
+  reroll: { name: 'Re-roll', icon: '🔄', text: 'Re-roll one of the dice you just rolled.', weight: 3 },
+  set: { name: 'Set a die', icon: '🎯', text: 'Turn one rolled die into any number you like.', weight: 2 },
+  knock: { name: 'Knock off', icon: '💥', text: "Remove one of a rival's dice from a card.", weight: 2 },
+  bonus: { name: 'Bonus +3', icon: '⭐', text: `The next card you claim this turn scores ${BONUS_POINTS} extra points.`, weight: 2 },
+  skip: { name: 'Skip', icon: '⏭️', text: 'The next player misses their turn.', weight: 1 },
+};
+export const POWER_KINDS = Object.keys(POWERS);
+const POWER_START = 1; // power cards each player starts with
+const POWER_FROM_CLAIM = 7; // claim a card worth this many points or more to earn a power card
+const LUCKY_ROLL = 3; // roll this many of the same number to earn a power card
+const CHAOS_DOUBLE = 0.3; // chance a new round starts as a double-points round
+const CHAOS_RESET = 0.1; // chance a new round starts with every die sent home
+
+const isExtreme = (s) => s.mode === 'extreme';
+
+function randomPower(rng) {
+  const total = POWER_KINDS.reduce((n, k) => n + POWERS[k].weight, 0);
+  let r = rng() * total;
+  for (const k of POWER_KINDS) { r -= POWERS[k].weight; if (r < 0) return k; }
+  return POWER_KINDS[0];
+}
+
+/** Give `player` a random power card if they have room. Returns the kind, or null when their hand is full. */
+function grantPower(s, player, rng) {
+  const hand = s.players[player].powers;
+  if (hand.length >= MAX_POWERS) return null;
+  const kind = randomPower(rng);
+  hand.push(kind);
+  return kind;
+}
+
+export function newGame(configs, rng = Math.random, { mode = 'classic' } = {}) {
   if (configs.length < 2 || configs.length > MAX_PLAYERS) throw new Error('2-8 players');
   const players = configs.map((c) => ({ name: c.name, cpu: !!c.cpu, level: LEVEL_NAMES.includes(c.level) ? c.level : 'normal', score: 0, pile: [] })); // pile: points of cards claimed
+  const extreme = mode === 'extreme';
+  if (extreme) for (const p of players) p.powers = Array.from({ length: POWER_START }, () => randomPower(rng));
   const { first, total } = rollOff(players.length, rng);
   const state = {
+    mode: extreme ? 'extreme' : 'classic',
     players,
     deck: buildDeck(rng, players.length > 4 ? 2 : 1),
     cards: [],
@@ -115,6 +157,7 @@ export function newGame(configs, rng = Math.random) {
     winner: null,
     lastClaim: null,
     nextId: 1,
+    ...(extreme ? { turn: 0, chaos: null, bonus: 0, skipNext: false, events: [] } : {}),
   };
   for (let i = 0; i < cardsInPlay(players.length); i++) draw(state);
   return state;
@@ -141,6 +184,7 @@ export function takeBack(state) {
   assertPhase(state, 'start');
   const s = structuredClone(state);
   s.lastClaim = null;
+  if (isExtreme(s)) s.events = [];
   for (const c of s.cards) c.placed[s.current] = [];
   return s;
 }
@@ -153,6 +197,15 @@ export function roll(state, rng = Math.random) {
   s.lastClaim = null;
   s.rolled = Array.from({ length: n }, () => 1 + Math.floor(rng() * 6));
   s.phase = 'placing';
+  if (isExtreme(s)) {
+    s.events = [];
+    const counts = new Map();
+    for (const f of s.rolled) counts.set(f, (counts.get(f) || 0) + 1);
+    if (Math.max(...counts.values()) >= LUCKY_ROLL) {
+      const kind = grantPower(s, s.current, rng);
+      if (kind) s.events.push({ type: 'lucky', player: s.current, kind });
+    }
+  }
   return s;
 }
 
@@ -174,19 +227,30 @@ export function legalMoves(state) {
   return moves;
 }
 
-export function place(state, rolledIdx, cardIdx) {
+export function place(state, rolledIdx, cardIdx, rng = Math.random) {
   if (!canPlace(state, rolledIdx, cardIdx)) throw new Error('Illegal placement');
   const s = structuredClone(state);
   s.lastClaim = null;
+  if (isExtreme(s)) s.events = [];
   const p = s.current;
   const card = s.cards[cardIdx];
   card.placed[p].push(s.rolled[rolledIdx]);
   s.rolled.splice(rolledIdx, 1);
 
   if (missing(card, p).length === 0) {
-    s.players[p].score += card.points;
-    s.players[p].pile = [...(s.players[p].pile || []), card.points];
-    s.lastClaim = { player: p, points: card.points, need: card.need };
+    let points = card.points;
+    if (isExtreme(s)) {
+      if (s.chaos?.kind === 'double') points *= 2;
+      points += s.bonus;
+      s.bonus = 0;
+      if (card.points >= POWER_FROM_CLAIM) {
+        const kind = grantPower(s, p, rng);
+        if (kind) s.events.push({ type: 'earned', player: p, kind });
+      }
+    }
+    s.players[p].score += points;
+    s.players[p].pile = [...(s.players[p].pile || []), points];
+    s.lastClaim = { player: p, points, need: card.need };
     // Every player's dice on the claimed card go back to their hands.
     s.cards.splice(cardIdx, 1);
     draw(s);
@@ -202,12 +266,95 @@ export function place(state, rolledIdx, cardIdx) {
 }
 
 /** Leftover rolled dice return to hand; play passes on. */
-export function endTurn(state) {
+export function endTurn(state, rng = Math.random) {
   assertPhase(state, 'placing');
   const s = structuredClone(state);
   s.lastClaim = null;
   s.rolled = [];
   s.current = (s.current + 1) % s.players.length;
   s.phase = 'start';
+  if (isExtreme(s)) {
+    s.events = [];
+    s.bonus = 0; // an unused bonus is lost
+    s.turn++;
+    if (s.skipNext) {
+      s.skipNext = false;
+      s.events.push({ type: 'skipped', player: s.current });
+      s.current = (s.current + 1) % s.players.length;
+      s.turn++;
+    }
+    if (s.turn % s.players.length === 0) newRound(s, rng);
+  }
   return s;
+}
+
+/** A new round: the last round's chaos ends, and a new one may begin. */
+function newRound(s, rng) {
+  s.chaos = null;
+  const r = rng();
+  if (r < CHAOS_DOUBLE) {
+    s.chaos = { kind: 'double' };
+    s.events.push({ type: 'chaos', kind: 'double' });
+  } else if (r < CHAOS_DOUBLE + CHAOS_RESET) {
+    for (const c of s.cards) c.placed = s.players.map(() => []);
+    s.events.push({ type: 'chaos', kind: 'reset' });
+  }
+}
+
+/** Why `kind` cannot be played with `args` right now, or null if it can. */
+export function powerProblem(state, kind, args = {}) {
+  if (!isExtreme(state)) return 'Power cards are only in Rollick Extreme';
+  if (state.phase !== 'placing') return 'Roll first';
+  if (!POWERS[kind] || !state.players[state.current].powers.includes(kind)) return 'You do not hold that card';
+  const me = state.current;
+  switch (kind) {
+    case 'reroll': return state.rolled[args.rolled] === undefined ? 'Pick a die' : null;
+    case 'set':
+      if (state.rolled[args.rolled] === undefined) return 'Pick a die';
+      return Number.isInteger(args.face) && args.face >= 1 && args.face <= 6 ? null : 'Pick a number';
+    case 'knock': {
+      const card = state.cards[args.card];
+      if (!card || !Number.isInteger(args.player) || args.player === me || !card.placed[args.player]?.length) return "Pick a rival's die on a card";
+      return null;
+    }
+    case 'bonus': return null;
+    case 'skip': return state.skipNext ? 'Already skipping the next player' : null;
+    default: return 'Unknown card';
+  }
+}
+
+/** Play a power card. `args` depends on the card: { rolled }, { rolled, face }, { card, player }. */
+export function usePower(state, kind, args = {}, rng = Math.random) {
+  const problem = powerProblem(state, kind, args);
+  if (problem) throw new Error(problem);
+  const s = structuredClone(state);
+  s.lastClaim = null;
+  const me = s.current;
+  const hand = s.players[me].powers;
+  hand.splice(hand.indexOf(kind), 1);
+  const event = { type: 'power', player: me, kind };
+  switch (kind) {
+    case 'reroll': s.rolled[args.rolled] = 1 + Math.floor(rng() * 6); break;
+    case 'set': s.rolled[args.rolled] = args.face; break;
+    case 'knock': s.cards[args.card].placed[args.player].pop(); event.target = args.player; break;
+    case 'bonus': s.bonus += BONUS_POINTS; break;
+    case 'skip': s.skipNext = true; break;
+    default: break;
+  }
+  s.events = [event];
+  return s;
+}
+
+/** Every way the current player could play a power card right now (for hints, the computer and tests). */
+export function powerMoves(state) {
+  if (!isExtreme(state) || state.phase !== 'placing') return [];
+  const me = state.current;
+  const out = [];
+  for (const kind of new Set(state.players[me].powers)) {
+    if (kind === 'reroll') state.rolled.forEach((_, rolled) => out.push({ kind, rolled }));
+    else if (kind === 'set') state.rolled.forEach((_, rolled) => { for (let face = 1; face <= 6; face++) if (face !== state.rolled[rolled]) out.push({ kind, rolled, face }); });
+    else if (kind === 'knock') state.cards.forEach((c, card) => state.players.forEach((_, player) => { if (player !== me && c.placed[player].length) out.push({ kind, card, player }); }));
+    else if (!powerProblem(state, kind)) out.push({ kind });
+  }
+  return out;
 }
