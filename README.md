@@ -1,7 +1,7 @@
 # Rollick
 
 A mobile-first, installable (PWA) version of the dice game Rollick: roll dice, place them on the
-cards that need them, claim cards, and be first to 40 points. Play pass-and-play, against CPU
+cards that need them, win the cards, and be first to 40 points. Play pass-and-play, against CPU
 opponents, or online with friends (2–8 players). Works offline once loaded. This is an independent
 implementation with its own card deck and art.
 
@@ -31,7 +31,7 @@ up again. Moves are paused until it is back.
   player's progress on the card.
 - Each scored card goes into a staggered pile next to the player's score, with its points showing. A claimed
   card flies to its owner and the score counts up; the winner gets confetti.
-- The 💡 button highlights the best move (the die and the card, or whether to roll or take back), and ↶ undoes
+- The 💡 button highlights the best move (the die and the card, or whether to roll or reclaim), and ↶ undoes
   your last placement until you end your turn (a placement that claims a card can't be undone).
 - Each player draws their own icon and chooses their dice colour; every player in a game has a different colour.
   Your icon and colour are remembered on your device.
@@ -74,7 +74,7 @@ The rules live in `src/engine.js` (`newGame(..., { mode: 'extreme' })`, `usePowe
 The computer only uses what every player can see. It budgets its dice like a sensible player: it won't spend its
 last free dice on a card it can't finish, because then it would have nothing to roll next turn, and it concentrates
 on cards that are close to done. At the top strength it also plays out the next few turns many times to choose
-where to put a die, whether to place it at all or keep it free to roll again, when to use Take Back, when a rival is
+where to put a die, whether to place it at all or keep it free to roll again, when to use Reclaim, when a rival is
 about to finish a card, and it always takes a card that wins.
 
 There are three strengths in `src/ai.js`: **easy**, **normal** (the default) and **hard**. Against the original

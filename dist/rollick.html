@@ -7878,7 +7878,7 @@ function gameView() {
       <div class="actions">
         ${s.phase === 'start' ? `
           <button class="btn primary ${canRoll ? 'pulse' : ''} ${ui.hint?.button === 'roll' ? 'hinted' : ''}" data-act="roll" ${canRoll ? '' : 'disabled'}>Roll</button>
-          <button class="btn ${mustTakeBack ? 'primary pulse' : ''} ${ui.hint?.button === 'takeback' ? 'hinted' : ''}" data-act="takeBack" ${canTakeBack ? '' : 'disabled'} aria-label="Take back all your dice and roll all six">Take back<small>&amp; roll all</small></button>`
+          <button class="btn ${mustTakeBack ? 'primary pulse' : ''} ${ui.hint?.button === 'takeback' ? 'hinted' : ''}" data-act="takeBack" ${canTakeBack ? '' : 'disabled'} aria-label="Pick up all your dice and throw them all">Reclaim<small>&amp; throw all</small></button>`
           : `<button class="btn ${noMoves ? 'primary pulse' : ''} ${ui.hint?.button === 'end' ? 'hinted' : ''}" data-act="end" ${canEnd ? '' : 'disabled'}>End turn</button>
           ${human && ui.undo.length ? '<button class="btn icon" data-act="undo" aria-label="Undo last placement" title="Undo">↶</button>' : ''}`}
         ${extreme ? `<button class="btn icon bolt" data-act="powers" aria-label="Power cards (${held})" title="Power cards" ${holder >= 0 ? '' : 'disabled'}>⚡${held ? `<span class="count">${held}</span>` : ''}</button>` : ''}
@@ -8004,16 +8004,16 @@ function modalView() {
   }
   if (ui.modal === 'rules') {
     return `<div class="modal" data-act="closeModal"><div class="sheet"><h2>How to play</h2>
-      <p>Be the first to score <b>${ui.game ? E.targetOf(ui.game) : ui.settings.target} points</b> (rooms can change this). Cards are worth 2–15 points, and the harder a card is to finish, the more it's worth.</p>
+      <p>Race to <b>${ui.game ? E.targetOf(ui.game) : ui.settings.target} points</b> (a room can change this). Every card shows some dice faces and a point value from 2 to 15; the harder the faces are to gather, the more the card is worth.</p>
       <ol>
-        <li><b>Roll.</b> Roll all the dice in your hand (you own ${ui.game ? E.diceOf(ui.game) : ui.settings.dice}), once per turn.</li>
-        <li><b>Place.</b> Tap a die, then a card that shows that number. Each die matches one picture on one card. Once placed, a die can't move. You may choose not to place a die; unplaced dice stay in your hand.</li>
-        <li><b>Claim.</b> Cover every picture on a card with <i>your own</i> dice to score it. All dice on a scored card go back to their owners, and a new card is flipped. Leftover dice from your roll may go on the new card.</li>
-        <li><b>Take Back:</b> at the start of your turn, before rolling, you may take back <b>all</b> your dice from the cards and roll all six.</li>
+        <li><b>Roll.</b> On your turn, throw the dice in your hand (you own ${ui.game ? E.diceOf(ui.game) : ui.settings.dice} in total). You only throw once per turn.</li>
+        <li><b>Place.</b> Tap one of the dice you threw, then tap a card with a matching face that is still uncovered. A placed die stays where it is. Any die you do not place simply stays in your hand.</li>
+        <li><b>Score.</b> The moment every face on a card is covered by <i>your own</i> dice, the card is yours. Its dice go back to their owners, a fresh card is turned up, and dice you have not used yet this turn may go straight onto it.</li>
+        <li><b>Reclaim.</b> At the start of your turn, instead of throwing just the dice in your hand, you may pick up every die you have on cards and throw all of them.</li>
       </ol>
-      <p>A die on a card is filled with the colour of the player covering it. If two or more players cover the same number, the die is split into slices of their colours and a number shows how many. <b>Tap any die on a card</b> to see who has it and how far along each player is on that card. Other players' dice can't score cards for you, but they can beat you to them!</p>
-      <p>Play starts with a two-dice roll-off; 5+ players use two sets (60 cards) and four face-up cards.</p>
-      <p class="keys">Keyboard: <kbd>R</kbd> roll · <kbd>T</kbd> take back · <kbd>1</kbd>–<kbd>6</kbd> pick a die · <kbd>A</kbd>–<kbd>D</kbd> put it on that card · <kbd>E</kbd> end turn · <kbd>U</kbd> undo · <kbd>H</kbd> hint · <kbd>P</kbd> power cards · <kbd>M</kbd> menu · <kbd>Esc</kbd> close</p>
+      <p>Each die on a card takes the colour of the player covering it. When several players cover the same face, the die is cut into coloured slices and a number shows how many. <b>Tap any die on a card</b> to see who holds it and how close each player is. Rivals' dice never count toward your score, but they can win a card before you do!</p>
+      <p>To decide who starts, everyone throws two dice and the highest total goes first. With five or more players the deck doubles and four cards are shown.</p>
+      <p class="keys">Keyboard: <kbd>R</kbd> roll · <kbd>T</kbd> reclaim · <kbd>1</kbd>–<kbd>6</kbd> pick a die · <kbd>A</kbd>–<kbd>D</kbd> put it on that card · <kbd>E</kbd> end turn · <kbd>U</kbd> undo · <kbd>H</kbd> hint · <kbd>P</kbd> power cards · <kbd>M</kbd> menu · <kbd>Esc</kbd> close</p>
       <h3>⚡ Rollick Extreme</h3>
       <p>The same game with extra rules:</p>
       <ul>
@@ -8388,7 +8388,7 @@ function showHint() {
   if (s.phase === 'start') {
     const a = aiNextAction(s, { level: 'hard' }); // the best advice available, and the same every time
     ui.hint = { button: a.type === 'takeback' ? 'takeback' : 'roll' };
-    say(a.type === 'takeback' ? 'Hint: take back your dice and roll all six' : `Hint: roll your ${E.handSize(s, s.current)} dice`, 3500);
+    say(a.type === 'takeback' ? 'Hint: reclaim your dice and throw them all' : `Hint: roll your ${E.handSize(s, s.current)} dice`, 3500);
   } else {
     const a = aiNextAction(s, { level: 'hard' });
     if (a.type === 'power') {
@@ -8470,7 +8470,7 @@ const TUT = [
   { text: 'Now the 3-point card: it needs a 2 and a 6. Tap each of them.', faces: [2, 6], done: (s) => s.players[0].score >= 9 },
   { text: 'Nothing needs the 1, so it stays in your hand. Tap <b>End turn</b>.', expect: 'end', done: (s) => s.current !== 0 },
   { text: 'Now Coach takes a turn…', auto: true, done: (s) => s.current === 0 && s.phase === 'start' },
-  { text: 'Your dice stay on cards until the card is finished. Each turn you roll only the dice in your hand. <b>Take back</b> returns all your dice so you can roll all six.', next: true },
+  { text: 'Your dice stay on cards until the card is finished. Each turn you roll only the dice in your hand. <b>Reclaim</b> picks up all your dice so you can throw every one again.', next: true },
   { text: 'Tap a die on a card to see who else is covering it. A number badge means several players share it. The 💡 gives a hint.', next: true },
   { text: 'You are ready! <b>Rollick Extreme</b> adds power cards, chaos rounds and a turn timer. Try it when you like.', next: true, last: true },
 ];
