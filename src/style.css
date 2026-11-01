@@ -233,6 +233,35 @@ h1 { font-size: 2.4rem; margin: 0; letter-spacing: -.02em; }
   .tray { align-self: end; }
 }
 
+/* ---- tablets and desktops: everything a step bigger, and the menus kept to a readable width ---- */
+@media (min-width: 700px) and (min-height: 600px) {
+  :root { --cd-max: 68px; --td-max: 84px; --card-max: 260px; }
+  html { font-size: 112.5%; }
+  body { font-size: 1rem; }
+  .setup { max-width: 640px; width: 100%; margin-inline: auto; }
+  .sheet { max-width: 540px; }
+}
+@media (min-width: 1100px) and (min-height: 760px) {
+  :root { --cd-max: 84px; --td-max: 104px; --card-max: 340px; }
+  html { font-size: 125%; }
+  #app { max-width: 1500px; }
+  .setup { max-width: 720px; }
+  .sheet { max-width: 620px; }
+}
+/* wide screens: the table across the full width, the controls under it, instead of cards and controls side by side */
+@media (min-width: 900px) and (min-height: 600px) {
+  #app { max-width: 1200px; }
+  .game {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
+    grid-template-areas: "score" "status" "cards" "tray";
+    column-gap: 0;
+  }
+  .tray { align-self: center; justify-self: center; width: min(680px, 100%); }
+  .score, .status { margin-inline: auto; width: min(900px, 100%); }
+}
+@media (min-width: 1100px) and (min-height: 760px) { #app { max-width: 1500px; } .tray { width: min(780px, 100%); } }
+
 /* ---- dual-screen, side by side (Surface Duo open like a book): one screen each side of the hinge ---- */
 @media (horizontal-viewport-segments: 2) {
   #app { max-width: none; padding-inline: 0; }
@@ -577,21 +606,6 @@ html { background: var(--felt); }
 .qrbox svg { display: block; width: 100%; height: auto; }
 .qrcode { font-size: 2rem; font-weight: 900; letter-spacing: .25em; margin: 8px 0 0; padding-left: .25em; }
 
-/* ---- tablets and desktops: everything a step bigger, and the menus kept to a readable width ---- */
-@media (min-width: 700px) and (min-height: 600px) {
-  :root { --cd-max: 68px; --td-max: 84px; --card-max: 260px; }
-  html { font-size: 112.5%; }
-  body { font-size: 1rem; }
-  .setup { max-width: 640px; width: 100%; margin-inline: auto; }
-  .sheet { max-width: 540px; }
-}
-@media (min-width: 1100px) and (min-height: 760px) {
-  :root { --cd-max: 84px; --td-max: 104px; --card-max: 340px; }
-  html { font-size: 125%; }
-  #app { max-width: 1500px; }
-  .setup { max-width: 720px; }
-  .sheet { max-width: 620px; }
-}
 /* letters on the cards are only useful with a keyboard, so they show on mouse devices only */
 .gcard[data-key]::after { content: none; }
 @media (hover: hover) and (pointer: fine) {
@@ -604,19 +618,6 @@ html { background: var(--felt); }
 .keys kbd { background: #0001; border-radius: 5px; padding: 0 5px; font: inherit; font-weight: 700; }
 @media (hover: none) { .keys { display: none; } }
 
-/* wide screens: the table across the full width, the controls under it, instead of cards and controls side by side */
-@media (min-width: 900px) and (min-height: 600px) {
-  #app { max-width: 1200px; }
-  .game {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto auto minmax(0, 1fr) auto;
-    grid-template-areas: "score" "status" "cards" "tray";
-    column-gap: 0;
-  }
-  .tray { align-self: center; justify-self: center; width: min(680px, 100%); }
-  .score, .status { margin-inline: auto; width: min(900px, 100%); }
-}
-@media (min-width: 1100px) and (min-height: 760px) { #app { max-width: 1500px; } .tray { width: min(780px, 100%); } }
 
 /* shop looks */
 [data-tb="neon"] { --felt: #0a0420; --felt-2: #35106b; --muted: #c9b3ff; }
