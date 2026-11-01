@@ -573,7 +573,7 @@ test('finished games count, streaks reset on a loss, and looks unlock at their t
   s = afterGame(s, { won: false, claims: 1, score: 12, mode: 'classic', online: false });
   assert.deepEqual([s.streak, s.bestStreak, s.games], [0, 2, 3]);
   const opened = newlyUnlocked(fresh, s).map((u) => `${u.part}:${u.id}`).sort();
-  assert.deepEqual(opened, ['back:mint', 'back:night', 'dice:bubble', 'table:midnight', 'table:wine']);
+  assert.deepEqual(opened, ['back:mint', 'back:night', 'table:midnight', 'table:wine']);
   assert.equal(newlyUnlocked(s, s).length, 0, 'nothing new the second time');
 });
 
@@ -614,15 +614,15 @@ test('the shop sells looks for coins, once, and only when you can afford them', 
   assert.ok(isUnlocked('table', 'neon', s));
   assert.equal(buy('table', 'neon', s).ok, false, 'cannot buy it twice');
   assert.equal(buy('table', 'midnight', s).ok, false, 'earned looks are not for sale');
-  assert.equal(requirementText('dice', 'glass'), `In the Shop for ${priceOf('dice', 'glass')} coins`);
+  assert.equal(requirementText('back', 'galaxy'), `In the Shop for ${priceOf('back', 'galaxy')} coins`);
   for (const part of Object.keys(SHOP)) for (const id of Object.keys(SHOP[part])) assert.ok(priceOf(part, id) > 0);
 });
 
 test('bought looks of every kind survive being saved and loaded', async () => {
   const store = new Map();
   globalThis.localStorage = { getItem: (k) => store.get(k) ?? null, setItem: (k, v) => store.set(k, String(v)), removeItem: (k) => store.delete(k) };
-  store.set('rfi-stats', JSON.stringify({ games: 1, coins: 0, owned: ['table:neon', 'back:galaxy', 'dice:glass', 'fx:stars', 'bad:thing', 'table:x'] }));
+  store.set('rfi-stats', JSON.stringify({ games: 1, coins: 0, owned: ['table:neon', 'back:galaxy', 'back:retro', 'fx:stars', 'bad:thing', 'table:x'] }));
   const fresh2 = await import(`../src/stats.js?reload=${Date.now()}`);
-  assert.deepEqual(fresh2.stats.owned, ['table:neon', 'back:galaxy', 'dice:glass', 'fx:stars'], 'every kind is kept and junk is dropped');
+  assert.deepEqual(fresh2.stats.owned, ['table:neon', 'back:galaxy', 'back:retro', 'fx:stars'], 'every kind is kept and junk is dropped');
   delete globalThis.localStorage;
 });

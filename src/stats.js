@@ -22,14 +22,12 @@ export const stats = load();
 export const UNLOCKS = {
   table: { midnight: { games: 3 }, wine: { wins: 1 }, violet: { wins: 5 }, charcoal: { claims: 25 } },
   back: { red: { games: 5 }, gold: { wins: 3 }, mint: { online: 1 }, night: { extremeWins: 1 } },
-  dice: { sharp: { claims: 10 }, bubble: { wins: 2 } },
 };
 
 /** Looks that are bought with coins instead of earned. Coins come from playing: no real money is involved. */
 export const SHOP = {
   table: { neon: 200, sunset: 250, forest: 180, ocean: 220 },
   back: { galaxy: 150, sunburst: 200, retro: 150 },
-  dice: { glass: 300, gem: 350, pixel: 250 },
   fx: { stars: 250 },
 };
 export const isShopItem = (part, id) => !!SHOP[part]?.[id];

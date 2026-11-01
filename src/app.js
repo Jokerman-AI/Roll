@@ -188,7 +188,7 @@ function syncGL() {
     delay: num(el, '--d'), dur: num(el, '--dur'), dx: num(el, '--dx'),
     dim: el.classList.contains('hand'), spin: el.classList.contains('spin'),
   }));
-  const ok = engine.show({ dice, skin: theme.dice, calm: calm.on || reducedMotion(), z });
+  const ok = engine.show({ dice, calm: calm.on || reducedMotion(), z });
   if (ok) root.setAttribute('data-gl', '1'); else { glBroken = true; off(); }
 }
 window.addEventListener('resize', () => window.RollDice3D?.refresh());
@@ -485,15 +485,12 @@ const LISTS = { table: TABLES, back: BACKS, dice: DICE, fx: FX };
 const nameOf = (part, id) => (LISTS[part].find((x) => x.id === id) || { name: id }).name;
 const previewOf = (part, id) => (part === 'table' ? `<span class="tb" data-tb="${id}"></span>`
   : part === 'back' ? `<span class="bk" data-bk="${id}"></span>`
-  : part === 'dice' ? `<span class="dpv" data-ds="${id}">${cube.on ? die3d(5, 'spin pv', 'style="--c:#e5484d"') : die(5, '')}</span>`
   : `<span class="fxp" aria-hidden="true">${{ confetti: '🎉', stars: '⭐', fireworks: '🎆', goldrain: '🪙' }[id] || '✨'}</span>`);
-const ALL_PARTS = [['table', 'Tables'], ['back', 'Deck backs'], ['dice', 'Dice'], ['fx', 'Win effects']];
-const PARTS = ALL_PARTS;
+const PARTS = [['table', 'Tables'], ['back', 'Deck backs'], ['fx', 'Win effects']];
 
 /** The Shop: coin looks, earned by playing, and premium looks bought with real money. */
 function shopView() {
   const mode = storeMode();
-  const PARTS = ALL_PARTS.filter(([part]) => part !== 'dice'); // dice looks are not sold in the shop (they are in Themes)
   const coinGroup = (title, part) => `<h3>${title}</h3>${Object.keys(SHOP[part] || {}).map((id) => {
     const owned = isUnlocked(part, id);
     const price = priceOf(part, id);

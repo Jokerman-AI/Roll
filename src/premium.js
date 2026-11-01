@@ -9,7 +9,6 @@
 export const PREMIUM = {
   table: { aurora: '$1.99', starfield: '$1.99', lava: '$1.49' },
   back: { holo: '$0.99', circuit: '$0.99', ember: '$0.99' },
-  dice: { fire: '$1.99', ice: '$1.99', prism: '$1.99', neonglow: '$1.49', gold: '$2.49', obsidian: '$1.99', galaxy: '$1.99', lightning: '$1.99' },
   fx: { fireworks: '$1.49', goldrain: '$1.49' },
 };
 export const skuOf = (part, id) => `${part}:${id}`;
