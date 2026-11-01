@@ -1,4 +1,4 @@
-import { isPremium, isLicensed } from './premium.js';
+import { isPremium, isLicensed, freeLooks } from './premium.js';
 
 // What you have done so far, kept on this device, and the looks it unlocks. Nothing here leaves the phone.
 
@@ -48,6 +48,7 @@ const NEED = {
 
 /** Does this look's requirement hold for these numbers? Pass `s` to test numbers other than your own. */
 export function isUnlocked(part, id, s = stats) {
+  if (freeLooks()) return true; // everything is free for now
   if (isPremium(part, id)) return isLicensed(part, id); // paid for with real money: see premium.js
   if (isShopItem(part, id)) return (s.owned || []).includes(`${part}:${id}`);
   const need = UNLOCKS[part]?.[id];

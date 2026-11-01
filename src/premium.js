@@ -23,6 +23,12 @@ const store = () => (typeof window !== 'undefined' && window.RFI_STORE && typeof
 const read = () => { try { const v = JSON.parse(localStorage.getItem(KEY)); return Array.isArray(v) ? v.filter((t) => typeof t === 'string').slice(-20) : []; } catch { return []; } };
 const write = (list) => { try { localStorage.setItem(KEY, JSON.stringify(list)); } catch { /* storage unavailable */ } };
 
+/**
+ * While the game is free, every look is open to everybody and the Shop is just a gallery. This is on unless
+ * config.js says window.RFI_FREE_LOOKS = false (which is what to do when pricing starts).
+ */
+export const freeLooks = () => typeof window !== 'undefined' && window.RFI_FREE_LOOKS !== false;
+
 /** What the store is set up to do. 'demo' unlocks things for free, for trying the screens out only. */
 export const storeMode = () => {
   const s = store();

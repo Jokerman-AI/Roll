@@ -93,11 +93,11 @@ test('after payment the order becomes a licence the app accepts; an unpaid or un
 
 test('the app: nothing is for sale until a store is set up; a redeemed licence unlocks exactly what it covers', async () => {
   const { priv, pub } = await makeKeys();
-  globalThis.window = {};
+  globalThis.window = { RFI_FREE_LOOKS: false };
   assert.equal(P.storeMode(), 'off');
   assert.equal((await P.startCheckout('table:aurora')).ok, false);
   assert.equal(isUnlocked('table', 'aurora'), false);
-  globalThis.window = { RFI_STORE: { api: 'https://api.example', publicKey: pub, prices: { 'table:aurora': '€2.49' } } };
+  globalThis.window = { RFI_FREE_LOOKS: false, RFI_STORE: { api: 'https://api.example', publicKey: pub, prices: { 'table:aurora': '€2.49' } } };
   assert.equal(P.storeMode(), 'live');
   assert.equal(P.priceLabel('table', 'aurora'), '€2.49');
   assert.equal(P.priceLabel('dice', 'fire'), '$1.99', 'falls back to the built-in label');
@@ -115,11 +115,11 @@ test('the app: nothing is for sale until a store is set up; a redeemed licence u
 });
 
 test('demo mode lets the screens be tried without payment, and is off unless asked for', async () => {
-  globalThis.window = { RFI_STORE: { mode: 'demo' } };
+  globalThis.window = { RFI_FREE_LOOKS: false, RFI_STORE: { mode: 'demo' } };
   assert.equal(P.storeMode(), 'demo');
   assert.deepEqual(await P.startCheckout('back:holo'), { ok: true, demo: true });
   assert.ok(isUnlocked('back', 'holo'));
-  globalThis.window = { RFI_STORE: { mode: 'live' } };
+  globalThis.window = { RFI_FREE_LOOKS: false, RFI_STORE: { mode: 'live' } };
   assert.equal(P.storeMode(), 'off', 'live without an address and a key stays closed');
   delete globalThis.window;
 });
@@ -133,4 +133,15 @@ test('every premium look exists in the theme lists, with a price', () => {
     }
   }
   assert.equal(P.ALL_SKUS.length, 12);
+});
+
+test('while looks are free, every look is open to everybody; turning it off brings the locks back', () => {
+  globalThis.window = {}; // free unless config.js says otherwise
+  assert.equal(P.freeLooks(), true);
+  assert.ok(isUnlocked('table', 'aurora') && isUnlocked('dice', 'fire') && isUnlocked('table', 'midnight') && isUnlocked('fx', 'stars'));
+  globalThis.window = { RFI_FREE_LOOKS: false };
+  assert.equal(P.freeLooks(), false);
+  assert.ok(!isUnlocked('table', 'midnight') && !isUnlocked('fx', 'stars') && !isUnlocked('dice', 'pixel'));
+  delete globalThis.window;
+  assert.equal(P.freeLooks(), false, 'outside a page nothing is free by default, so tests of the locks stay meaningful');
 });

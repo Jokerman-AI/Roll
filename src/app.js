@@ -11,7 +11,7 @@ import { dbStore, p2pStore, checkConnection } from './transport.js';
 import { checkFallback, DEFAULT_BROKERS, lobbyList, lobbyAnnouncer } from './relay.js';
 import { sfx, soundPrefs, setSound, setHaptics, canVibrate } from './sound.js';
 import { theme, TABLES, BACKS, DICE, FX, setTheme, calm, setCalm, restoreTheme } from './theme.js';
-import { PREMIUM, BUNDLE, hasBundle, isPremium, skuOf, storeMode, priceLabel, bundleLabel, loadLicenses, redeem, savedLicenses, startCheckout, claimOrder } from './premium.js';
+import { PREMIUM, BUNDLE, freeLooks, hasBundle, isPremium, skuOf, storeMode, priceLabel, bundleLabel, loadLicenses, redeem, savedLicenses, startCheckout, claimOrder } from './premium.js';
 import { stats, isUnlocked, requirementText, recordGame, SHOP, isShopItem, priceOf, buy } from './stats.js';
 import { installReporter, errorLog, clearErrors, buildReport, VERSION } from './report.js';
 import {
@@ -436,6 +436,17 @@ function shopView() {
   const bundle = hasBundle() ? '' : `<div class="item"><span class="pv" aria-hidden="true" style="font-size:2rem">🎁</span>
       <span class="nm"><b>${BUNDLE.name}<span class="badge-premium">Best value</span></b><small>${mode === 'off' ? 'Coming soon' : `Every premium look · ${bundleLabel()}`}</small></span>
       <button class="btn primary" data-act="buyPremium" data-sku="${BUNDLE.sku}" ${mode === 'off' ? 'disabled' : ''}>${mode === 'demo' ? 'Try it' : 'Buy'}</button></div>`;
+  if (freeLooks()) {
+    const gallery = (title, part) => `<h3>${title}</h3>${LISTS[part].filter((x) => x.fx || SHOP[part]?.[x.id]).map((x) => `<div class="item"><span class="pv">${previewOf(part, x.id)}</span>
+      <span class="nm"><b>${x.name}${x.fx ? '<span class="badge-premium">Animated</span>' : ''}</b><small>Free</small></span>
+      <button class="btn ${theme[part] === x.id ? '' : 'primary'}" data-act="setTheme" data-part="${part}" data-id="${x.id}">${theme[part] === x.id ? 'In use' : 'Use'}</button></div>`).join('')}`;
+    return `<div class="modal"><div class="sheet shop themes"><h2>🛍 More looks</h2>
+      <p class="note"><b>Everything is free right now.</b> Pick any look. Looks only change how the game looks.</p>
+      ${PARTS.map(([part, title]) => gallery(title, part)).join('')}
+      <div class="calmrow"><span>Calm table <small style="font-weight:400;opacity:.7">(stops the moving looks)</small></span><button class="btn small" data-act="toggleCalm" aria-pressed="${calm.on}">${calm.on ? 'On' : 'Off'}</button></div>
+      <button class="btn" data-act="themes">Back to Themes</button>
+      <button class="btn primary" data-act="closeModal">Done</button></div></div>`;
+  }
   return `<div class="modal"><div class="sheet shop themes"><h2>🛍 Shop</h2>
     <p class="wallet coins">🪙 ${stats.coins} coins</p>
     ${mode === 'demo' ? '<p class="note"><b>Test mode:</b> nothing is charged and nothing is saved as a purchase.</p>' : ''}
@@ -471,9 +482,9 @@ function themesView() {
   };
   return `<div class="modal"><div class="sheet themes"><h2>🎨 Themes</h2>
     <p class="statline">${stats.games} games · ${stats.wins} wins · best streak ${stats.bestStreak} · ${stats.claims} cards claimed</p>
-    <button class="btn" data-act="shop">🛍 Shop <span class="coins">· 🪙 ${stats.coins}</span></button>
+    <button class="btn" data-act="shop">${freeLooks() ? '🛍 More looks' : `🛍 Shop <span class="coins">· 🪙 ${stats.coins}</span>`}</button>
     ${PARTS.map(([part, title]) => `<h3>${title}</h3><div class="opts">${LISTS[part].map((x) => opt(part, x.id, x.name, previewOf(part, x.id))).join('')}</div>`).join('')}
-    <p class="tag">Play games to unlock more looks and earn coins for the Shop. ✨ marks premium looks.</p>
+    <p class="tag">${freeLooks() ? 'Every look is free right now. ✨ marks the animated ones.' : 'Play games to unlock more looks and earn coins for the Shop. ✨ marks premium looks.'}</p>
     <button class="btn primary" data-act="closeModal">Done</button></div></div>`;
 }
 
@@ -669,7 +680,7 @@ function editorView() {
 }
 
 const lookName = ({ part, id }) => `${({ table: TABLES, back: BACKS, dice: DICE }[part].find((x) => x.id === id) || { name: id }).name} ${({ table: 'table', back: 'deck back', dice: 'dice' })[part]}`;
-const unlockedLine = () => (ui.coinsEarned ? `<p class="unlock coins">🪙 +${ui.coinsEarned} coins</p>` : '') + (ui.newUnlocks.length ? `<p class="unlock">🔓 Unlocked: ${ui.newUnlocks.map(lookName).join(', ')}. See 🎨 Themes.</p>` : '');
+const unlockedLine = () => (ui.coinsEarned && !freeLooks() ? `<p class="unlock coins">🪙 +${ui.coinsEarned} coins</p>` : '') + (ui.newUnlocks.length ? `<p class="unlock">🔓 Unlocked: ${ui.newUnlocks.map(lookName).join(', ')}. See 🎨 Themes.</p>` : '');
 
 /** What the app was doing, without anything personal: for a problem report. */
 const reportContext = () => ({
@@ -764,7 +775,7 @@ function modalView() {
         <li>Rollick has no accounts, ads or analytics. Your name, icon, colour and settings are saved only on your device.</li>
         <li>Online games connect players directly (peer to peer) when they can. Your name, icon and moves are sent to the other players in your room. A signalling server and relay servers help devices find each other, and they can see network addresses and connection details while you play. The host also keeps a connection open to free public message servers, so players whose network blocks direct connections can still join. When that backup route is used, moves pass through those servers. Anyone who knows your room code could see that traffic, so don't share the code publicly and don't put private information in your name or icon. Opening the Play online screen connects to those servers to show the Open rooms list. If you switch on <b>Public room</b>, the room code, your name, the game and the player count are published on those servers so other people can find the room; switch it off and the listing is removed.</li>
         <li>If something breaks, Rollick keeps a short log of error messages on your device. Nothing is sent anywhere unless you choose Share, Copy or Email in <b>Report a problem</b>, and reports never include names, room codes or drawings.</li>
-        <li>Premium looks are optional digital items that only change how the game looks. If the store is open, payment happens on a secure page run by the payment provider, which keeps your card details; Rollick never sees them. A purchase is kept on your device as a licence code. Refunds, tax and your rights are set out in the store's terms, which the seller must add before selling.</li>
+        <li>Every look is free at the moment. If looks are sold later, they are optional digital items that only change how the game looks. If the store is open, payment happens on a secure page run by the payment provider, which keeps your card details; Rollick never sees them. A purchase is kept on your device as a licence code. Refunds, tax and your rights are set out in the store's terms, which the seller must add before selling.</li>
         <li>Clear the site data or remove the app to delete everything stored on your device.</li>
       </ul>
       <h3>Open-source notices</h3>

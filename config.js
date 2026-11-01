@@ -25,3 +25,8 @@
 //
 // To click through the Shop screens without paying anything (for trying them out only, never for the live site):
 // window.RFI_STORE = { mode: 'demo' };
+
+// Everything (all looks and effects) is free while this is on, and the Shop is a gallery. It is on by default.
+// When you start charging, set it to false: coin looks go back to being earned and premium looks go back to being bought.
+if (window.RFI_FREE_LOOKS === undefined) window.RFI_FREE_LOOKS = true;
+// window.RFI_FREE_LOOKS = false;

@@ -7,6 +7,8 @@ Rollick's Shop has two kinds of looks:
   server, because a web page cannot safely take payments or prove that someone paid. This guide sets that up with
   **Stripe** (payments) and **Cloudflare Workers** (the small server). Both have free ways to start.
 
+**While looks are free** (`window.RFI_FREE_LOOKS` is on, which is the default), none of this applies: every look is open and the Shop is a gallery. Set it to `false` in `config.js` when you are ready to charge.
+
 Until you finish these steps, premium looks show "Coming soon" and nothing can be bought. The app and the server code
 are done and tested; the accounts and keys are yours to create.
 
