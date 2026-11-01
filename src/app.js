@@ -10,7 +10,7 @@ const levelLabel = (l) => (E.LEVEL_NAMES.includes(l) ? l : 'normal').replace(/^.
 import { dbStore, p2pStore, checkConnection } from './transport.js';
 import { checkFallback, DEFAULT_BROKERS, lobbyList, lobbyAnnouncer } from './relay.js';
 import { sfx, soundPrefs, setSound, setHaptics, canVibrate } from './sound.js';
-import { theme, TABLES, BACKS, DICE, FX, setTheme, calm, setCalm, restoreTheme, cube, setCube, design, setDesign, DESIGN_OPTIONS } from './theme.js';
+import { theme, TABLES, BACKS, DICE, FX, setTheme, calm, setCalm, restoreTheme, cube, setCube, gl, setGL } from './theme.js';
 import { PREMIUM, BUNDLE, freeLooks, hasBundle, isPremium, skuOf, storeMode, priceLabel, bundleLabel, loadLicenses, redeem, savedLicenses, startCheckout, claimOrder } from './premium.js';
 import { stats, isUnlocked, requirementText, recordGame, SHOP, isShopItem, priceOf, buy } from './stats.js';
 import { installReporter, errorLog, clearErrors, buildReport, VERSION } from './report.js';
@@ -81,6 +81,7 @@ let timer = 0;
 let toastTimer = 0;
 let rollTimer = 0;
 let rollClock = 0;
+let glBroken = false; // set if 3D could not start on this device, so the CSS cubes stay
 let hintTimer = 0;
 let peekTimer = 0;
 
@@ -136,7 +137,7 @@ function die3d(face, cls = '', attrs = '', rollSpin = null) {
     return `<b class="cf f${f}" style="--sh:${sh[f]}">${pips}</b>`;
   }).join('');
   const spin = rollSpin ? `--rx:${rollSpin[0]}deg;--ry:${rollSpin[1]}deg;` : '';
-  return `<div class="die cube3d ${cls}" aria-label="${face}" ${attrs.replace('style="', `style="--ax:${ax}deg;--ay:${ay}deg;${spin}`)}><span class="cube"><span class="cube-in">${faces}</span></span></div>`;
+  return `<div class="die cube3d ${cls}" data-roll="${ui.rollSeq || 0}" aria-label="${face}" ${attrs.replace('style="', `style="--ax:${ax}deg;--ay:${ay}deg;${spin}`)}><span class="cube"><span class="cube-in">${faces}</span></span></div>`;
 }
 
 function setFace(el, face) {
@@ -161,7 +162,37 @@ function render() {
   if (cv && ui.ed) paintCanvas(cv, ui.ed.sk);
   positionPeek();
   watchRooms();
+  syncGL();
 }
+
+/**
+ * Studio-quality 3D: hand the dice on screen to the 3D engine (vendor/dice3d.js), which draws them on a canvas over the
+ * page. The page's own dice stay (hidden) for taps and screen readers. Without WebGL the CSS cubes are used instead.
+ */
+function syncGL() {
+  const root = document.documentElement;
+  const engine = window.RollDice3D;
+  const off = () => { root.removeAttribute('data-gl'); engine?.hide(); };
+  if (!engine || glBroken || !gl.on || !cube.on || !engine.available()) { off(); return; }
+  let els = [];
+  let z = 5;
+  if (!ui.modal && ui.screen === 'game') els = [...app.querySelectorAll('.dice .die.cube3d')];
+  if (!els.length) { off(); return; }
+  const num = (el, name) => parseFloat(getComputedStyle(el).getPropertyValue(name)) || 0;
+  const colour = (el, name) => getComputedStyle(el).getPropertyValue(name).trim();
+  const dice = els.map((el, k) => ({
+    el, key: el.dataset.i !== undefined ? `r${el.dataset.i}` : `h${k}`,
+    face: +el.getAttribute('aria-label') || 1,
+    color: colour(el, '--c'), pip: colour(el, '--pc') || colour(el, '--pip'),
+    rolling: el.classList.contains('rolling'), token: +el.dataset.roll || 0,
+    delay: num(el, '--d'), dur: num(el, '--dur'), dx: num(el, '--dx'),
+    dim: el.classList.contains('hand'), spin: el.classList.contains('spin'),
+  }));
+  const ok = engine.show({ dice, skin: theme.dice, calm: calm.on || reducedMotion(), z });
+  if (ok) root.setAttribute('data-gl', '1'); else { glBroken = true; off(); }
+}
+window.addEventListener('resize', () => window.RollDice3D?.refresh());
+window.addEventListener('scroll', () => window.RollDice3D?.refresh(), true);
 
 function connBanner() {
   if (!ui.online || ui.conn === 'online') return '';
@@ -454,7 +485,7 @@ const LISTS = { table: TABLES, back: BACKS, dice: DICE, fx: FX };
 const nameOf = (part, id) => (LISTS[part].find((x) => x.id === id) || { name: id }).name;
 const previewOf = (part, id) => (part === 'table' ? `<span class="tb" data-tb="${id}"></span>`
   : part === 'back' ? `<span class="bk" data-bk="${id}"></span>`
-  : part === 'dice' ? `<span class="dpv" data-ds="${id}">${cube.on ? die3d(5, 'spin', 'style="--c:#e5484d"') : die(5, '')}</span>`
+  : part === 'dice' ? `<span class="dpv" data-ds="${id}">${cube.on ? die3d(5, 'spin pv', 'style="--c:#e5484d"') : die(5, '')}</span>`
   : `<span class="fxp" aria-hidden="true">${{ confetti: '🎉', stars: '⭐', fireworks: '🎆', goldrain: '🪙' }[id] || '✨'}</span>`);
 const PARTS = [['table', 'Tables'], ['back', 'Deck backs'], ['dice', 'Dice'], ['fx', 'Win effects']];
 
@@ -525,31 +556,10 @@ function themesView() {
     <p class="statline">${stats.games} games · ${stats.wins} wins · best streak ${stats.bestStreak} · ${stats.claims} cards claimed</p>
     <button class="btn" data-act="shop">${freeLooks() ? '🛍 More looks' : `🛍 Shop <span class="coins">· 🪙 ${stats.coins}</span>`}</button>
     <div class="calmrow"><span>3D dice <small style="font-weight:400;opacity:.7">(a cube that tumbles)</small></span><button class="btn small" data-act="toggleCube" aria-pressed="${cube.on}">${cube.on ? 'On' : 'Off'}</button></div>
-    <button class="btn" data-act="design">🎲 Design your own die</button>
+    ${window.RollDice3D?.available() ? `<div class="calmrow"><span>Studio quality <small style="font-weight:400;opacity:.7">(real lighting and materials)</small></span><button class="btn small" data-act="toggleGL" aria-pressed="${gl.on}">${gl.on ? 'On' : 'Off'}</button></div>` : ''}
     ${PARTS.map(([part, title]) => `<h3>${title}</h3><div class="opts">${LISTS[part].map((x) => opt(part, x.id, x.name, previewOf(part, x.id))).join('')}</div>`).join('')}
     <p class="tag">${freeLooks() ? 'Every look is free right now. ✨ marks the animated ones.' : 'Play games to unlock more looks and earn coins for the Shop. ✨ marks premium looks.'}</p>
     <button class="btn primary" data-act="closeModal">Done</button></div></div>`;
-}
-
-/** Design a die: pick the finish, the pips, the corners and the glow, and watch it turn. */
-const DESIGN_LABELS = {
-  finish: ['Finish', { matte: 'Matte', gloss: 'Gloss', metal: 'Metal', glass: 'Glass' }],
-  pip: ['Pips', { round: '● Round', square: '■ Square', diamond: '◆ Diamond', star: '★ Star', heart: '♥ Heart', hex: '⬢ Hex' }],
-  pipColor: ['Pip colour', { auto: 'Auto', white: 'White', black: 'Black', gold: 'Gold', red: 'Red', cyan: 'Cyan', lime: 'Lime' }],
-  corners: ['Corners', { sharp: 'Sharp', soft: 'Soft', round: 'Round' }],
-  glow: ['Glow', { none: 'None', white: 'White', gold: 'Gold', cyan: 'Cyan', pink: 'Pink', lime: 'Lime', seat: 'My colour' }],
-  sparkle: ['Sparkle', { off: 'Off', on: 'On' }],
-};
-function designView() {
-  const rows = Object.keys(DESIGN_LABELS).map((k) => `<div class="row">${DESIGN_LABELS[k][0]}</div>
-    <div class="chips">${DESIGN_OPTIONS[k].map((v) => `<button class="${design[k] === v ? 'on' : ''}" data-act="designSet" data-k="${k}" data-v="${v}" aria-pressed="${design[k] === v}">${DESIGN_LABELS[k][1][v]}</button>`).join('')}</div>`).join('');
-  const stage = cube.on ? die3d(5, 'owned spin', 'style="--c:#e5484d"') : die(5, 'owned', 'style="--c:#e5484d"');
-  return `<div class="modal"><div class="sheet design"><h2>🎲 Design your die</h2>
-    <div class="stage"><span data-ds="custom">${stage}</span></div>
-    ${rows}
-    <p class="tag">Your design is saved on this device as the “Your design” look. It uses your seat colour for the body.</p>
-    <button class="btn primary" data-act="useDesign">Use this die</button>
-    <button class="btn" data-act="themes">Back to Themes</button></div></div>`;
 }
 
 function statusText(s) {
@@ -858,7 +868,6 @@ function modalView() {
   if (ui.modal === 'powers') return powersView();
   if (ui.modal === 'themes') return themesView();
   if (ui.modal === 'shop') return shopView();
-  if (ui.modal === 'design') return designView();
   if (ui.modal === 'restore') return restoreView();
   if (ui.modal === 'menu') {
     return `<div class="modal" data-act="closeModal"><div class="sheet"><h2>Menu</h2>
@@ -981,6 +990,7 @@ function countGame(g) {
 
 function startRoll(count) {
   sfx.roll(count);
+  ui.rollSeq = (ui.rollSeq || 0) + 1;
   const quick = reducedMotion();
   ui.fx = Array.from({ length: count }, (_, i) => ({
     delay: quick ? 0 : i * 70 + Math.floor(Math.random() * 110),
@@ -1693,9 +1703,7 @@ const actions = {
   shop: () => { ui.modal = 'shop'; render(); },
   toggleCalm: () => { setCalm(!calm.on); render(); },
   toggleCube: () => { setCube(!cube.on); render(); },
-  design: () => { ui.modal = 'design'; render(); },
-  designSet: ({ k, v }) => { setDesign(k, v); render(); },
-  useDesign: () => { setTheme('dice', 'custom'); ui.modal = 'themes'; render(); },
+  toggleGL: () => { setGL(!gl.on); glBroken = false; render(); },
   buyPremium: async ({ sku }) => {
     const r = await startCheckout(sku);
     if (!r.ok) { sfx.error(); say(r.why, 3000); return; }

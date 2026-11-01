@@ -41,6 +41,9 @@ body { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: m
 </style>
 <div id="app"></div>
 <script>
+${read('vendor/dice3d.js').replace(/<\/script/gi, '<\\/script')}
+</script>
+<script>
 ${engineJs}
 ${ai}
 ${profile}

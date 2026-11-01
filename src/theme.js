@@ -45,7 +45,6 @@ export const DICE = [
   { id: 'obsidian', name: 'Obsidian', fx: true },
   { id: 'galaxy', name: 'Galaxy', fx: true },
   { id: 'lightning', name: 'Lightning', fx: true },
-  { id: 'custom', name: 'Your design' },
 ];
 /** What happens on screen when somebody wins. */
 export const FX = [
@@ -80,29 +79,11 @@ export function setCube(on) {
   applyTheme();
 }
 
-/** The die you design yourself. Every field is checked, because it comes out of storage. */
-export const DESIGN_OPTIONS = {
-  finish: ['matte', 'gloss', 'metal', 'glass'],
-  pip: ['round', 'square', 'diamond', 'star', 'heart', 'hex'],
-  pipColor: ['auto', 'white', 'black', 'gold', 'red', 'cyan', 'lime'],
-  corners: ['sharp', 'soft', 'round'],
-  glow: ['none', 'white', 'gold', 'cyan', 'pink', 'lime', 'seat'],
-  sparkle: ['off', 'on'],
-};
-export const DESIGN_DEFAULT = { finish: 'gloss', pip: 'round', pipColor: 'auto', corners: 'soft', glow: 'none', sparkle: 'off' };
-export const design = (() => {
-  let saved = {};
-  try { saved = JSON.parse(localStorage.getItem('rfi-customdie')) || {}; } catch { /* nothing saved */ }
-  const out = { ...DESIGN_DEFAULT };
-  for (const k of Object.keys(DESIGN_DEFAULT)) if (DESIGN_OPTIONS[k].includes(saved[k])) out[k] = saved[k];
-  return out;
-})();
-export function setDesign(key, value) {
-  if (!DESIGN_OPTIONS[key]?.includes(value)) return false;
-  design[key] = value;
-  try { localStorage.setItem('rfi-customdie', JSON.stringify(design)); } catch { /* storage unavailable */ }
-  applyTheme();
-  return true;
+/** Studio-quality 3D (WebGL, real lighting and materials) when the device can draw it. Saved on the device. */
+export const gl = { on: (() => { try { return localStorage.getItem('rfi-gl') !== '0'; } catch { return true; } })() };
+export function setGL(on) {
+  gl.on = !!on;
+  try { localStorage.setItem('rfi-gl', on ? '1' : '0'); } catch { /* storage unavailable */ }
 }
 
 /** Switch off the moving parts of the looks (battery, or just a quieter table). Saved on the device. */
@@ -127,7 +108,6 @@ export function applyTheme() {
   root.setAttribute('data-ds', theme.dice);
   if (calm.on) root.setAttribute('data-calm', '1'); else root.removeAttribute('data-calm');
   root.setAttribute('data-3d', cube.on ? '1' : '0');
-  for (const k of Object.keys(DESIGN_DEFAULT)) root.setAttribute(`data-cd-${k.toLowerCase()}`, design[k]);
   const meta = document.querySelector('meta[name="theme-color"]');
   if (meta) meta.setAttribute('content', TABLES.find((t) => t.id === theme.table).meta);
 }

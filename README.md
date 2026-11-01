@@ -41,11 +41,12 @@ up again. Moves are paused until it is back.
 - **Tutorial:** a guided first game on a prepared table (start screen: *Learn to play*, or *Tutorial* in the links). Tips tell you what to tap, highlight the die and card to use, and only let you make the move being taught.
 - **Themes:** table colour, deck back and dice style (start screen or Menu: *Themes*). Saved on the device and applied straight away.
 
-## 3D dice and your own design
+## 3D dice
 
 The dice in your tray are real 3D cubes (CSS 3D, no library): they tumble end over end, land with the rolled number facing you, and are shaded for a light from the top left. Themes has a **3D dice** switch (off gives the flat dice) and Calm table stops the motion. The animated looks have richer effects: Fire (flames and rising embers), Ice (frost and glints), Prism (rainbow sheen and shifting edges), Neon glow (a pulsing tube), plus new **Solid gold**, **Obsidian**, **Galaxy** and **Lightning**.
 
-**Design your own die** (Themes, then the button) lets you pick the finish, pip shape, pip colour, corners, glow and sparkle, with a turning preview. It is saved on the device (`rfi-customdie`) as the "Your design" look and is always free.
+**Studio quality.** On devices that can draw WebGL, the tray dice are rendered with a real 3D engine (three.js): bevelled bodies, reflections, pips pressed into the faces, soft shadows, and per-look materials and particles (molten flames and embers for Fire, frosted glass for Ice, thin-film rainbow for Prism, polished metal for Solid gold, and so on). The page keeps invisible dice for taps and screen readers; there is a **Studio quality** switch in Themes, and devices without WebGL fall back to the CSS cubes. The engine lives in `tools/dice3d/dice3d.js` and is built into `vendor/dice3d.js` (`tools/build-dice3d.mjs`).
+
 
 ## Settings, unlocks and problem reports
 
