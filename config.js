@@ -10,3 +10,6 @@
 //
 // Free options for a relay of your own: a Metered.ca account (free tier) or Cloudflare Calls TURN.
 // Paste the urls, username and credential they give you into RFI_ICE_SERVERS above and uncomment it.
+
+// Where "Report a problem" can email reports to. Leave it out and people can still Share or Copy a report.
+// window.RFI_FEEDBACK_EMAIL = 'you@example.com';

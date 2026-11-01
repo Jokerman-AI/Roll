@@ -28,18 +28,18 @@ function snapshot(s, me) {
     return { points: card.points, need, have, total: card.need.length, placed: card.placed[me].length, rival, alive: true };
   });
   const topRival = Math.max(0, ...s.players.filter((_, p) => p !== me).map((p) => p.score));
-  return { cards, onCards: cards.reduce((n, c) => n + c.placed, 0), score: s.players[me].score, topRival };
+  return { cards, onCards: cards.reduce((n, c) => n + c.placed, 0), score: s.players[me].score, topRival, target: E.targetOf(s), dice: E.diceOf(s) };
 }
 
 const copyModel = (m) => ({ ...m, cards: m.cards.map((c) => ({ ...c, have: c.have.slice() })) });
 
 /** What finishing a card is worth. `certain` means it happens this turn, with dice already rolled. */
-function completionValue(c, certain, score, topRival) {
+function completionValue(c, certain, score, topRival, target) {
   let v = c.points * (certain ? 1 : race(1, c.rival));
-  if (score + c.points >= E.TARGET_SCORE) v += certain ? 1000 : 25 * race(1, c.rival); // winning
+  if (score + c.points >= target) v += certain ? 1000 : 25 * race(1, c.rival); // winning
   if (c.rival <= 1) {
     v += 0.3 * c.points; // taking a card a rival is about to finish
-    if (topRival + c.points >= E.TARGET_SCORE) v += certain ? 10 : 3; // ...especially if it would win them the game
+    if (topRival + c.points >= target) v += certain ? 10 : 3; // ...especially if it would win them the game
   }
   return v;
 }
@@ -50,7 +50,7 @@ function put(m, c, face, certain) {
   c.placed++;
   m.onCards++;
   if (c.placed < c.total) return 0;
-  const gained = completionValue(c, certain, m.score, m.topRival);
+  const gained = completionValue(c, certain, m.score, m.topRival, m.target);
   m.score += c.points;
   m.onCards -= c.total; // the dice on a finished card come home
   c.alive = false;
@@ -63,21 +63,21 @@ function rollout(model, rng, firstDice, turns, minFree = 0, nearDone = 0) {
   let gain = 0;
   for (let t = 0; t < turns; t++) {
     const certain = t === 0 && firstDice !== null;
-    const dice = certain ? firstDice : Array.from({ length: Math.max(0, E.DICE_PER_PLAYER - m.onCards) }, () => 1 + Math.floor(rng() * 6));
+    const dice = certain ? firstDice : Array.from({ length: Math.max(0, m.dice - m.onCards) }, () => 1 + Math.floor(rng() * 6));
     for (const f of dice) {
       let best = null;
       let bestV = -1;
       for (const c of m.cards) {
         if (!c.alive || c.have[f] >= c.need[f]) continue;
         const missing = c.total - c.placed;
-        const freeAfter = E.DICE_PER_PLAYER - m.onCards - 1;
+        const freeAfter = m.dice - m.onCards - 1;
         if (missing > 1 && (freeAfter < 1 || (missing - 1 > nearDone && freeAfter < minFree))) continue; // keep dice free, as the floor says
         const v = (missing === 1 ? 1000 : 0) + (c.points * (certain ? 1 : race(missing, c.rival)) * (c.placed + 1)) / c.total;
         if (v > bestV) { bestV = v; best = c; }
       }
       if (best) {
         gain += put(m, best, f, certain);
-        if (certain && m.score >= E.TARGET_SCORE) return gain; // the game is won: nothing after this matters
+        if (certain && m.score >= m.target) return gain; // the game is won: nothing after this matters
       }
     }
   }
@@ -128,7 +128,7 @@ function rankMoves(s) {
     const face = s.rolled[mv.rolled];
     const finishes = m.cards[mv.card].placed + 1 === m.cards[mv.card].total;
     const gainedNow = put(m, m.cards[mv.card], face, true);
-    if (m.score >= E.TARGET_SCORE) return { ...mv, allowed, value: gainedNow + 1e-3 }; // a winning card ends the game, and beats any other way of winning
+    if (m.score >= m.target) return { ...mv, allowed, value: gainedNow + 1e-3 }; // a winning card ends the game, and beats any other way of winning
     const rest = s.rolled.filter((_, i) => i !== mv.rolled);
     // On a tie, finish the card first.
     return { ...mv, allowed, value: gainedNow + average((rng) => rollout(m, rng, rest, LOOKAHEAD), seed) + (finishes ? 1e-6 : 0) };
@@ -221,7 +221,7 @@ function powerAction(s, level, rng) {
   }
   // Make a rival who is close to winning miss a turn (or get rid of a spare card).
   if (allowed('skip') && !s.skipNext) {
-    const close = s.players.some((p, i) => i !== me && p.score >= E.TARGET_SCORE - 12);
+    const close = s.players.some((p, i) => i !== me && p.score >= E.targetOf(s) - Math.max(6, Math.round(E.targetOf(s) * 0.3)));
     if (close || held.size >= E.MAX_POWERS) return { type: 'power', kind: 'skip' };
   }
   return null;
@@ -243,7 +243,7 @@ function smartStart(s, minFree = 0, nearDone = 0) {
   {
     const hand = E.handSize(s, me);
     if (hand === 0) return { type: 'takeback' };
-    if (hand === E.DICE_PER_PLAYER) return { type: 'roll' };
+    if (hand === E.diceOf(s)) return { type: 'roll' };
     // Keep what is on the cards, or take it all back and roll all six: whichever plays out better.
     const keep = snapshot(s, me);
     const reset = copyModel(keep);

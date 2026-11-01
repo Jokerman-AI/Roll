@@ -549,3 +549,21 @@ html { background: var(--felt); }
 .iconbtn { width: 48px; height: 48px; border: 0; border-radius: 50%; background: #ffffff1a; color: var(--ink); display: grid; place-items: center; padding: 0; }
 .iconbtn:active { background: #ffffff33; }
 .iconbtn svg { display: block; }
+
+/* game settings */
+.setrow { display: flex; align-items: center; gap: 10px; }
+.setrow > span { flex: none; width: 5.2em; font-weight: 700; font-size: .85rem; }
+.setrow .seg { flex: 1; }
+.panel.settings { gap: 10px; }
+
+/* unlockable looks */
+.themes .statline { margin: 0 0 4px; font-size: .8rem; opacity: .75; }
+.themes .opt.locked { opacity: .5; }
+.themes .opt .need { font-size: .62rem; line-height: 1.15; text-align: center; opacity: .9; }
+.themes .opt.locked .tb, .themes .opt.locked .bk, .themes .opt.locked .dpv { filter: grayscale(.8); }
+.unlock { margin: 6px 0; padding: 8px 10px; border-radius: 12px; background: #2fb36d33; font-weight: 700; font-size: .85rem; }
+
+/* problem reports */
+.sheet.report textarea { width: 100%; border: 0; border-radius: 12px; padding: 10px 12px; background: #0001; font: inherit; color: inherit; resize: vertical; min-height: 4.5em; }
+.sheet.report details { margin: 8px 0 2px; font-size: .8rem; }
+.sheet.report pre { white-space: pre-wrap; word-break: break-word; max-height: 30vh; overflow: auto; background: #0001; border-radius: 10px; padding: 8px; font-size: .7rem; user-select: text; -webkit-user-select: text; }

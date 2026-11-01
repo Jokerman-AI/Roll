@@ -2,6 +2,8 @@
 
 export const DICE_PER_PLAYER = 6;
 export const TARGET_SCORE = 40;
+/** The choices a room can make: how many points win, and how many dice each player owns. */
+export const SETTINGS = { targets: [20, 30, 40, 60], dice: [4, 5, 6, 7, 8] };
 export const MAX_PLAYERS = 8; // one set plays 2-4; two sets play up to 8
 
 // One 30-card set: [shape, points]. A shape lists how many dice of each distinct face a card
@@ -56,11 +58,12 @@ function multisets(size, min = 1) {
   return out;
 }
 
-export function buildDeck(rng, sets = 1) {
+export function buildDeck(rng, sets = 1, maxDice = 5) {
   const deck = [];
   for (let s = 0; s < sets; s++) {
     for (const [shape, points] of SET_SHAPES) {
       const size = shape.reduce((a, b) => a + b, 0);
+      if (size > maxDice) continue; // a card that needs more dice than anyone owns could never be finished
       const key = [...shape].sort((a, b) => b - a).join(',');
       const pool = multisets(size).filter((m) => shapeOf(m) === key);
       for (const need of shuffle(pool, rng).slice(0, CARDS_PER_SHAPE)) deck.push({ points, need });
@@ -81,9 +84,13 @@ export function missing(card, player) {
   return left;
 }
 
+/** The points that win this game, and the dice each player owns. Older saved games carry neither. */
+export const targetOf = (state) => state.target ?? TARGET_SCORE;
+export const diceOf = (state) => state.dice ?? DICE_PER_PLAYER;
+
 export function handSize(state, player) {
   const onCards = state.cards.reduce((n, c) => n + c.placed[player].length, 0);
-  return DICE_PER_PLAYER - onCards;
+  return diceOf(state) - onCards;
 }
 
 /** Everyone rolls two dice; highest total goes first, ties roll again. */
@@ -139,16 +146,29 @@ function grantPower(s, player, rng) {
   return kind;
 }
 
-export function newGame(configs, rng = Math.random, { mode = 'classic' } = {}) {
+const pickSetting = (value, list, fallback) => (list.includes(value) ? value : fallback);
+
+/** Settings from outside (a saved file, or another player's room) turned into safe numbers. */
+export function cleanSettings(raw) {
+  return {
+    target: pickSetting(Number(raw?.target), SETTINGS.targets, TARGET_SCORE),
+    dice: pickSetting(Number(raw?.dice), SETTINGS.dice, DICE_PER_PLAYER),
+  };
+}
+
+export function newGame(configs, rng = Math.random, { mode = 'classic', target, dice } = {}) {
   if (configs.length < 2 || configs.length > MAX_PLAYERS) throw new Error('2-8 players');
   const players = configs.map((c) => ({ name: c.name, cpu: !!c.cpu, level: LEVEL_NAMES.includes(c.level) ? c.level : 'normal', score: 0, pile: [] })); // pile: points of cards claimed
   const extreme = mode === 'extreme';
+  const diceCount = pickSetting(dice, SETTINGS.dice, DICE_PER_PLAYER);
   if (extreme) for (const p of players) p.powers = Array.from({ length: POWER_START }, () => randomPower(rng));
   const { first, total } = rollOff(players.length, rng);
   const state = {
     mode: extreme ? 'extreme' : 'classic',
+    target: pickSetting(target, SETTINGS.targets, TARGET_SCORE),
+    dice: diceCount,
     players,
-    deck: buildDeck(rng, players.length > 4 ? 2 : 1),
+    deck: buildDeck(rng, players.length > 4 ? 2 : 1, diceCount),
     cards: [],
     current: first,
     firstRoll: total,
@@ -254,7 +274,7 @@ export function place(state, rolledIdx, cardIdx, rng = Math.random) {
     // Every player's dice on the claimed card go back to their hands.
     s.cards.splice(cardIdx, 1);
     draw(s);
-    if (s.players[p].score >= TARGET_SCORE) {
+    if (s.players[p].score >= targetOf(s)) {
       s.phase = 'over';
       s.winner = p;
     } else if (s.cards.length === 0) {
@@ -386,6 +406,8 @@ export function tutorialGame() {
   const rest = buildDeck(mulberry32(21), 1).filter((c) => !c.need.includes(1)); // nothing needs a 1 early on
   return {
     mode: 'classic',
+    target: TARGET_SCORE,
+    dice: DICE_PER_PLAYER,
     players,
     deck: [...queue, ...rest],
     cards: [card(1, 2, [3]), card(2, 4, [5, 5]), card(3, 3, [2, 6])],

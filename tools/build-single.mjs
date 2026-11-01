@@ -19,6 +19,8 @@ const strip = (src) => src.replace(/^import [\s\S]*?;\n/gm, '').replace(/^export
 const profile = strip(read('src/profile.js'));
 const relay = wrap(read('src/relay.js'));
 const sound = wrap(read('src/sound.js'));
+const statsJs = wrap(read('src/stats.js'));
+const reportJs = wrap(read('src/report.js'));
 const themeJs = wrap(read('src/theme.js'));
 const transport = wrap(read('src/transport.js'));
 const ai = strip(read('src/ai.js'));
@@ -43,6 +45,8 @@ ${ai}
 ${profile}
 ${relay}
 ${sound}
+${statsJs}
+${reportJs}
 ${themeJs}
 ${transport}
 ${app}

@@ -488,3 +488,103 @@ test('the tutorial table teaches in order: 3, then the 5s, then the 2 and 6, and
   assert.equal(s.cards.length, 3);
   assert.equal(E.endTurn(s).current, 1);
 });
+
+/* ---------- room settings ---------- */
+
+test('a room can set the winning score and the dice each player owns; odd values fall back', () => {
+  const g = E.newGame(cfg, E.mulberry32(1), { target: 20, dice: 8 });
+  assert.equal(E.targetOf(g), 20);
+  assert.equal(E.diceOf(g), 8);
+  assert.equal(E.handSize(g, 0), 8);
+  const d = E.newGame(cfg, E.mulberry32(1), { target: 13, dice: 99 });
+  assert.equal(E.targetOf(d), E.TARGET_SCORE);
+  assert.equal(E.diceOf(d), E.DICE_PER_PLAYER);
+  assert.equal(E.targetOf({}), E.TARGET_SCORE, 'older saved games carry no settings');
+  assert.equal(E.diceOf({}), E.DICE_PER_PLAYER);
+});
+
+test('with only four dice, no card in the deck needs more than four', () => {
+  const g = E.newGame(cfg, E.mulberry32(5), { dice: 4 });
+  assert.ok([...g.cards, ...g.deck].every((c) => c.need.length <= 4));
+  assert.equal(g.cards.length + g.deck.length, 21);
+  assert.equal(E.newGame(cfg, E.mulberry32(5), { dice: 5 }).deck.length + 3, 30);
+});
+
+test('the first player to reach the chosen score wins', () => {
+  const s = placing(E.newGame(cfg, E.mulberry32(2), { target: 20 }), [], []);
+  s.cards[0].points = 5;
+  s.cards[0].need = [2];
+  s.rolled = [2];
+  s.players[s.current].score = 15;
+  const won = E.place(s, 0, 0);
+  assert.equal(won.phase, 'over');
+  assert.equal(won.winner, s.current);
+  const notYet = placing(E.newGame(cfg, E.mulberry32(2), { target: 40 }), [], []);
+  notYet.cards[0].points = 5;
+  notYet.cards[0].need = [2];
+  notYet.rolled = [2];
+  notYet.players[notYet.current].score = 15;
+  assert.equal(E.place(notYet, 0, 0).phase, 'placing', 'a 40-point game carries on');
+});
+
+test('computer players finish games at every winning score and dice count, in both modes', () => {
+  for (const target of E.SETTINGS.targets) {
+    for (const dice of E.SETTINGS.dice) {
+      for (const mode of E.MODES) {
+        const rng = E.mulberry32(target * 31 + dice * 7 + (mode === 'extreme' ? 1 : 0));
+        let s = E.newGame(Array.from({ length: 3 }, (_, i) => ({ name: `p${i}`, cpu: true, level: E.LEVEL_NAMES[i] })), rng, { mode, target, dice });
+        let steps = 0;
+        while (s.phase !== 'over' && steps++ < 3000) {
+          const a = aiNextAction(s, { level: s.players[s.current].level, rng });
+          if (a.type === 'takeback') s = E.takeBack(s);
+          else if (a.type === 'roll') s = E.roll(s, rng);
+          else if (a.type === 'place') s = E.place(s, a.rolled, a.card, rng);
+          else if (a.type === 'power') s = E.usePower(s, a.kind, a, rng);
+          else s = E.endTurn(s, rng);
+          for (let p = 0; p < 3; p++) assert.ok(E.handSize(s, p) >= 0 && E.handSize(s, p) <= dice);
+        }
+        assert.equal(s.phase, 'over', `${mode} game to ${target} with ${dice} dice finished`);
+      }
+    }
+  }
+});
+
+/* ---------- stats and unlockable looks ---------- */
+
+import { afterGame, isUnlocked, newlyUnlocked, requirementText, UNLOCKS } from '../src/stats.js';
+
+const fresh = { games: 0, wins: 0, claims: 0, streak: 0, bestStreak: 0, extremeWins: 0, online: 0, best: 0 };
+
+test('the first look in each group is free; the rest need playing', () => {
+  assert.ok(isUnlocked('table', 'felt', fresh));
+  assert.ok(isUnlocked('back', 'blue', fresh));
+  assert.ok(isUnlocked('dice', 'classic', fresh));
+  assert.ok(!isUnlocked('table', 'midnight', fresh));
+  assert.equal(requirementText('table', 'midnight'), 'Play 3 games');
+  assert.equal(requirementText('back', 'night'), 'Win a Rollick Extreme game');
+  assert.equal(requirementText('table', 'felt'), '');
+});
+
+test('finished games count, streaks reset on a loss, and looks unlock at their threshold', () => {
+  let s = afterGame(fresh, { won: true, claims: 4, score: 41, mode: 'classic', online: false });
+  assert.deepEqual([s.games, s.wins, s.streak, s.claims, s.best], [1, 1, 1, 4, 41]);
+  s = afterGame(s, { won: true, claims: 3, score: 40, mode: 'extreme', online: true });
+  assert.deepEqual([s.wins, s.streak, s.bestStreak, s.extremeWins, s.online], [2, 2, 2, 1, 1]);
+  s = afterGame(s, { won: false, claims: 1, score: 12, mode: 'classic', online: false });
+  assert.deepEqual([s.streak, s.bestStreak, s.games], [0, 2, 3]);
+  const opened = newlyUnlocked(fresh, s).map((u) => `${u.part}:${u.id}`).sort();
+  assert.deepEqual(opened, ['back:mint', 'back:night', 'dice:bubble', 'table:midnight', 'table:wine']);
+  assert.equal(newlyUnlocked(s, s).length, 0, 'nothing new the second time');
+});
+
+test('every look that can be locked has a requirement the stats can meet', () => {
+  const rich = { games: 99, wins: 99, claims: 99, streak: 0, bestStreak: 0, extremeWins: 9, online: 9, best: 99 };
+  for (const part of Object.keys(UNLOCKS)) for (const id of Object.keys(UNLOCKS[part])) assert.ok(isUnlocked(part, id, rich) && requirementText(part, id));
+});
+
+test('settings from outside are always turned into safe numbers', () => {
+  assert.deepEqual(E.cleanSettings({ target: '30', dice: '5' }), { target: 30, dice: 5 });
+  assert.deepEqual(E.cleanSettings({ target: '<img src=x onerror=alert(1)>', dice: { a: 1 } }), { target: E.TARGET_SCORE, dice: E.DICE_PER_PLAYER });
+  assert.deepEqual(E.cleanSettings(null), { target: E.TARGET_SCORE, dice: E.DICE_PER_PLAYER });
+  assert.deepEqual(E.cleanSettings({ target: 31, dice: 3 }), { target: E.TARGET_SCORE, dice: E.DICE_PER_PLAYER });
+});
