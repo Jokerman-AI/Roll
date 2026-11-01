@@ -1,3 +1,5 @@
+import { isPremium, isLicensed, freeLooks } from './premium.js';
+
 // What you have done so far, kept on this device, and the looks it unlocks. Nothing here leaves the phone.
 
 const KEY = 'rfi-stats';
@@ -8,7 +10,7 @@ const load = () => {
     const saved = JSON.parse(localStorage.getItem(KEY));
     const out = blank();
     for (const k of Object.keys(out)) if (k !== 'owned' && Number.isFinite(saved?.[k]) && saved[k] >= 0) out[k] = Math.floor(saved[k]);
-    if (Array.isArray(saved?.owned)) out.owned = saved.owned.filter((x) => typeof x === 'string' && /^(table|back|dice):[a-z]{2,12}$/.test(x)).slice(0, 50);
+    if (Array.isArray(saved?.owned)) out.owned = saved.owned.filter((x) => typeof x === 'string' && /^(table|back|dice|fx):[a-z]{2,12}$/.test(x)).slice(0, 50);
     return out;
   } catch { return blank(); }
 };
@@ -25,9 +27,10 @@ export const UNLOCKS = {
 
 /** Looks that are bought with coins instead of earned. Coins come from playing: no real money is involved. */
 export const SHOP = {
-  table: { neon: 200, sunset: 250 },
-  back: { galaxy: 150, sunburst: 200 },
-  dice: { glass: 300, gem: 350 },
+  table: { neon: 200, sunset: 250, forest: 180, ocean: 220 },
+  back: { galaxy: 150, sunburst: 200, retro: 150 },
+  dice: { glass: 300, gem: 350, pixel: 250 },
+  fx: { stars: 250 },
 };
 export const isShopItem = (part, id) => !!SHOP[part]?.[id];
 export const priceOf = (part, id) => SHOP[part]?.[id] ?? 0;
@@ -45,6 +48,8 @@ const NEED = {
 
 /** Does this look's requirement hold for these numbers? Pass `s` to test numbers other than your own. */
 export function isUnlocked(part, id, s = stats) {
+  if (freeLooks()) return true; // everything is free for now
+  if (isPremium(part, id)) return isLicensed(part, id); // paid for with real money: see premium.js
   if (isShopItem(part, id)) return (s.owned || []).includes(`${part}:${id}`);
   const need = UNLOCKS[part]?.[id];
   return !need || Object.entries(need).every(([k, n]) => (s[k] || 0) >= n);
@@ -52,6 +57,7 @@ export function isUnlocked(part, id, s = stats) {
 
 /** "Play 3 games", or '' when the look is free. */
 export function requirementText(part, id) {
+  if (isPremium(part, id)) return 'A premium look, in the Shop';
   if (isShopItem(part, id)) return `In the Shop for ${priceOf(part, id)} coins`;
   const need = UNLOCKS[part]?.[id];
   return need ? Object.entries(need).map(([k, n]) => NEED[k](n)).join(' and ') : '';
