@@ -10,7 +10,7 @@ const levelLabel = (l) => (E.LEVEL_NAMES.includes(l) ? l : 'normal').replace(/^.
 import { dbStore, p2pStore, checkConnection } from './transport.js';
 import { checkFallback, DEFAULT_BROKERS, lobbyList, lobbyAnnouncer } from './relay.js';
 import { sfx, soundPrefs, setSound, setHaptics, canVibrate } from './sound.js';
-import { theme, TABLES, BACKS, DICE, FX, setTheme, calm, setCalm, restoreTheme } from './theme.js';
+import { theme, TABLES, BACKS, DICE, FX, setTheme, calm, setCalm, restoreTheme, cube, setCube, design, setDesign, DESIGN_OPTIONS } from './theme.js';
 import { PREMIUM, BUNDLE, freeLooks, hasBundle, isPremium, skuOf, storeMode, priceLabel, bundleLabel, loadLicenses, redeem, savedLicenses, startCheckout, claimOrder } from './premium.js';
 import { stats, isUnlocked, requirementText, recordGame, SHOP, isShopItem, priceOf, buy } from './stats.js';
 import { installReporter, errorLog, clearErrors, buildReport, VERSION } from './report.js';
@@ -107,6 +107,38 @@ function die(face, cls = '', attrs = '', tag = 'div') {
   return `<${tag} class="die ${cls}" aria-label="${face}" ${attrs}>${pips}</${tag}>`;
 }
 
+/**
+ * A die that is a real cube: six faces in 3D, turned so the rolled number faces you, with a slight tilt so the top and
+ * side show. The faces are shaded for a light from the top left, worked out from the way this die ends up turned.
+ */
+const TURN = { 1: [0, 0], 2: [-90, 0], 3: [0, -90], 4: [0, 90], 5: [90, 0], 6: [0, 180] };
+const NORMAL = { 1: [0, 0, 1], 6: [0, 0, -1], 3: [1, 0, 0], 4: [-1, 0, 0], 2: [0, -1, 0], 5: [0, 1, 0] };
+const TILT = [-16, 20];
+function shades(face) {
+  const rad = (d) => (d * Math.PI) / 180;
+  const rx = (v, a) => [v[0], v[1] * Math.cos(rad(a)) - v[2] * Math.sin(rad(a)), v[1] * Math.sin(rad(a)) + v[2] * Math.cos(rad(a))];
+  const ry = (v, a) => [v[0] * Math.cos(rad(a)) + v[2] * Math.sin(rad(a)), v[1], -v[0] * Math.sin(rad(a)) + v[2] * Math.cos(rad(a))];
+  const [ax, ay] = TURN[face];
+  const light = [-0.45, -0.65, 0.62];
+  const out = {};
+  for (const f of [1, 2, 3, 4, 5, 6]) {
+    const n = rx(ry(rx(ry(NORMAL[f], ay), ax), TILT[1]), TILT[0]); // the order the transforms stack in CSS
+    const lit = n[0] * light[0] + n[1] * light[1] + n[2] * light[2];
+    out[f] = Math.max(0, Math.min(1, 0.5 - lit * 0.55)).toFixed(2); // 0 = bright, 1 = dark
+  }
+  return out;
+}
+function die3d(face, cls = '', attrs = '', rollSpin = null) {
+  const sh = shades(face);
+  const [ax, ay] = TURN[face];
+  const faces = [1, 2, 3, 4, 5, 6].map((f) => {
+    const pips = Array.from({ length: 9 }, (_, i) => `<i${PIPS[f].includes(i) ? ' class="on"' : ''}></i>`).join('');
+    return `<b class="cf f${f}" style="--sh:${sh[f]}">${pips}</b>`;
+  }).join('');
+  const spin = rollSpin ? `--rx:${rollSpin[0]}deg;--ry:${rollSpin[1]}deg;` : '';
+  return `<div class="die cube3d ${cls}" aria-label="${face}" ${attrs.replace('style="', `style="--ax:${ax}deg;--ay:${ay}deg;${spin}`)}><span class="cube"><span class="cube-in">${faces}</span></span></div>`;
+}
+
 function setFace(el, face) {
   el.querySelectorAll('i').forEach((pip, k) => pip.classList.toggle('on', PIPS[face].includes(k)));
   el.setAttribute('aria-label', String(face));
@@ -114,8 +146,17 @@ function setFace(el, face) {
 
 /* ---------- rendering ---------- */
 
+let renderedModal = null; // which sheet was on screen at the last render, so a redraw of the same sheet keeps its scroll place
+
 function render() {
+  // Redrawing replaces the whole page, which would throw a long sheet (Themes, Shop, rules) back to the top each
+  // time something in it is tapped. Remember how far it was scrolled and put it back, as long as it is the same sheet.
+  const before = app.querySelector('.modal .sheet');
+  const keep = before && renderedModal === ui.modal ? before.scrollTop : 0;
   app.innerHTML = ({ setup: setupView, online: onlineView, lobby: lobbyView, game: gameView }[ui.screen])() + connBanner() + modalView() + peekView() + reactView();
+  renderedModal = ui.modal;
+  const after = app.querySelector('.modal .sheet');
+  if (after && keep) after.scrollTop = keep;
   const cv = document.getElementById('avcv');
   if (cv && ui.ed) paintCanvas(cv, ui.ed.sk);
   positionPeek();
@@ -413,7 +454,7 @@ const LISTS = { table: TABLES, back: BACKS, dice: DICE, fx: FX };
 const nameOf = (part, id) => (LISTS[part].find((x) => x.id === id) || { name: id }).name;
 const previewOf = (part, id) => (part === 'table' ? `<span class="tb" data-tb="${id}"></span>`
   : part === 'back' ? `<span class="bk" data-bk="${id}"></span>`
-  : part === 'dice' ? `<span class="dpv" data-ds="${id}">${die(5, '')}</span>`
+  : part === 'dice' ? `<span class="dpv" data-ds="${id}">${cube.on ? die3d(5, 'spin', 'style="--c:#e5484d"') : die(5, '')}</span>`
   : `<span class="fxp" aria-hidden="true">${{ confetti: '🎉', stars: '⭐', fireworks: '🎆', goldrain: '🪙' }[id] || '✨'}</span>`);
 const PARTS = [['table', 'Tables'], ['back', 'Deck backs'], ['dice', 'Dice'], ['fx', 'Win effects']];
 
@@ -483,9 +524,32 @@ function themesView() {
   return `<div class="modal"><div class="sheet themes"><h2>🎨 Themes</h2>
     <p class="statline">${stats.games} games · ${stats.wins} wins · best streak ${stats.bestStreak} · ${stats.claims} cards claimed</p>
     <button class="btn" data-act="shop">${freeLooks() ? '🛍 More looks' : `🛍 Shop <span class="coins">· 🪙 ${stats.coins}</span>`}</button>
+    <div class="calmrow"><span>3D dice <small style="font-weight:400;opacity:.7">(a cube that tumbles)</small></span><button class="btn small" data-act="toggleCube" aria-pressed="${cube.on}">${cube.on ? 'On' : 'Off'}</button></div>
+    <button class="btn" data-act="design">🎲 Design your own die</button>
     ${PARTS.map(([part, title]) => `<h3>${title}</h3><div class="opts">${LISTS[part].map((x) => opt(part, x.id, x.name, previewOf(part, x.id))).join('')}</div>`).join('')}
     <p class="tag">${freeLooks() ? 'Every look is free right now. ✨ marks the animated ones.' : 'Play games to unlock more looks and earn coins for the Shop. ✨ marks premium looks.'}</p>
     <button class="btn primary" data-act="closeModal">Done</button></div></div>`;
+}
+
+/** Design a die: pick the finish, the pips, the corners and the glow, and watch it turn. */
+const DESIGN_LABELS = {
+  finish: ['Finish', { matte: 'Matte', gloss: 'Gloss', metal: 'Metal', glass: 'Glass' }],
+  pip: ['Pips', { round: '● Round', square: '■ Square', diamond: '◆ Diamond', star: '★ Star', heart: '♥ Heart', hex: '⬢ Hex' }],
+  pipColor: ['Pip colour', { auto: 'Auto', white: 'White', black: 'Black', gold: 'Gold', red: 'Red', cyan: 'Cyan', lime: 'Lime' }],
+  corners: ['Corners', { sharp: 'Sharp', soft: 'Soft', round: 'Round' }],
+  glow: ['Glow', { none: 'None', white: 'White', gold: 'Gold', cyan: 'Cyan', pink: 'Pink', lime: 'Lime', seat: 'My colour' }],
+  sparkle: ['Sparkle', { off: 'Off', on: 'On' }],
+};
+function designView() {
+  const rows = Object.keys(DESIGN_LABELS).map((k) => `<div class="row">${DESIGN_LABELS[k][0]}</div>
+    <div class="chips">${DESIGN_OPTIONS[k].map((v) => `<button class="${design[k] === v ? 'on' : ''}" data-act="designSet" data-k="${k}" data-v="${v}" aria-pressed="${design[k] === v}">${DESIGN_LABELS[k][1][v]}</button>`).join('')}</div>`).join('');
+  const stage = cube.on ? die3d(5, 'owned spin', 'style="--c:#e5484d"') : die(5, 'owned', 'style="--c:#e5484d"');
+  return `<div class="modal"><div class="sheet design"><h2>🎲 Design your die</h2>
+    <div class="stage"><span data-ds="custom">${stage}</span></div>
+    ${rows}
+    <p class="tag">Your design is saved on this device as the “Your design” look. It uses your seat colour for the body.</p>
+    <button class="btn primary" data-act="useDesign">Use this die</button>
+    <button class="btn" data-act="themes">Back to Themes</button></div></div>`;
 }
 
 function statusText(s) {
@@ -575,17 +639,21 @@ function gameView() {
   let live = 0; // dice shown in the tray; the rest of the six are on cards
   if (s.phase === 'placing') {
     tray = s.rolled.map((f, i) => {
-      const fx = ui.fx[i] || { delay: 0, dur: 0, dx: 0, rot: 0 };
+      const fx = ui.fx[i] || { delay: 0, dur: 0, dx: 0, rot: 0, sx: 0, sy: 0 };
       const spinning = ui.rolling && fx.dur > 0;
       const style = `${diceVars(mine, s.current)};--d:${fx.delay}ms;--dur:${fx.dur}ms;--dx:${fx.dx}px;--rot:${fx.rot}deg`;
-      const face = spinning ? 1 + Math.floor(Math.random() * 6) : f;
+      const face = spinning && !cube.on ? 1 + Math.floor(Math.random() * 6) : f;
+      if (cube.on) {
+        return die3d(face, `owned ${spinning ? 'rolling' : ''} ${ui.selected === i ? 'sel' : ''} ${ui.hint?.rolled === i ? 'hinted' : ''}`,
+          `style="${style}" data-i="${i}" ${human && !ui.rolling ? `data-act="pickRolled" role="button" tabindex="0"` : 'aria-disabled="true"'}`, [fx.sx, fx.sy]);
+      }
       return die(face, `owned ${spinning ? 'rolling' : ''} ${ui.selected === i ? 'sel' : ''} ${ui.hint?.rolled === i ? 'hinted' : ''}`,
         `style="${style}" data-i="${i}" ${human && !ui.rolling ? `data-act="pickRolled" role="button" tabindex="0"` : 'aria-disabled="true"'}`);
     }).join('');
     live = s.rolled.length;
   } else {
     live = E.handSize(s, s.current);
-    tray = Array.from({ length: live }, () => die(1, 'owned hand', `style="${diceVars(mine, s.current)}"`)).join('').replace(/aria-label="1"/g, 'aria-label="die in hand"');
+    tray = Array.from({ length: live }, () => (cube.on ? die3d(1, 'owned hand', `style="${diceVars(mine, s.current)}"`) : die(1, 'owned hand', `style="${diceVars(mine, s.current)}"`))).join('').replace(/aria-label="1"/g, 'aria-label="die in hand"');
   }
   // Always six places, so the tray (and with it the whole table) never changes height from turn to turn.
   tray += Array.from({ length: Math.max(0, E.diceOf(s) - live) }, () => `<div class="die empty" aria-label="die on a card">${'<i></i>'.repeat(9)}</div>`).join('');
@@ -790,6 +858,7 @@ function modalView() {
   if (ui.modal === 'powers') return powersView();
   if (ui.modal === 'themes') return themesView();
   if (ui.modal === 'shop') return shopView();
+  if (ui.modal === 'design') return designView();
   if (ui.modal === 'restore') return restoreView();
   if (ui.modal === 'menu') {
     return `<div class="modal" data-act="closeModal"><div class="sheet"><h2>Menu</h2>
@@ -918,6 +987,8 @@ function startRoll(count) {
     dur: quick ? 0 : 650 + Math.floor(Math.random() * 350),
     dx: Math.floor(Math.random() * 120) - 60,
     rot: (Math.random() < 0.5 ? -1 : 1) * (720 + 360 * Math.floor(Math.random() * 2)),
+    sx: (Math.random() < 0.5 ? -1 : 1) * 360 * (1 + Math.floor(Math.random() * 2)), // how many turns a cube makes, end over end
+    sy: (Math.random() < 0.5 ? -1 : 1) * 360 * (1 + Math.floor(Math.random() * 3)),
   }));
   const total = quick ? 150 : Math.max(...ui.fx.map((f) => f.delay + f.dur)) + 80;
   ui.rolling = true;
@@ -929,7 +1000,7 @@ function startRoll(count) {
       const now = performance.now() - t0;
       document.querySelectorAll('.dice .die.rolling').forEach((el) => {
         const fx = ui.fx[+el.dataset.i];
-        if (!fx) return;
+        if (!fx || el.classList.contains('cube3d')) return; // a cube turns by itself
         if (now >= fx.delay + fx.dur) { setFace(el, ui.game.rolled[+el.dataset.i]); el.classList.remove('rolling'); } else if (now >= fx.delay) setFace(el, 1 + Math.floor(Math.random() * 6));
       });
     }, 75);
@@ -1621,6 +1692,10 @@ const actions = {
   themes: () => { ui.modal = 'themes'; render(); },
   shop: () => { ui.modal = 'shop'; render(); },
   toggleCalm: () => { setCalm(!calm.on); render(); },
+  toggleCube: () => { setCube(!cube.on); render(); },
+  design: () => { ui.modal = 'design'; render(); },
+  designSet: ({ k, v }) => { setDesign(k, v); render(); },
+  useDesign: () => { setTheme('dice', 'custom'); ui.modal = 'themes'; render(); },
   buyPremium: async ({ sku }) => {
     const r = await startCheckout(sku);
     if (!r.ok) { sfx.error(); say(r.why, 3000); return; }

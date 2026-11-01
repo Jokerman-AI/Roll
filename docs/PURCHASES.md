@@ -33,7 +33,7 @@ are done and tested; the accounts and keys are yours to create.
   |---|---|
   | Tables | `table:aurora`, `table:starfield`, `table:lava` |
   | Deck backs | `back:holo`, `back:circuit`, `back:ember` |
-  | Dice | `dice:fire`, `dice:ice`, `dice:prism`, `dice:neonglow` |
+  | Dice | `dice:fire`, `dice:ice`, `dice:prism`, `dice:neonglow`, `dice:gold`, `dice:obsidian`, `dice:galaxy`, `dice:lightning` |
   | Win effects | `fx:fireworks`, `fx:goldrain` |
   | Everything pack | `bundle:all` |
 

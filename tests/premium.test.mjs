@@ -132,7 +132,7 @@ test('every premium look exists in the theme lists, with a price', () => {
       assert.match(price, /^\$\d+\.\d\d$/);
     }
   }
-  assert.equal(P.ALL_SKUS.length, 12);
+  assert.equal(P.ALL_SKUS.length, 16);
 });
 
 test('while looks are free, every look is open to everybody; turning it off brings the locks back', () => {
