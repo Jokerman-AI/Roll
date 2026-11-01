@@ -80,6 +80,13 @@ export function setCube(on) {
   applyTheme();
 }
 
+/** Studio-quality 3D (WebGL, real lighting and materials) when the device can draw it. Saved on the device. */
+export const gl = { on: (() => { try { return localStorage.getItem('rfi-gl') !== '0'; } catch { return true; } })() };
+export function setGL(on) {
+  gl.on = !!on;
+  try { localStorage.setItem('rfi-gl', on ? '1' : '0'); } catch { /* storage unavailable */ }
+}
+
 /** The die you design yourself. Every field is checked, because it comes out of storage. */
 export const DESIGN_OPTIONS = {
   finish: ['matte', 'gloss', 'metal', 'glass'],

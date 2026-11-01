@@ -1019,3 +1019,7 @@ html[data-cd-sparkle="on"] [data-ds="custom"] .cf::after, [data-ds="custom"][dat
 
 [data-calm="1"] .cf, [data-calm="1"] .cf::after, [data-calm="1"] .cube-in, [data-calm="1"] .die.cube3d, [data-calm="1"] .cf i { animation: none !important; }
 @media (prefers-reduced-motion: reduce) { .cf, .cf::after, .cube-in, .die.cube3d, .cf i { animation: none !important; } }
+
+/* studio-quality 3D is drawn on a canvas; the page's own cubes stay for taps and screen readers */
+html[data-gl="1"] .die.cube3d .cube { visibility: hidden; }
+html[data-gl="1"] .dice .die.cube3d.rolling { animation: none !important; }

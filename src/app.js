@@ -10,7 +10,7 @@ const levelLabel = (l) => (E.LEVEL_NAMES.includes(l) ? l : 'normal').replace(/^.
 import { dbStore, p2pStore, checkConnection } from './transport.js';
 import { checkFallback, DEFAULT_BROKERS, lobbyList, lobbyAnnouncer } from './relay.js';
 import { sfx, soundPrefs, setSound, setHaptics, canVibrate } from './sound.js';
-import { theme, TABLES, BACKS, DICE, FX, setTheme, calm, setCalm, restoreTheme, cube, setCube, design, setDesign, DESIGN_OPTIONS } from './theme.js';
+import { theme, TABLES, BACKS, DICE, FX, setTheme, calm, setCalm, restoreTheme, cube, setCube, gl, setGL, design, setDesign, DESIGN_OPTIONS } from './theme.js';
 import { PREMIUM, BUNDLE, freeLooks, hasBundle, isPremium, skuOf, storeMode, priceLabel, bundleLabel, loadLicenses, redeem, savedLicenses, startCheckout, claimOrder } from './premium.js';
 import { stats, isUnlocked, requirementText, recordGame, SHOP, isShopItem, priceOf, buy } from './stats.js';
 import { installReporter, errorLog, clearErrors, buildReport, VERSION } from './report.js';
@@ -81,6 +81,7 @@ let timer = 0;
 let toastTimer = 0;
 let rollTimer = 0;
 let rollClock = 0;
+let glBroken = false; // set if 3D could not start on this device, so the CSS cubes stay
 let hintTimer = 0;
 let peekTimer = 0;
 
@@ -136,7 +137,7 @@ function die3d(face, cls = '', attrs = '', rollSpin = null) {
     return `<b class="cf f${f}" style="--sh:${sh[f]}">${pips}</b>`;
   }).join('');
   const spin = rollSpin ? `--rx:${rollSpin[0]}deg;--ry:${rollSpin[1]}deg;` : '';
-  return `<div class="die cube3d ${cls}" aria-label="${face}" ${attrs.replace('style="', `style="--ax:${ax}deg;--ay:${ay}deg;${spin}`)}><span class="cube"><span class="cube-in">${faces}</span></span></div>`;
+  return `<div class="die cube3d ${cls}" data-roll="${ui.rollSeq || 0}" aria-label="${face}" ${attrs.replace('style="', `style="--ax:${ax}deg;--ay:${ay}deg;${spin}`)}><span class="cube"><span class="cube-in">${faces}</span></span></div>`;
 }
 
 function setFace(el, face) {
@@ -161,7 +162,37 @@ function render() {
   if (cv && ui.ed) paintCanvas(cv, ui.ed.sk);
   positionPeek();
   watchRooms();
+  syncGL();
 }
+
+/**
+ * Studio-quality 3D: hand the dice on screen to the 3D engine (vendor/dice3d.js), which draws them on a canvas over the
+ * page. The page's own dice stay (hidden) for taps and screen readers. Without WebGL the CSS cubes are used instead.
+ */
+function syncGL() {
+  const root = document.documentElement;
+  const engine = window.RollDice3D;
+  const off = () => { root.removeAttribute('data-gl'); engine?.hide(); };
+  if (!engine || glBroken || !gl.on || !cube.on || !engine.available()) { off(); return; }
+  let els = [];
+  let z = 5;
+  if (ui.modal === 'design') { els = [...app.querySelectorAll('.sheet.design .stage .die.cube3d')]; z = 20; } else if (!ui.modal && ui.screen === 'game') els = [...app.querySelectorAll('.dice .die.cube3d')];
+  if (!els.length) { off(); return; }
+  const num = (el, name) => parseFloat(getComputedStyle(el).getPropertyValue(name)) || 0;
+  const colour = (el, name) => getComputedStyle(el).getPropertyValue(name).trim();
+  const dice = els.map((el, k) => ({
+    el, key: el.dataset.i !== undefined ? `r${el.dataset.i}` : `h${k}`,
+    face: +el.getAttribute('aria-label') || 1,
+    color: colour(el, '--c'), pip: colour(el, '--pc') || colour(el, '--pip'),
+    rolling: el.classList.contains('rolling'), token: +el.dataset.roll || 0,
+    delay: num(el, '--d'), dur: num(el, '--dur'), dx: num(el, '--dx'),
+    dim: el.classList.contains('hand'), spin: el.classList.contains('spin'),
+  }));
+  const ok = engine.show({ dice, skin: theme.dice, design: { ...design }, calm: calm.on || reducedMotion(), z });
+  if (ok) root.setAttribute('data-gl', '1'); else { glBroken = true; off(); }
+}
+window.addEventListener('resize', () => window.RollDice3D?.refresh());
+window.addEventListener('scroll', () => window.RollDice3D?.refresh(), true);
 
 function connBanner() {
   if (!ui.online || ui.conn === 'online') return '';
@@ -525,6 +556,7 @@ function themesView() {
     <p class="statline">${stats.games} games · ${stats.wins} wins · best streak ${stats.bestStreak} · ${stats.claims} cards claimed</p>
     <button class="btn" data-act="shop">${freeLooks() ? '🛍 More looks' : `🛍 Shop <span class="coins">· 🪙 ${stats.coins}</span>`}</button>
     <div class="calmrow"><span>3D dice <small style="font-weight:400;opacity:.7">(a cube that tumbles)</small></span><button class="btn small" data-act="toggleCube" aria-pressed="${cube.on}">${cube.on ? 'On' : 'Off'}</button></div>
+    ${window.RollDice3D?.available() ? `<div class="calmrow"><span>Studio quality <small style="font-weight:400;opacity:.7">(real lighting and materials)</small></span><button class="btn small" data-act="toggleGL" aria-pressed="${gl.on}">${gl.on ? 'On' : 'Off'}</button></div>` : ''}
     <button class="btn" data-act="design">🎲 Design your own die</button>
     ${PARTS.map(([part, title]) => `<h3>${title}</h3><div class="opts">${LISTS[part].map((x) => opt(part, x.id, x.name, previewOf(part, x.id))).join('')}</div>`).join('')}
     <p class="tag">${freeLooks() ? 'Every look is free right now. ✨ marks the animated ones.' : 'Play games to unlock more looks and earn coins for the Shop. ✨ marks premium looks.'}</p>
@@ -981,6 +1013,7 @@ function countGame(g) {
 
 function startRoll(count) {
   sfx.roll(count);
+  ui.rollSeq = (ui.rollSeq || 0) + 1;
   const quick = reducedMotion();
   ui.fx = Array.from({ length: count }, (_, i) => ({
     delay: quick ? 0 : i * 70 + Math.floor(Math.random() * 110),
@@ -1693,6 +1726,7 @@ const actions = {
   shop: () => { ui.modal = 'shop'; render(); },
   toggleCalm: () => { setCalm(!calm.on); render(); },
   toggleCube: () => { setCube(!cube.on); render(); },
+  toggleGL: () => { setGL(!gl.on); glBroken = false; render(); },
   design: () => { ui.modal = 'design'; render(); },
   designSet: ({ k, v }) => { setDesign(k, v); render(); },
   useDesign: () => { setTheme('dice', 'custom'); ui.modal = 'themes'; render(); },
