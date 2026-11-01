@@ -27,11 +27,9 @@ function mix(a, b, t) {
 const lum = (c) => { const p = parseInt(hex(c).slice(1), 16); return (0.299 * (p >> 16) + 0.587 * ((p >> 8) & 255) + 0.114 * (p & 255)) / 255; };
 
 /* ---------- how each look is made ---------- */
-const GLOWS = { white: '#ffffff', gold: '#ffd34d', cyan: '#52e6ff', pink: '#ff7ad9', lime: '#9dff4d' };
-const PIPCOL = { white: '#ffffff', black: '#151515', gold: '#ffd34d', red: '#ff4d5e', cyan: '#52e6ff', lime: '#9dff4d' };
 
-/** Material settings, bevel and extras for every look. `design` is the player's own design for the "custom" look. */
-function recipe(skin, design) {
+/** Material settings, bevel and extras for every look. */
+function recipe(skin) {
   const R = {
     classic: { r: 0.15, m: { roughness: 0.36, clearcoat: 0.7, clearcoatRoughness: 0.25 } },
     sharp: { r: 0.035, m: { roughness: 0.42, clearcoat: 0.4 }, shape: 'square' },
@@ -48,14 +46,7 @@ function recipe(skin, design) {
     galaxy: { r: 0.15, m: { roughness: 0.4 }, stars: true, glow: '#8f6bff', particles: 'stars', anim: true },
     lightning: { r: 0.14, m: { roughness: 0.25, clearcoat: 1 }, bolt: true, glow: '#7bbcff', anim: true },
   };
-  if (skin !== 'custom') return R[skin] || R.classic;
-  const d = design || {};
-  const fin = { matte: { roughness: 0.85 }, gloss: { roughness: 0.2, clearcoat: 1, clearcoatRoughness: 0.08 }, metal: { roughness: 0.22, metalness: 0.9 }, glass: { roughness: 0.05, clearcoat: 1, transparent: true, opacity: 0.62 } }[d.finish] || { roughness: 0.3, clearcoat: 0.8 };
-  return {
-    r: { sharp: 0.035, soft: 0.15, round: 0.3 }[d.corners] || 0.15,
-    m: fin, glass: d.finish === 'glass', shape: d.pip || 'round', pipOverride: PIPCOL[d.pipColor],
-    glow: GLOWS[d.glow], glowSeat: d.glow === 'seat', particles: d.sparkle === 'on' ? 'sparkle' : null, anim: d.sparkle === 'on' || d.glow !== 'none',
-  };
+  return R[skin] || R.classic;
 }
 
 /* ---------- textures drawn on the spot ---------- */
@@ -285,11 +276,11 @@ function drawNebula() { return flowTexture('nebula'); }
 
 function setLook(look) { R3.look = look; R3.anim = !!look.rec.anim; }
 
-function lookFor(skin, design, body, pip) {
-  const rec = recipe(skin, design);
+function lookFor(skin, body, pip) {
+  const rec = recipe(skin);
   const b = hex(body);
-  const key = `${skin}|${b}|${pip}|${skin === 'custom' ? JSON.stringify(design) : ''}`;
-  return { skin, rec, body: b, pip: hex(pip, '#ffffff'), key, design };
+  const key = `${skin}|${b}|${pip}`;
+  return { skin, rec, body: b, pip: hex(pip, '#ffffff'), key };
 }
 
 /* ---------- particles ---------- */
@@ -463,22 +454,22 @@ window.RollDice3D = {
   },
   /**
    * Draw these dice. dice: [{ el, key, face, color, pip, rolling, token, delay, dur, dx }]
-   * look: { skin, design }. Returns false if 3D could not start (the page then keeps its CSS dice).
+   * skin: the dice look. Returns false if 3D could not start (the page then keeps its CSS dice).
    */
-  show({ dice, skin, design, calm, z = 5 }) {
+  show({ dice, skin, calm, z = 5 }) {
     try {
       init();
       R3.calm = !!calm;
       R3.canvas.style.zIndex = String(z);
       const first = dice[0];
-      const look = lookFor(skin, design, first?.color, first?.pip);
+      const look = lookFor(skin, first?.color, first?.pip);
       setLook(look);
       const keep = new Set();
       R3.items = dice.map((spec) => {
         keep.add(spec.key);
         let d = R3.dice.get(spec.key);
         if (!d) { d = makeDie(spec.key); R3.dice.set(spec.key, d); }
-        const own = lookFor(skin, design, spec.color, spec.pip);
+        const own = lookFor(skin, spec.color, spec.pip);
         dress(d, own);
         d.glass = !!own.rec.glass;
         d.spin = !!spec.spin;

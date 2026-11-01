@@ -960,44 +960,6 @@ h1, .big, .code, .qrcode, .chip .num, .deckback b, .coins { font-family: ui-roun
 @keyframes bolt { 0%, 85%, 100% { opacity: 0; } 88% { opacity: .9; } 90% { opacity: .1; } 92% { opacity: .8; } 95% { opacity: 0; } }
 :root[data-ds="lightning"] .die:not(.pv) .cf i.on, .dpv[data-ds="lightning"] .cf i.on { background: #e8f4ff; box-shadow: 0 0 7px 1px #7bbcff; }
 
-/* --- Your design: shapes, finish and glow come from the Design sheet (attributes on <html>) --- */
-html[data-cd-corners="sharp"] { --cd-r: .06; }
-html[data-cd-corners="soft"] { --cd-r: .2; }
-html[data-cd-corners="round"] { --cd-r: .27; }
-html[data-cd-pip="round"] { --cd-clip: circle(50%); }
-html[data-cd-pip="square"] { --cd-clip: inset(0); }
-html[data-cd-pip="diamond"] { --cd-clip: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); }
-html[data-cd-pip="star"] { --cd-clip: polygon(50% 0, 62% 36%, 100% 38%, 70% 60%, 80% 100%, 50% 76%, 20% 100%, 30% 60%, 0 38%, 38% 36%); }
-html[data-cd-pip="heart"] { --cd-clip: polygon(50% 100%, 8% 55%, 0 30%, 10% 8%, 30% 0, 50% 18%, 70% 0, 90% 8%, 100% 30%, 92% 55%); }
-html[data-cd-pip="hex"] { --cd-clip: polygon(25% 5%, 75% 5%, 100% 50%, 75% 95%, 25% 95%, 0 50%); }
-html[data-cd-pipcolor="white"] { --cd-pip: #fff; }
-html[data-cd-pipcolor="black"] { --cd-pip: #151515; }
-html[data-cd-pipcolor="gold"] { --cd-pip: #ffd34d; }
-html[data-cd-pipcolor="red"] { --cd-pip: #ff4d5e; }
-html[data-cd-pipcolor="cyan"] { --cd-pip: #52e6ff; }
-html[data-cd-pipcolor="lime"] { --cd-pip: #9dff4d; }
-html[data-cd-glow="white"] { --cd-glow: #ffffff; }
-html[data-cd-glow="gold"] { --cd-glow: #ffd34d; }
-html[data-cd-glow="cyan"] { --cd-glow: #52e6ff; }
-html[data-cd-glow="pink"] { --cd-glow: #ff7ad9; }
-html[data-cd-glow="lime"] { --cd-glow: #9dff4d; }
-html[data-cd-finish="matte"] { --cd-fin: linear-gradient(#00000000, #00000000); --cd-ring: #ffffff22; }
-html[data-cd-finish="gloss"] { --cd-fin: radial-gradient(circle at 30% 24%, #ffffff7a, transparent 55%); --cd-ring: #ffffff44; }
-html[data-cd-finish="metal"] { --cd-fin: linear-gradient(120deg, #ffffffaa, #00000044 32%, #ffffff66 52%, #00000055 78%, #ffffff66); --cd-ring: #ffffffaa; }
-html[data-cd-finish="glass"] { --cd-fin: linear-gradient(135deg, #ffffff88, #ffffff14 45%, #00000040); --cd-ring: #ffffffaa; }
-:root[data-ds="custom"] .die.cube3d:not(.pv), .dpv[data-ds="custom"] .die.cube3d { filter: drop-shadow(0 0 7px var(--cd-glow, transparent)); }
-html[data-cd-glow="none"][data-ds="custom"] .die.cube3d:not(.pv), html[data-cd-glow="none"] .dpv[data-ds="custom"] .die.cube3d { filter: none; }
-html[data-cd-glow="seat"][data-ds="custom"] .die.cube3d:not(.pv), html[data-cd-glow="seat"] .dpv[data-ds="custom"] .die.cube3d { filter: drop-shadow(0 0 8px var(--c, #fff)); }
-:root[data-ds="custom"] .die:not(.pv) .cf, .dpv[data-ds="custom"] .cf { border-radius: calc(var(--size) * var(--cd-r, .2)); background: var(--cd-fin, none), var(--bg); box-shadow: inset 0 0 0 2px var(--cd-ring, #ffffff44), inset 0 0 12px #0004; }
-:root[data-ds="custom"] .die:not(.pv) .cf i, .dpv[data-ds="custom"] .cf i { margin: 10%; }
-:root[data-ds="custom"] .die:not(.pv) .cf i.on, .dpv[data-ds="custom"] .cf i.on { background: var(--cd-pip, var(--pip)); clip-path: var(--cd-clip, circle(50%)); box-shadow: none; }
-html[data-cd-sparkle="on"] .dpv[data-ds="custom"] .cf::after, html[data-cd-sparkle="on"][data-ds="custom"] .die:not(.pv) .cf::after {
-  content: "✦"; position: absolute; top: 6%; right: 12%; font-size: calc(var(--size) * .26); line-height: 1; color: #fff; text-shadow: 0 0 6px #fff; z-index: 2; animation: twinkle-star 1.8s ease-in-out infinite alternate; pointer-events: none;
-}
-/* the same design on a flat die (on cards, or with 3D dice switched off) */
-[data-ds="custom"] :not(.dpv) > .die:not(.cube3d), .themes .dpv[data-ds="custom"] .die:not(.cube3d), .design .dpv[data-ds="custom"] .die:not(.cube3d) { border-radius: calc(var(--size) * var(--cd-r, .2)); background: var(--cd-fin, none), var(--bg); box-shadow: inset 0 0 0 2px var(--cd-ring, #ffffff44), 0 2px 4px #0003; }
-[data-ds="custom"] :not(.dpv) > .die:not(.cube3d) i.on, .themes .dpv[data-ds="custom"] .die:not(.cube3d) i.on, .design .dpv[data-ds="custom"] .die:not(.cube3d) i.on { background: var(--cd-pip, var(--pip)); clip-path: var(--cd-clip, circle(50%)); box-shadow: none; }
-
 /* flat dice on cards for the new looks (the cube skins above are for the tray) */
 [data-ds="gold"] :not(.dpv) > .die:not(.cube3d), .themes .dpv[data-ds="gold"] .die:not(.cube3d) { background: linear-gradient(125deg, #fff6c8 0%, #ffd34d 22%, #b9801a 48%, #ffe9a0 70%, #d9a032 100%), var(--bg); box-shadow: inset 0 0 0 2px #fff0b0, 0 0 8px #ffd34d88; }
 [data-ds="gold"] :not(.dpv) > .die:not(.cube3d) i.on, .themes .dpv[data-ds="gold"] .die:not(.cube3d) i.on { background: var(--c, #5a3a00); box-shadow: 0 0 0 1px #5a3a0088; }
@@ -1007,15 +969,6 @@ html[data-cd-sparkle="on"] .dpv[data-ds="custom"] .cf::after, html[data-cd-spark
 [data-ds="galaxy"] :not(.dpv) > .die:not(.cube3d) i.on, .themes .dpv[data-ds="galaxy"] .die:not(.cube3d) i.on { background: #fff; box-shadow: 0 0 5px 1px #cfa8ff; }
 [data-ds="lightning"] :not(.dpv) > .die:not(.cube3d), .themes .dpv[data-ds="lightning"] .die:not(.cube3d) { background: radial-gradient(circle at 30% 24%, #9fd2ff44, transparent 55%), linear-gradient(#0a1230cc, #0a1230cc), var(--bg); box-shadow: inset 0 0 0 2px #7bbcff, 0 0 8px #3b78ffaa; }
 [data-ds="lightning"] :not(.dpv) > .die:not(.cube3d) i.on, .themes .dpv[data-ds="lightning"] .die:not(.cube3d) i.on { background: #e8f4ff; box-shadow: 0 0 5px 1px #7bbcff; }
-
-/* the Design sheet */
-.sheet.design .stage { display: flex; justify-content: center; align-items: center; height: 120px; margin: 4px 0 8px; background: #00000026; border-radius: 14px; }
-.sheet.design .stage .die { --size: 76px; --c: #e5484d; --bg: #e5484d; --pip: #fff; }
-.sheet.design .row { margin: 8px 0 2px; font-weight: 800; font-size: .85rem; }
-.sheet.design .chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.sheet.design .chips button { border: 2px solid transparent; background: #ffffff14; color: inherit; border-radius: 999px; padding: 6px 12px; font-size: .8rem; font-weight: 700; }
-.sheet.design .chips button.on { border-color: #ffd34d; background: #ffd34d33; }
-.themes .toggles { display: flex; gap: 8px; margin: 8px 0; }
 
 [data-calm="1"] .cf, [data-calm="1"] .cf::after, [data-calm="1"] .cube-in, [data-calm="1"] .die.cube3d, [data-calm="1"] .cf i { animation: none !important; }
 @media (prefers-reduced-motion: reduce) { .cf, .cf::after, .cube-in, .die.cube3d, .cf i { animation: none !important; } }
