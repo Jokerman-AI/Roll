@@ -720,6 +720,93 @@ h1, .big, .code, .qrcode, .chip .num, .deckback b, .coins { font-family: ui-roun
 
 @media (prefers-reduced-motion: reduce) { .chip.active, .gcard[data-tier="3"]::before, .gcard[data-tier="4"]::before { animation: none; } }
 
+/* ======================================================================================================
+   More looks, some of them animated. Every moving part stops when the person asks for a calmer table
+   (Themes, "Calm table") or the device asks for reduced motion.
+   ====================================================================================================== */
+
+/* tables */
+[data-tb="forest"] { --felt: #0d2b1a; --felt-2: #1f5a37; --muted: #a9d1b6; }
+[data-tb="ocean"] { --felt: #062a3f; --felt-2: #0f6b8f; --muted: #a8d4e6; }
+[data-tb="aurora"] { --felt: #061a2b; --felt-2: #0d3a4d; --muted: #b4e8dc; }
+[data-tb="starfield"] { --felt: #070b1f; --felt-2: #141b45; --muted: #b6bde8; }
+[data-tb="lava"] { --felt: #2a0a05; --felt-2: #6b1f0a; --muted: #f0c0a4; }
+[data-tb="aurora"] body::after, [data-tb="starfield"] body::after, [data-tb="lava"] body::after { content: ""; position: fixed; z-index: 0; pointer-events: none; }
+[data-tb="aurora"] body::after {
+  inset: -25%;
+  background: radial-gradient(35% 28% at 25% 25%, #35f0a266, transparent 70%), radial-gradient(40% 30% at 72% 22%, #7b5cff59, transparent 70%), radial-gradient(35% 25% at 50% 62%, #2ec8ff40, transparent 70%);
+  animation: aurora 16s ease-in-out infinite alternate;
+}
+@keyframes aurora { from { transform: translate3d(-4%, -2%, 0) scale(1); } to { transform: translate3d(4%, 3%, 0) scale(1.12); } }
+[data-tb="starfield"] body::after {
+  inset: -130px 0 0 0;
+  background: radial-gradient(circle at 20% 30%, #fff 0 1px, transparent 2px) 0 0 / 130px 130px, radial-gradient(circle at 70% 60%, #cfd6ff 0 1px, transparent 2px) 0 0 / 65px 65px, radial-gradient(circle at 40% 80%, #fff 0 1.5px, transparent 2.5px) 0 0 / 130px 130px;
+  animation: drift 70s linear infinite, twinkle 3.6s ease-in-out infinite alternate;
+}
+@keyframes drift { to { transform: translateY(130px); } }
+@keyframes twinkle { from { opacity: .5; } to { opacity: 1; } }
+[data-tb="lava"] body::after {
+  inset: -20%;
+  background: radial-gradient(40% 30% at 20% 90%, #ff6a1a66, transparent 70%), radial-gradient(35% 28% at 75% 80%, #ffb02e55, transparent 70%), radial-gradient(30% 22% at 50% 100%, #ff3b1a66, transparent 70%);
+  animation: lava 11s ease-in-out infinite alternate;
+}
+@keyframes lava { from { transform: translate3d(-3%, 2%, 0) scale(1); } to { transform: translate3d(3%, -4%, 0) scale(1.15); } }
+
+/* deck backs */
+[data-bk="retro"] { background: linear-gradient(180deg, #2b0a4d 0 55%, #ff4fa0 55% 56%, transparent 56%), repeating-linear-gradient(0deg, #ff4fa055 0 1px, transparent 1px 10px), repeating-linear-gradient(90deg, #ff4fa055 0 1px, transparent 1px 14px), #1a0633; }
+[data-bk="holo"] { background: linear-gradient(115deg, #ff7ad9, #9a7bff, #4fd8ff, #5bff9a, #ffe45c, #ff7ad9) 0 0 / 200% 200%; animation: holo 6s linear infinite; }
+@keyframes holo { to { background-position: 200% 200%; } }
+[data-bk="circuit"] { background: linear-gradient(90deg, #19e6c633 1px, transparent 1px) 0 0 / 14px 14px, linear-gradient(0deg, #19e6c633 1px, transparent 1px) 0 0 / 14px 14px, radial-gradient(circle at 30% 40%, #19e6c688 0 2px, transparent 3px) 0 0 / 42px 42px, #04222a; animation: pulse-glow 2.4s ease-in-out infinite alternate; }
+@keyframes pulse-glow { from { filter: brightness(.9); } to { filter: brightness(1.3); } }
+[data-bk="ember"] { background: radial-gradient(circle at 50% 100%, #ff6a1acc 0, transparent 60%), radial-gradient(circle, #ffd27a 0 1px, transparent 2px) 0 0 / 18px 24px, linear-gradient(180deg, #1b0505, #4a0f08); animation: ember 4s linear infinite; }
+@keyframes ember { from { background-position: 0 0, 0 0, 0 0; } to { background-position: 0 0, 0 -24px, 0 0; } }
+
+/* dice: previews first (a neutral base, so one style never leaks into another), then the real dice */
+.themes .dpv .die { border-radius: calc(var(--size) * .22); box-shadow: inset 0 -3px 0 #0003, 0 2px 4px #0003, 0 0 0 1px #ffffff26; animation: none; background: radial-gradient(circle at 30% 24%, #ffffff5c, transparent 55%), var(--bg); }
+.themes .dpv .die i { border-radius: 50%; margin: 12%; }
+[data-ds="pixel"] :not(.dpv) > .die, .themes .dpv[data-ds="pixel"] .die { border-radius: 2px; box-shadow: 0 0 0 2px #0007, 3px 3px 0 #0006; background: var(--bg); }
+[data-ds="pixel"] :not(.dpv) > .die i, .themes .dpv[data-ds="pixel"] .die i { border-radius: 0; margin: 14%; }
+[data-ds="fire"] :not(.dpv) > .die, .themes .dpv[data-ds="fire"] .die {
+  background: radial-gradient(circle at 30% 24%, #ffffff44, transparent 50%), linear-gradient(0deg, #ff5a00bb 0%, #ffb02e77 30%, transparent 62%), var(--bg);
+  box-shadow: inset 0 -3px 0 #0003, 0 0 12px #ff6a0099, 0 2px 4px #0004; animation: flicker 1.3s ease-in-out infinite alternate;
+}
+@keyframes flicker { from { filter: brightness(1) saturate(1); } to { filter: brightness(1.18) saturate(1.25); } }
+[data-ds="ice"] :not(.dpv) > .die, .themes .dpv[data-ds="ice"] .die {
+  position: relative; background: linear-gradient(160deg, #ffffffaa, #bdeaff33 45%, #ffffff22), var(--bg);
+  box-shadow: inset 0 0 0 2px #e8fbffaa, 0 0 12px #8fdcff88, 0 2px 4px #0003;
+}
+[data-ds="ice"] :not(.dpv) > .die::after, .themes .dpv[data-ds="ice"] .die::after { content: "✦"; position: absolute; top: 4%; right: 10%; font-size: calc(var(--size) * .24); line-height: 1; color: #fff; text-shadow: 0 0 6px #bdeaff; animation: twinkle-star 2.4s ease-in-out infinite alternate; }
+@keyframes twinkle-star { from { opacity: .25; transform: scale(.7); } to { opacity: 1; transform: scale(1.15); } }
+[data-ds="prism"] :not(.dpv) > .die, .themes .dpv[data-ds="prism"] .die {
+  background: radial-gradient(circle at 30% 24%, #ffffff55, transparent 50%), linear-gradient(115deg, transparent 30%, #ffffffaa 44%, #ff9de2aa 50%, #9dd7ffaa 56%, transparent 70%) -160% 0 / 260% 100% no-repeat, var(--bg);
+  box-shadow: inset 0 0 0 1px #ffffff55, inset 0 -3px 0 #0003, 0 2px 4px #0003; animation: prism 3.2s ease-in-out infinite;
+}
+@keyframes prism { 0%, 35% { background-position: 0 0, -160% 0, 0 0; } 100% { background-position: 0 0, 160% 0, 0 0; } }
+[data-ds="neonglow"] :not(.dpv) > .die, .themes .dpv[data-ds="neonglow"] .die {
+  background: radial-gradient(circle at 30% 24%, #ffffff40, transparent 50%), linear-gradient(#00000055, #00000055), var(--bg);
+  box-shadow: 0 0 0 2px #fffd, 0 0 14px var(--c, #fff), inset 0 0 8px #ffffff55; animation: pulse-glow 2s ease-in-out infinite alternate;
+}
+
+/* calmer table: nothing moves */
+[data-calm="1"] body::after, [data-calm="1"] .die, [data-calm="1"] .die::after, [data-calm="1"] .deckback, [data-calm="1"] .opt .bk, [data-calm="1"] .chip.active { animation: none !important; }
+@media (prefers-reduced-motion: reduce) { body::after, .die, .die::after, .deckback, .opt .bk { animation: none !important; } }
+
+/* preview tiles for effects and the shop's sections */
+.themes .opt .fxp { display: grid; place-items: center; width: 52px; height: 36px; font-size: 1.5rem; }
+.themes .opt .tb[data-tb="aurora"] { background: linear-gradient(135deg, #061a2b, #1f9f74 55%, #5b3df5); }
+.themes .opt .tb[data-tb="starfield"] { background: radial-gradient(circle at 25% 35%, #fff 0 1px, transparent 2px), radial-gradient(circle at 70% 60%, #cfd6ff 0 1px, transparent 2px), linear-gradient(135deg, #070b1f, #1a2260); }
+.themes .opt .tb[data-tb="lava"] { background: linear-gradient(0deg, #ff6a1a, #6b1f0a 55%, #2a0a05); }
+.sheet.shop .badge-premium { font-size: .62rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; background: linear-gradient(90deg, #ff7ad9, #7a5cff, #3de0ff); color: #fff; border-radius: 999px; padding: 1px 8px; margin-left: 6px; vertical-align: middle; }
+.sheet.shop .note { font-size: .78rem; opacity: .75; margin: 6px 0; }
+.sheet.shop .calmrow { display: flex; align-items: center; justify-content: space-between; margin: 10px 0 0; font-weight: 700; }
+
+/* win effects */
+.confetti i.spark { top: 40%; width: 6px; height: 6px; border-radius: 50%; box-shadow: 0 0 8px currentColor; animation: spark 1.3s ease-out both; opacity: 0; }
+.confetti i.spark.small { width: 5px; height: 5px; animation-duration: .8s; animation-delay: 0s; }
+@keyframes spark { 0% { opacity: 1; transform: translate(0, 0) scale(1); } 100% { opacity: 0; transform: translate(var(--dx), calc(var(--dy) + 40px)) scale(.3); } }
+.confetti i.star { top: -30px; width: auto; height: auto; background: none !important; line-height: 1; text-shadow: 0 0 8px #fff8; animation: confetti-fall 3.6s cubic-bezier(.3, .6, .5, 1) both; }
+.confetti i.coin { top: -30px; width: 16px; height: 16px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff3b0, #f2b705 55%, #b07d00); box-shadow: 0 0 8px #ffd34daa; animation: confetti-fall 3.4s cubic-bezier(.3, .6, .5, 1) both; }
+
 body { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
 #app { padding: 12px 0; }
 </style>
@@ -1989,7 +2076,127 @@ const sfx = {
 
 return { soundPrefs, setSound, setHaptics, canVibrate, unlock, sfx };
 })();
+const { PREMIUM, skuOf, isPremium, ALL_SKUS, BUNDLE, storeMode, priceLabel, bundleLabel, hasBundle, isLicensed, savedLicenses } = (() => {
+// Premium looks: skins and effects that are paid for with real money.
+//
+// Paying happens on a hosted checkout page run by a payment provider (see docs/PURCHASES.md), never in the app, so
+// card details never touch this code. After a payment, a small server hands back a signed licence. The app checks the
+// signature with a public key, so a made-up licence is rejected, and keeps the licence on the device.
+// Nothing here works until a store is set up in config.js (window.RFI_STORE); until then premium looks show "Coming soon".
+
+/** The premium looks and the price shown for each. The price that is actually charged is set at the payment provider. */
+const PREMIUM = {
+  table: { aurora: '$1.99', starfield: '$1.99', lava: '$1.49' },
+  back: { holo: '$0.99', circuit: '$0.99', ember: '$0.99' },
+  dice: { fire: '$1.99', ice: '$1.99', prism: '$1.99', neonglow: '$1.49' },
+  fx: { fireworks: '$1.49', goldrain: '$1.49' },
+};
+const skuOf = (part, id) => `${part}:${id}`;
+const isPremium = (part, id) => !!PREMIUM[part]?.[id];
+const ALL_SKUS = Object.entries(PREMIUM).flatMap(([part, ids]) => Object.keys(ids).map((id) => skuOf(part, id)));
+/** Buying everything at once. */
+const BUNDLE = { sku: 'bundle:all', name: 'Everything pack', price: '$9.99' };
+
+const KEY = 'rfi-licenses';
+const store = () => (typeof window !== 'undefined' && window.RFI_STORE && typeof window.RFI_STORE === 'object' ? window.RFI_STORE : {});
+const read = () => { try { const v = JSON.parse(localStorage.getItem(KEY)); return Array.isArray(v) ? v.filter((t) => typeof t === 'string').slice(-20) : []; } catch { return []; } };
+const write = (list) => { try { localStorage.setItem(KEY, JSON.stringify(list)); } catch { /* storage unavailable */ } };
+
+/** What the store is set up to do. 'demo' unlocks things for free, for trying the screens out only. */
+const storeMode = () => {
+  const s = store();
+  if (s.mode === 'demo') return 'demo';
+  return typeof s.api === 'string' && s.api.startsWith('https://') && s.publicKey ? 'live' : 'off';
+};
+const priceLabel = (part, id) => store().prices?.[skuOf(part, id)] || PREMIUM[part]?.[id] || '';
+const bundleLabel = () => store().prices?.[BUNDLE.sku] || BUNDLE.price;
+
+/* ---- licences ---- */
+
+const licensed = new Set(); // what the verified licences on this device cover
+const verified = []; // the licences that passed the check this visit, so only good codes are offered for copying
+const b64 = (text) => Uint8Array.from(atob(text.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0));
+
+/** The payload of a licence if its signature is good, otherwise null. A licence looks like v1.<payload>.<signature>. */
+async function verifyLicense(token, publicKey) {
+  try {
+    const [v, body, sig] = String(token).split('.');
+    if (v !== 'v1' || !body || !sig || !publicKey) return null;
+    const key = await crypto.subtle.importKey('jwk', publicKey, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['verify']);
+    const ok = await crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, key, b64(sig), new TextEncoder().encode(`${v}.${body}`));
+    if (!ok) return null;
+    const payload = JSON.parse(new TextDecoder().decode(b64(body)));
+    return payload && Array.isArray(payload.items) ? payload : null;
+  } catch { return null; }
+}
+
+const addItems = (items) => { for (const sku of items) if (typeof sku === 'string') licensed.add(sku); };
+
+/** Check the licences kept on this device, in the background at start-up. Returns how many looks they cover. */
+async function loadLicenses() {
+  const mode = storeMode();
+  if (mode === 'demo') { read().filter((t) => t.startsWith('demo:')).forEach((t) => licensed.add(t.slice(5))); return licensed.size; }
+  if (mode !== 'live') return 0;
+  for (const token of read()) {
+    const payload = await verifyLicense(token, store().publicKey);
+    if (payload) { addItems(payload.items); if (!verified.includes(token)) verified.push(token); }
+  }
+  return licensed.size;
+}
+
+/** Is this premium look paid for on this device? */
+const hasBundle = () => licensed.has('bundle:all');
+const isLicensed = (part, id) => licensed.has(skuOf(part, id)) || hasBundle();
+
+/** Add a licence (from a payment or pasted in to restore). Returns { ok, count } or { ok: false, why }. */
+async function redeem(token) {
+  const text = String(token || '').trim();
+  const payload = await verifyLicense(text, store().publicKey);
+  if (!payload) return { ok: false, why: 'That code is not valid' };
+  const kept = read();
+  if (!kept.includes(text)) write([...kept, text]);
+  addItems(payload.items);
+  if (!verified.includes(text)) verified.push(text);
+  return { ok: true, count: payload.items.length };
+}
+
+/** The licences on this device, so they can be copied to another one. */
+const savedLicenses = () => verified.slice();
+
+/* ---- buying ---- */
+
+/** Go to the checkout page for a look (or the bundle). In demo mode it is simply switched on. */
+async function startCheckout(sku) {
+  const mode = storeMode();
+  if (mode === 'demo') { licensed.add(sku); write([...read(), `demo:${sku}`]); return { ok: true, demo: true }; }
+  if (mode !== 'live') return { ok: false, why: 'The store is not open yet' };
+  try {
+    const res = await fetch(`${store().api}/checkout`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ items: [sku], returnUrl: `${location.origin}${location.pathname}` }),
+    });
+    const data = await res.json();
+    if (!res.ok || typeof data.url !== 'string' || !data.url.startsWith('https://')) return { ok: false, why: data.error || 'Could not start the checkout' };
+    location.href = data.url;
+    return { ok: true, redirected: true };
+  } catch { return { ok: false, why: 'Could not reach the store. Check your connection.' }; }
+}
+
+/** Coming back from the checkout page: swap the order for a licence. Returns the same shape as redeem. */
+async function claimOrder(orderId) {
+  if (storeMode() !== 'live' || !/^[A-Za-z0-9_]{8,200}$/.test(orderId)) return { ok: false, why: 'Nothing to claim' };
+  try {
+    const res = await fetch(`${store().api}/claim?order=${encodeURIComponent(orderId)}`);
+    const data = await res.json();
+    if (!res.ok || typeof data.license !== 'string') return { ok: false, why: data.error || 'That payment has not gone through yet' };
+    return redeem(data.license);
+  } catch { return { ok: false, why: 'Could not reach the store. Check your connection.' }; }
+}
+
+return { PREMIUM, skuOf, isPremium, ALL_SKUS, BUNDLE, storeMode, priceLabel, bundleLabel, hasBundle, isLicensed, savedLicenses };
+})();
 const { stats, UNLOCKS, SHOP, isShopItem, priceOf, coinsFor, isUnlocked, requirementText, newlyUnlocked, afterGame, recordGame, buy } = (() => {
+
 // What you have done so far, kept on this device, and the looks it unlocks. Nothing here leaves the phone.
 
 const KEY = 'rfi-stats';
@@ -2000,7 +2207,7 @@ const load = () => {
     const saved = JSON.parse(localStorage.getItem(KEY));
     const out = blank();
     for (const k of Object.keys(out)) if (k !== 'owned' && Number.isFinite(saved?.[k]) && saved[k] >= 0) out[k] = Math.floor(saved[k]);
-    if (Array.isArray(saved?.owned)) out.owned = saved.owned.filter((x) => typeof x === 'string' && /^(table|back|dice):[a-z]{2,12}$/.test(x)).slice(0, 50);
+    if (Array.isArray(saved?.owned)) out.owned = saved.owned.filter((x) => typeof x === 'string' && /^(table|back|dice|fx):[a-z]{2,12}$/.test(x)).slice(0, 50);
     return out;
   } catch { return blank(); }
 };
@@ -2017,9 +2224,10 @@ const UNLOCKS = {
 
 /** Looks that are bought with coins instead of earned. Coins come from playing: no real money is involved. */
 const SHOP = {
-  table: { neon: 200, sunset: 250 },
-  back: { galaxy: 150, sunburst: 200 },
-  dice: { glass: 300, gem: 350 },
+  table: { neon: 200, sunset: 250, forest: 180, ocean: 220 },
+  back: { galaxy: 150, sunburst: 200, retro: 150 },
+  dice: { glass: 300, gem: 350, pixel: 250 },
+  fx: { stars: 250 },
 };
 const isShopItem = (part, id) => !!SHOP[part]?.[id];
 const priceOf = (part, id) => SHOP[part]?.[id] ?? 0;
@@ -2037,6 +2245,7 @@ const NEED = {
 
 /** Does this look's requirement hold for these numbers? Pass `s` to test numbers other than your own. */
 function isUnlocked(part, id, s = stats) {
+  if (isPremium(part, id)) return isLicensed(part, id); // paid for with real money: see premium.js
   if (isShopItem(part, id)) return (s.owned || []).includes(`${part}:${id}`);
   const need = UNLOCKS[part]?.[id];
   return !need || Object.entries(need).every(([k, n]) => (s[k] || 0) >= n);
@@ -2044,6 +2253,7 @@ function isUnlocked(part, id, s = stats) {
 
 /** "Play 3 games", or '' when the look is free. */
 function requirementText(part, id) {
+  if (isPremium(part, id)) return 'A premium look, in the Shop';
   if (isShopItem(part, id)) return `In the Shop for ${priceOf(part, id)} coins`;
   const need = UNLOCKS[part]?.[id];
   return need ? Object.entries(need).map(([k, n]) => NEED[k](n)).join(' and ') : '';
@@ -2160,7 +2370,7 @@ function buildReport(note, context = {}) {
 
 return { VERSION, installReporter, errorLog, clearErrors, buildReport };
 })();
-const { TABLES, BACKS, DICE, theme, applyTheme, setTheme } = (() => {
+const { TABLES, BACKS, DICE, FX, theme, calm, setCalm, restoreTheme, applyTheme, setTheme } = (() => {
 
 // Looks: the colour of the table, the back of the deck and the style of the dice. The choice is saved on
 // the device and applied by setting attributes on the page, which the stylesheet reacts to.
@@ -2173,6 +2383,11 @@ const TABLES = [
   { id: 'charcoal', name: 'Charcoal', meta: '#1b1e25' },
   { id: 'neon', name: 'Neon', meta: '#0a0420' },
   { id: 'sunset', name: 'Sunset', meta: '#3a0f2a' },
+  { id: 'forest', name: 'Forest', meta: '#0d2b1a' },
+  { id: 'ocean', name: 'Ocean', meta: '#062a3f' },
+  { id: 'aurora', name: 'Aurora', meta: '#061a2b', fx: true },
+  { id: 'starfield', name: 'Starfield', meta: '#070b1f', fx: true },
+  { id: 'lava', name: 'Lava', meta: '#2a0a05', fx: true },
 ];
 const BACKS = [
   { id: 'blue', name: 'Blue stripes' },
@@ -2182,6 +2397,10 @@ const BACKS = [
   { id: 'night', name: 'Night' },
   { id: 'galaxy', name: 'Galaxy' },
   { id: 'sunburst', name: 'Sunburst' },
+  { id: 'retro', name: 'Retro grid' },
+  { id: 'holo', name: 'Holo foil', fx: true },
+  { id: 'circuit', name: 'Circuit', fx: true },
+  { id: 'ember', name: 'Ember', fx: true },
 ];
 const DICE = [
   { id: 'classic', name: 'Classic' },
@@ -2189,6 +2408,18 @@ const DICE = [
   { id: 'bubble', name: 'Bubble' },
   { id: 'glass', name: 'Glass' },
   { id: 'gem', name: 'Gem' },
+  { id: 'pixel', name: 'Pixel' },
+  { id: 'fire', name: 'Fire', fx: true },
+  { id: 'ice', name: 'Ice', fx: true },
+  { id: 'prism', name: 'Prism', fx: true },
+  { id: 'neonglow', name: 'Neon glow', fx: true },
+];
+/** What happens on screen when somebody wins. */
+const FX = [
+  { id: 'confetti', name: 'Confetti' },
+  { id: 'stars', name: 'Stars' },
+  { id: 'fireworks', name: 'Fireworks', fx: true },
+  { id: 'goldrain', name: 'Gold rain', fx: true },
 ];
 
 const KEY = 'rfi-theme';
@@ -2196,7 +2427,7 @@ const read = () => { try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
 const write = (t) => { try { localStorage.setItem(KEY, JSON.stringify(t)); } catch { /* storage unavailable */ } };
 const pick = (list, id) => (list.some((x) => x.id === id) ? id : list[0].id);
 
-const LISTS = { table: TABLES, back: BACKS, dice: DICE };
+const LISTS = { table: TABLES, back: BACKS, dice: DICE, fx: FX };
 /** The saved choice, or the first (free) look if it is unknown or not yet earned. */
 const choose = (part, id) => {
   const picked = pick(LISTS[part], id);
@@ -2205,19 +2436,36 @@ const choose = (part, id) => {
 
 const theme = (() => {
   const saved = read();
-  return { table: choose('table', saved.table), back: choose('back', saved.back), dice: choose('dice', saved.dice) };
+  return { table: choose('table', saved.table), back: choose('back', saved.back), dice: choose('dice', saved.dice), fx: choose('fx', saved.fx) };
 })();
 
 /** Put the current look on the page. */
+/** Switch off the moving parts of the looks (battery, or just a quieter table). Saved on the device. */
+const calm = { on: (() => { try { return localStorage.getItem('rfi-calm') === '1'; } catch { return false; } })() };
+function setCalm(on) {
+  calm.on = !!on;
+  try { localStorage.setItem('rfi-calm', on ? '1' : '0'); } catch { /* storage unavailable */ }
+  applyTheme();
+}
+
+/** Look at the saved choices again, once paid-for looks have been checked. */
+function restoreTheme() {
+  const saved = read();
+  for (const part of Object.keys(LISTS)) theme[part] = choose(part, saved[part]);
+  applyTheme();
+}
+
 function applyTheme() {
+  if (typeof document === 'undefined') return; // not in a page (for example, under test)
   const root = document.documentElement;
   root.setAttribute('data-tb', theme.table);
   root.setAttribute('data-ds', theme.dice);
+  if (calm.on) root.setAttribute('data-calm', '1'); else root.removeAttribute('data-calm');
   const meta = document.querySelector('meta[name="theme-color"]');
   if (meta) meta.setAttribute('content', TABLES.find((t) => t.id === theme.table).meta);
 }
 
-/** part: 'table' | 'back' | 'dice'. Returns false if that look has not been earned yet. */
+/** part: 'table' | 'back' | 'dice' | 'fx'. Returns false if that look has not been earned yet. */
 function setTheme(part, id) {
   const list = LISTS[part];
   if (!list || !list.some((x) => x.id === id) || !isUnlocked(part, id)) return false;
@@ -2229,7 +2477,7 @@ function setTheme(part, id) {
 
 applyTheme();
 
-return { TABLES, BACKS, DICE, theme, applyTheme, setTheme };
+return { TABLES, BACKS, DICE, FX, theme, calm, setCalm, restoreTheme, applyTheme, setTheme };
 })();
 const { dbStore, DEFAULT_ICE, checkConnection, p2pStore } = (() => {
 // Room transports. Both expose the same small "room store" shape to the game:
@@ -3102,39 +3350,71 @@ function powersView() {
 }
 
 /** Pick the table colour, the back of the deck and the dice. Changes show straight away. */
-const shopItems = (part) => Object.keys(SHOP[part]).map((id) => ({ part, id, name: ({ table: TABLES, back: BACKS, dice: DICE }[part].find((x) => x.id === id) || { name: id }).name }));
+const LISTS = { table: TABLES, back: BACKS, dice: DICE, fx: FX };
+const nameOf = (part, id) => (LISTS[part].find((x) => x.id === id) || { name: id }).name;
+const previewOf = (part, id) => (part === 'table' ? `<span class="tb" data-tb="${id}"></span>`
+  : part === 'back' ? `<span class="bk" data-bk="${id}"></span>`
+  : part === 'dice' ? `<span class="dpv" data-ds="${id}">${die(5, '')}</span>`
+  : `<span class="fxp" aria-hidden="true">${{ confetti: '🎉', stars: '⭐', fireworks: '🎆', goldrain: '🪙' }[id] || '✨'}</span>`);
+const PARTS = [['table', 'Tables'], ['back', 'Deck backs'], ['dice', 'Dice'], ['fx', 'Win effects']];
 
-/** The Shop: looks bought with coins earned by playing. No real money. */
+/** The Shop: coin looks, earned by playing, and premium looks bought with real money. */
 function shopView() {
-  const preview = (part, id) => (part === 'table' ? `<span class="tb" data-tb="${id}"></span>` : part === 'back' ? `<span class="bk" data-bk="${id}"></span>` : `<span class="dpv" data-ds="${id}">${die(5, '')}</span>`);
-  const group = (title, part) => `<h3>${title}</h3>${shopItems(part).map((it) => {
-    const owned = isUnlocked(it.part, it.id);
-    const price = priceOf(it.part, it.id);
-    return `<div class="item"><span class="pv">${preview(it.part, it.id)}</span>
-      <span class="nm"><b>${it.name}</b><small>${owned ? 'You own this' : `🪙 ${price}`}</small></span>
-      ${owned ? `<button class="btn" data-act="setTheme" data-part="${it.part}" data-id="${it.id}">Use</button>` : `<button class="btn primary" data-act="buyItem" data-part="${it.part}" data-id="${it.id}" ${stats.coins >= price ? '' : 'disabled'}>Buy</button>`}</div>`;
+  const mode = storeMode();
+  const coinGroup = (title, part) => `<h3>${title}</h3>${Object.keys(SHOP[part] || {}).map((id) => {
+    const owned = isUnlocked(part, id);
+    const price = priceOf(part, id);
+    return `<div class="item"><span class="pv">${previewOf(part, id)}</span>
+      <span class="nm"><b>${nameOf(part, id)}</b><small>${owned ? 'You own this' : `🪙 ${price}`}</small></span>
+      ${owned ? `<button class="btn" data-act="setTheme" data-part="${part}" data-id="${id}">Use</button>` : `<button class="btn primary" data-act="buyItem" data-part="${part}" data-id="${id}" ${stats.coins >= price ? '' : 'disabled'}>Buy</button>`}</div>`;
   }).join('')}`;
+  const premiumGroup = (title, part) => `<h3>${title}</h3>${Object.keys(PREMIUM[part]).map((id) => {
+    const owned = isUnlocked(part, id);
+    return `<div class="item"><span class="pv">${previewOf(part, id)}</span>
+      <span class="nm"><b>${nameOf(part, id)}<span class="badge-premium">Premium</span></b><small>${owned ? 'You own this' : mode === 'off' ? 'Coming soon' : priceLabel(part, id)}</small></span>
+      ${owned ? `<button class="btn" data-act="setTheme" data-part="${part}" data-id="${id}">Use</button>` : `<button class="btn primary" data-act="buyPremium" data-sku="${skuOf(part, id)}" ${mode === 'off' ? 'disabled' : ''}>${mode === 'demo' ? 'Try it' : 'Buy'}</button>`}</div>`;
+  }).join('')}`;
+  const bundle = hasBundle() ? '' : `<div class="item"><span class="pv" aria-hidden="true" style="font-size:2rem">🎁</span>
+      <span class="nm"><b>${BUNDLE.name}<span class="badge-premium">Best value</span></b><small>${mode === 'off' ? 'Coming soon' : `Every premium look · ${bundleLabel()}`}</small></span>
+      <button class="btn primary" data-act="buyPremium" data-sku="${BUNDLE.sku}" ${mode === 'off' ? 'disabled' : ''}>${mode === 'demo' ? 'Try it' : 'Buy'}</button></div>`;
   return `<div class="modal"><div class="sheet shop themes"><h2>🛍 Shop</h2>
     <p class="wallet coins">🪙 ${stats.coins} coins</p>
-    <p class="tag">Earn coins by playing: 10 for each game, 20 more for a win, and 2 for every card you claim. Looks only: nothing here makes you stronger.</p>
-    ${group('Tables', 'table')}${group('Deck backs', 'back')}${group('Dice', 'dice')}
+    ${mode === 'demo' ? '<p class="note"><b>Test mode:</b> nothing is charged and nothing is saved as a purchase.</p>' : ''}
+    <h3>✨ Premium looks</h3>
+    <p class="note">${mode === 'off' ? 'Animated skins and effects, bought once and kept. The store is not open yet.' : 'Animated skins and effects, bought once and kept. Paid on a secure checkout page; looks only, nothing makes you stronger.'}</p>
+    ${bundle}${PARTS.filter(([part]) => PREMIUM[part]).map(([part, title]) => premiumGroup(title, part)).join('')}
+    ${mode === 'live' ? '<button class="btn" data-act="restoreOpen">Restore a purchase</button>' : ''}
+    <h3>🪙 Coin looks</h3>
+    <p class="note">Earn coins by playing: 10 for each game, 20 more for a win, and 2 for every card you claim.</p>
+    ${PARTS.filter(([part]) => SHOP[part]).map(([part, title]) => coinGroup(title, part)).join('')}
+    <div class="calmrow"><span>Calm table <small style="font-weight:400;opacity:.7">(stops the moving looks)</small></span><button class="btn small" data-act="toggleCalm" aria-pressed="${calm.on}">${calm.on ? 'On' : 'Off'}</button></div>
     <button class="btn" data-act="themes">Back to Themes</button>
     <button class="btn primary" data-act="closeModal">Done</button></div></div>`;
+}
+
+/** Restoring or moving a purchase: the codes on this device, and a place to paste one. */
+function restoreView() {
+  const codes = savedLicenses();
+  return `<div class="modal"><div class="sheet shop"><h2>Restore a purchase</h2>
+    <p class="note">Paste the purchase code you were given, to get your looks back on this device. Purchases are kept on the device you bought them on.</p>
+    <textarea id="restorecode" rows="3" placeholder="Paste a purchase code" aria-label="Purchase code" style="width:100%;border:0;border-radius:12px;padding:10px;background:#0001;font:inherit;color:inherit"></textarea>
+    <button class="btn primary" data-act="restoreGo">Restore</button>
+    ${codes.length ? `<h3>Your codes</h3><p class="note">Keep these safe. They let you restore your looks on another device.</p>${codes.map((c, i) => `<button class="btn" data-act="copyCode" data-i="${i}">Copy code ${i + 1}</button>`).join('')}` : ''}
+    <button class="btn" data-act="shop">Back to the Shop</button></div></div>`;
 }
 
 function themesView() {
   const opt = (part, id, label, preview) => {
     const open = isUnlocked(part, id);
+    const fancy = isPremium(part, id);
     return `<button class="opt ${theme[part] === id ? 'on' : ''} ${open ? '' : 'locked'}" data-act="setTheme" data-part="${part}" data-id="${id}" aria-pressed="${theme[part] === id}" ${open ? '' : `aria-label="${label}, locked. ${requirementText(part, id)}"`}>
-      ${preview}<span>${label}</span>${open ? '' : `<small class="need">🔒 ${requirementText(part, id)}</small>`}</button>`;
+      ${preview}<span>${label}${fancy ? ' ✨' : ''}</span>${open ? '' : `<small class="need">🔒 ${requirementText(part, id)}</small>`}</button>`;
   };
   return `<div class="modal"><div class="sheet themes"><h2>🎨 Themes</h2>
     <p class="statline">${stats.games} games · ${stats.wins} wins · best streak ${stats.bestStreak} · ${stats.claims} cards claimed</p>
     <button class="btn" data-act="shop">🛍 Shop <span class="coins">· 🪙 ${stats.coins}</span></button>
-    <h3>Table</h3><div class="opts">${TABLES.map((x) => opt('table', x.id, x.name, `<span class="tb" data-tb="${x.id}"></span>`)).join('')}</div>
-    <h3>Deck back</h3><div class="opts">${BACKS.map((x) => opt('back', x.id, x.name, `<span class="bk" data-bk="${x.id}"></span>`)).join('')}</div>
-    <h3>Dice</h3><div class="opts">${DICE.map((x) => opt('dice', x.id, x.name, `<span class="dpv" data-ds="${x.id}">${die(5, '')}</span>`)).join('')}</div>
-    <p class="tag">Play games to unlock more looks and earn coins for the Shop.</p>
+    ${PARTS.map(([part, title]) => `<h3>${title}</h3><div class="opts">${LISTS[part].map((x) => opt(part, x.id, x.name, previewOf(part, x.id))).join('')}</div>`).join('')}
+    <p class="tag">Play games to unlock more looks and earn coins for the Shop. ✨ marks premium looks.</p>
     <button class="btn primary" data-act="closeModal">Done</button></div></div>`;
 }
 
@@ -3425,6 +3705,7 @@ function modalView() {
         <li>Rollick has no accounts, ads or analytics. Your name, icon, colour and settings are saved only on your device.</li>
         <li>Online games connect players directly (peer to peer) when they can. Your name, icon and moves are sent to the other players in your room. A signalling server and relay servers help devices find each other, and they can see network addresses and connection details while you play. The host also keeps a connection open to free public message servers, so players whose network blocks direct connections can still join. When that backup route is used, moves pass through those servers. Anyone who knows your room code could see that traffic, so don't share the code publicly and don't put private information in your name or icon. Opening the Play online screen connects to those servers to show the Open rooms list. If you switch on <b>Public room</b>, the room code, your name, the game and the player count are published on those servers so other people can find the room; switch it off and the listing is removed.</li>
         <li>If something breaks, Rollick keeps a short log of error messages on your device. Nothing is sent anywhere unless you choose Share, Copy or Email in <b>Report a problem</b>, and reports never include names, room codes or drawings.</li>
+        <li>Premium looks are optional digital items that only change how the game looks. If the store is open, payment happens on a secure page run by the payment provider, which keeps your card details; Rollick never sees them. A purchase is kept on your device as a licence code. Refunds, tax and your rights are set out in the store's terms, which the seller must add before selling.</li>
         <li>Clear the site data or remove the app to delete everything stored on your device.</li>
       </ul>
       <h3>Open-source notices</h3>
@@ -3439,6 +3720,7 @@ function modalView() {
   if (ui.modal === 'powers') return powersView();
   if (ui.modal === 'themes') return themesView();
   if (ui.modal === 'shop') return shopView();
+  if (ui.modal === 'restore') return restoreView();
   if (ui.modal === 'menu') {
     return `<div class="modal" data-act="closeModal"><div class="sheet"><h2>Menu</h2>
       <button class="btn" data-act="rules">How to play</button>
@@ -3618,7 +3900,7 @@ function receive(next) {
   if (sameGame && prev.phase === 'start' && next.phase === 'placing') startRoll(next.rolled.length);
   const justWon = sameGame && next.phase === 'over' && prev.phase !== 'over';
   if (sameGame && prev.rev !== next.rev) {
-    if (next.lastClaim) sfx.claim();
+    if (next.lastClaim) { sfx.claim(); claimBurst(next.lastClaim.player); }
     else if ((next.events || []).some((e) => e.type === 'power' || e.type === 'chaos' || e.type === 'lucky')) sfx.power();
     if (next.current !== prev.current && next.phase !== 'over' && isMine(next) && !next.players[next.current].cpu && !justWon) setTimeout(sfx.turn, 400);
   }
@@ -3669,17 +3951,51 @@ function flyCard({ html, rect, player, from, to }) {
 
 /** Confetti in the winner's colour and the rest of the palette. */
 function confetti(winner) {
-  if (reducedMotion()) return;
+  if (reducedMotion() || calm.on) return;
   const layer = document.createElement('div');
   layer.className = 'confetti';
   const colors = [hexOf(winner), hexOf(winner), ...PALETTE.map((c) => c.hex)];
-  layer.innerHTML = Array.from({ length: 80 }, () => {
-    const c = colors[Math.floor(Math.random() * colors.length)];
-    const style = `left:${Math.random() * 100}%;background:${c};--dx:${Math.round(Math.random() * 160 - 80)}px;--spin:${Math.round(Math.random() * 900 - 450)}deg;animation-delay:${Math.round(Math.random() * 700)}ms;animation-duration:${2200 + Math.round(Math.random() * 1800)}ms`;
-    return `<i style="${style}"></i>`;
+  const R = Math.random;
+  const kind = theme.fx;
+  if (kind === 'fireworks') {
+    // a few bursts, each a ring of sparks flying out from one point
+    const bursts = Array.from({ length: 5 }, (_, b) => ({ x: 15 + R() * 70, y: 15 + R() * 40, delay: b * 0.45, color: colors[Math.floor(R() * colors.length)] }));
+    layer.innerHTML = bursts.map((b) => Array.from({ length: 26 }, (_, k) => {
+      const a = (k / 26) * Math.PI * 2;
+      const d = 70 + R() * 50;
+      return `<i class="spark" style="left:${b.x}%;top:${b.y}%;background:${b.color};--dx:${Math.round(Math.cos(a) * d)}px;--dy:${Math.round(Math.sin(a) * d)}px;animation-delay:${(b.delay + R() * 0.1).toFixed(2)}s"></i>`;
+    }).join('')).join('');
+  } else if (kind === 'goldrain') {
+    layer.innerHTML = Array.from({ length: 60 }, () => `<i class="coin" style="left:${(R() * 100).toFixed(1)}%;animation-delay:${(R() * 1.6).toFixed(2)}s;--dx:${Math.round(R() * 60 - 30)}px;--spin:${Math.round(R() * 720 - 360)}deg"></i>`).join('');
+  } else if (kind === 'stars') {
+    layer.innerHTML = Array.from({ length: 36 }, () => `<i class="star" style="left:${(R() * 100).toFixed(1)}%;color:${colors[Math.floor(R() * colors.length)]};font-size:${14 + Math.round(R() * 18)}px;--dx:${Math.round(R() * 140 - 70)}px;--spin:${Math.round(R() * 600 - 300)}deg;animation-delay:${(R() * 1.2).toFixed(2)}s">★</i>`).join('');
+  } else {
+    layer.innerHTML = Array.from({ length: 80 }, () => {
+      const c = colors[Math.floor(R() * colors.length)];
+      const style = `left:${R() * 100}%;background:${c};--dx:${Math.round(R() * 160 - 80)}px;--spin:${Math.round(R() * 900 - 450)}deg;animation-delay:${R() * 1.2}s`;
+      return `<i style="${style}"></i>`;
+    }).join('');
+  }
+  document.body.appendChild(layer);
+  setTimeout(() => layer.remove(), 5200);
+}
+
+/** A small burst from a player's score chip when they claim a card, for the non-default win effects. */
+function claimBurst(player) {
+  if (reducedMotion() || calm.on || theme.fx === 'confetti') return;
+  const chip = app.querySelector(`.chip[data-p="${player}"]`);
+  if (!chip) return;
+  const r = chip.getBoundingClientRect();
+  const layer = document.createElement('div');
+  layer.className = 'confetti';
+  const color = hexOf(player);
+  layer.innerHTML = Array.from({ length: 14 }, (_, k) => {
+    const a = (k / 14) * Math.PI * 2;
+    const d = 28 + Math.random() * 26;
+    return `<i class="spark small" style="left:${r.left + r.width / 2}px;top:${r.top + r.height / 2}px;background:${theme.fx === 'goldrain' ? '#ffd34d' : color};--dx:${Math.round(Math.cos(a) * d)}px;--dy:${Math.round(Math.sin(a) * d)}px"></i>`;
   }).join('');
   document.body.appendChild(layer);
-  setTimeout(() => layer.remove(), 5000);
+  setTimeout(() => layer.remove(), 1200);
 }
 
 /** A move made on this device: show it now and, online, share it. */
@@ -4234,6 +4550,29 @@ const actions = {
   tutSkip: () => endTutorial(false),
   themes: () => { ui.modal = 'themes'; render(); },
   shop: () => { ui.modal = 'shop'; render(); },
+  toggleCalm: () => { setCalm(!calm.on); render(); },
+  buyPremium: async ({ sku }) => {
+    const r = await startCheckout(sku);
+    if (!r.ok) { sfx.error(); say(r.why, 3000); return; }
+    if (r.demo) { sfx.claim(); say('Test purchase: switched on for trying out.', 2600); render(); }
+    // otherwise the browser is on its way to the checkout page
+  },
+  restoreOpen: () => { ui.modal = 'restore'; render(); },
+  restoreGo: async () => {
+    const box = document.getElementById('restorecode');
+    const r = await redeem(box?.value || '');
+    if (!r.ok) { sfx.error(); say(r.why, 2600); return; }
+    restoreTheme();
+    sfx.claim();
+    say(`Restored ${r.count} look${r.count === 1 ? '' : 's'}.`, 2600);
+    ui.modal = 'shop';
+    render();
+  },
+  copyCode: async ({ i }) => {
+    const code = savedLicenses()[+i];
+    if (!code) return;
+    try { await navigator.clipboard.writeText(code); say('Code copied', 1600); } catch { say('Could not copy. Long-press to copy by hand.', 2600); }
+  },
   buyItem: ({ part, id }) => {
     const r = buy(part, id);
     if (!r.ok) { sfx.error(); say(r.why, 2200); return; }
@@ -4244,6 +4583,7 @@ const actions = {
   },
   setTheme: ({ part, id }) => {
     if (setTheme(part, id)) { sfx.tap(); render(); return; }
+    if (isPremium(part, id)) { ui.modal = 'shop'; render(); return; } // a premium look: show where to get it
     sfx.error();
     say(isShopItem(part, id) ? `🔒 ${requirementText(part, id)}` : `🔒 ${requirementText(part, id)} to unlock this`, 2800);
   },
@@ -4421,6 +4761,20 @@ installReporter(() => {
   warned = true;
   try { say('Something went wrong. Open ⓘ, then Report a problem.', 4500); } catch { /* the screen is not ready */ }
 });
+/* Premium looks: check the licences kept on this device, and finish a purchase if we have just come back from the checkout page. */
+(async () => {
+  try {
+    const before = await loadLicenses();
+    const paid = /[?&]paid=([A-Za-z0-9_]{8,200})/.exec(location.search);
+    if (paid) {
+      history.replaceState(null, '', location.pathname + location.hash); // so a refresh does not claim it twice
+      const r = await claimOrder(paid[1]);
+      say(r.ok ? `Thank you! ${r.count} premium look${r.count === 1 ? '' : 's'} unlocked.` : r.why, 4200);
+      if (r.ok) { sfx.claim(); ui.modal = 'shop'; }
+    }
+    if (before || paid) { restoreTheme(); render(); }
+  } catch { /* the store is optional */ }
+})();
 initNet();
 
 
