@@ -7867,11 +7867,13 @@ const previewOf = (part, id) => (part === 'table' ? `<span class="tb" data-tb="$
   : part === 'back' ? `<span class="bk" data-bk="${id}"></span>`
   : part === 'dice' ? `<span class="dpv" data-ds="${id}">${cube.on ? die3d(5, 'spin pv', 'style="--c:#e5484d"') : die(5, '')}</span>`
   : `<span class="fxp" aria-hidden="true">${{ confetti: '🎉', stars: '⭐', fireworks: '🎆', goldrain: '🪙' }[id] || '✨'}</span>`);
-const PARTS = [['table', 'Tables'], ['back', 'Deck backs'], ['dice', 'Dice'], ['fx', 'Win effects']];
+const ALL_PARTS = [['table', 'Tables'], ['back', 'Deck backs'], ['dice', 'Dice'], ['fx', 'Win effects']];
+const PARTS = ALL_PARTS;
 
 /** The Shop: coin looks, earned by playing, and premium looks bought with real money. */
 function shopView() {
   const mode = storeMode();
+  const PARTS = ALL_PARTS.filter(([part]) => part !== 'dice'); // dice looks are not sold in the shop (they are in Themes)
   const coinGroup = (title, part) => `<h3>${title}</h3>${Object.keys(SHOP[part] || {}).map((id) => {
     const owned = isUnlocked(part, id);
     const price = priceOf(part, id);
