@@ -807,6 +807,223 @@ h1, .big, .code, .qrcode, .chip .num, .deckback b, .coins { font-family: ui-roun
 .confetti i.star { top: -30px; width: auto; height: auto; background: none !important; line-height: 1; text-shadow: 0 0 8px #fff8; animation: confetti-fall 3.6s cubic-bezier(.3, .6, .5, 1) both; }
 .confetti i.coin { top: -30px; width: 16px; height: 16px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff3b0, #f2b705 55%, #b07d00); box-shadow: 0 0 8px #ffd34daa; animation: confetti-fall 3.4s cubic-bezier(.3, .6, .5, 1) both; }
 
+/* ===== 3D dice: a real cube of six faces, turned so the rolled number faces you ===== */
+.die.cube3d {
+  perspective: calc(var(--size) * 6); display: block !important; padding: 0 !important; border-radius: 0 !important;
+  background: none !important; box-shadow: none !important; animation: none !important; transform-style: flat;
+}
+.die.cube3d::before, .die.cube3d::after { content: none !important; }
+.die.cube3d.hand { opacity: .55; }
+.die.cube3d .cube, .die.cube3d .cube-in { position: absolute; inset: 0; display: block; transform-style: preserve-3d; }
+.die.cube3d .cube { transform: rotateX(-16deg) rotateY(20deg); }
+.die.cube3d .cube-in { transform: rotateX(var(--ax, 0deg)) rotateY(var(--ay, 0deg)); }
+.dice .die.cube3d.rolling { animation: cubehop var(--dur) cubic-bezier(.25, .7, .35, 1) var(--d) both !important; }
+.dice .die.cube3d.rolling .cube-in { animation: cubespin var(--dur) cubic-bezier(.2, .75, .3, 1) var(--d) both; }
+@keyframes cubehop {
+  0% { transform: translate(var(--dx), -140px) scale(.5); opacity: 0; }
+  12% { opacity: 1; }
+  55% { transform: translate(calc(var(--dx) * .25), 0) scale(1.12); }
+  72% { transform: translate(0, -30px) scale(1.04); }
+  88% { transform: translate(0, 0) scale(.97); }
+  100% { transform: translate(0, 0) scale(1); }
+}
+@keyframes cubespin {
+  0% { transform: rotateX(calc(var(--ax) + var(--rx, 0deg))) rotateY(calc(var(--ay) + var(--ry, 0deg))); }
+  100% { transform: rotateX(var(--ax)) rotateY(var(--ay)); }
+}
+.cf {
+  position: absolute; inset: 0; display: grid; grid-template: repeat(3, 1fr) / repeat(3, 1fr); padding: calc(var(--size) * .14);
+  border-radius: calc(var(--size) * .2); -webkit-backface-visibility: hidden; backface-visibility: hidden;
+  background: radial-gradient(circle at 30% 24%, #ffffff45, transparent 55%), var(--bg);
+  box-shadow: inset 0 0 0 1px #ffffff2a, inset 0 0 calc(var(--size) * .14) #0005;
+}
+.cf::before { content: ""; position: absolute; inset: 0; border-radius: inherit; background: rgb(0 0 0 / calc(var(--sh, .3) * .6)); pointer-events: none; z-index: 3; }
+.cf i { border-radius: 50%; margin: 12%; }
+.cf i.on { background: var(--pip); box-shadow: inset 0 1px 2px #0006, 0 1px 0 #ffffff30; }
+.cf.f1 { transform: translateZ(calc(var(--size) / 2 - 1px)); }
+.cf.f6 { transform: rotateY(180deg) translateZ(calc(var(--size) / 2 - 1px)); }
+.cf.f3 { transform: rotateY(90deg) translateZ(calc(var(--size) / 2 - 1px)); }
+.cf.f4 { transform: rotateY(-90deg) translateZ(calc(var(--size) / 2 - 1px)); }
+.cf.f2 { transform: rotateX(90deg) translateZ(calc(var(--size) / 2 - 1px)); }
+.cf.f5 { transform: rotateX(-90deg) translateZ(calc(var(--size) / 2 - 1px)); }
+/* the picker shows each die slowly turning */
+.die.cube3d.spin .cube-in { animation: cubeturn 7s linear infinite; }
+@keyframes cubeturn { from { transform: rotateX(-12deg) rotateY(0deg); } to { transform: rotateX(-12deg) rotateY(360deg); } }
+.themes .dpv .die.cube3d { --size: 36px; }
+
+/* shapes of the older looks, on cube faces */
+[data-ds="sharp"] .cf { border-radius: calc(var(--size) * .06); }
+[data-ds="sharp"] .cf i { border-radius: 0; }
+[data-ds="bubble"] .cf { border-radius: calc(var(--size) * .34); }
+[data-ds="bubble"] .cf i { margin: 6%; }
+[data-ds="glass"] .cf { background: linear-gradient(135deg, #ffffff80, #ffffff18 45%, #00000040), var(--bg); box-shadow: inset 0 0 0 2px #ffffff77, inset 0 0 14px #ffffff44; }
+[data-ds="gem"] .cf { border-radius: calc(var(--size) * .16); background: linear-gradient(135deg, #ffffff99 0 22%, transparent 22% 50%, #00000040 50% 78%, transparent 78%), var(--bg); box-shadow: inset 0 0 0 2px #ffffff66; }
+[data-ds="pixel"] .cf { border-radius: 2px; background: var(--bg); box-shadow: inset 0 0 0 2px #0008; }
+[data-ds="pixel"] .cf i { border-radius: 0; margin: 14%; }
+
+/* --- Fire: flames lick up the faces, embers rise, the whole die glows --- */
+[data-ds="fire"] .die.cube3d { animation: fire-glow 1.1s ease-in-out infinite alternate !important; }
+@keyframes fire-glow { from { filter: drop-shadow(0 0 5px #ff5a00aa); } to { filter: drop-shadow(0 0 13px #ffae2ecc); } }
+[data-ds="fire"] .cf {
+  background: radial-gradient(circle at 30% 20%, #ffffff44, transparent 48%), linear-gradient(0deg, #fff3a0cc 0%, #ffb02eaa 22%, #ff5a00aa 46%, transparent 74%) 0 0 / 100% 135% no-repeat, linear-gradient(#2a0800aa, #2a0800aa), var(--bg);
+  animation: flame .85s ease-in-out infinite alternate; box-shadow: inset 0 0 0 1px #ffd27a77, inset 0 -6px 12px #ff5a0099;
+}
+@keyframes flame { from { background-position: 0 0, 0 0, 0 0, 0 0; } to { background-position: 0 0, 0 100%, 0 0, 0 0; } }
+[data-ds="fire"] .cf::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: 2;
+  background: radial-gradient(circle, #ffe9a0 0 1.4px, transparent 2.2px) 0 0 / 26% 34%, radial-gradient(circle, #ff9a3c 0 1px, transparent 1.8px) 13% 17% / 21% 29%;
+  animation: embers 1.4s linear infinite;
+}
+@keyframes embers { from { background-position: 0 0, 13% 17%; } to { background-position: 0 -34%, 13% -12%; } }
+[data-ds="fire"] .cf i.on { box-shadow: 0 0 6px 1px #ffcf6a, inset 0 1px 2px #0006; }
+
+/* --- Ice: frosted crystal, glints that sweep across, cold glow --- */
+[data-ds="ice"] .die.cube3d { filter: drop-shadow(0 0 7px #8fdcffaa); }
+[data-ds="ice"] .cf {
+  background: linear-gradient(160deg, #ffffffcc, #bdeaff44 40%, #ffffff33 70%, #dff6ff88), repeating-linear-gradient(60deg, #ffffff14 0 3px, transparent 3px 9px), var(--bg);
+  box-shadow: inset 0 0 0 2px #e8fbffcc, inset 0 0 16px #bdeaff;
+}
+[data-ds="ice"] .cf::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: 2;
+  background: linear-gradient(115deg, transparent 38%, #ffffffee 48%, #ffffff 50%, transparent 60%) -140% 0 / 260% 100% no-repeat;
+  animation: frostglint 3.4s ease-in-out infinite;
+}
+@keyframes frostglint { 0%, 40% { background-position: -140% 0; } 100% { background-position: 140% 0; } }
+[data-ds="ice"] .cf i.on { background: #0b3a5c; box-shadow: 0 0 0 1px #ffffffaa, inset 0 1px 3px #0009; }
+
+/* --- Prism: a rainbow sheen that rolls across, edges that shift colour --- */
+[data-ds="prism"] .die.cube3d { animation: prism-edge 5s linear infinite !important; }
+@keyframes prism-edge { from { filter: drop-shadow(0 0 6px #ff7ad9aa) hue-rotate(0deg); } to { filter: drop-shadow(0 0 6px #ff7ad9aa) hue-rotate(360deg); } }
+[data-ds="prism"] .cf {
+  background: radial-gradient(circle at 30% 24%, #ffffff66, transparent 50%), linear-gradient(115deg, #ff5f6d33, #ffc3a033 20%, #fff17633 35%, #7bffb233 50%, #6fc7ff44 65%, #c79bff55 80%, #ff7ad933), var(--bg);
+  box-shadow: inset 0 0 0 1px #ffffff77, inset 0 0 14px #ffffff55;
+}
+[data-ds="prism"] .cf::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: 2;
+  background: linear-gradient(115deg, transparent 30%, #ffffffbb 44%, #ff9de2aa 50%, #9dd7ffaa 56%, transparent 70%) -160% 0 / 260% 100% no-repeat;
+  animation: prism-sweep 2.8s ease-in-out infinite;
+}
+@keyframes prism-sweep { 0%, 30% { background-position: -160% 0; } 100% { background-position: 160% 0; } }
+
+/* --- Neon glow: a lit tube outline that pulses --- */
+[data-ds="neonglow"] .die.cube3d { animation: neon-pulse 1.8s ease-in-out infinite alternate !important; }
+@keyframes neon-pulse { from { filter: drop-shadow(0 0 4px var(--c, #fff)); } to { filter: drop-shadow(0 0 14px var(--c, #fff)) brightness(1.15); } }
+[data-ds="neonglow"] .cf {
+  background: linear-gradient(#000000aa, #000000aa), var(--bg); box-shadow: inset 0 0 0 3px #fffe, inset 0 0 14px var(--c, #fff), inset 0 0 0 5px var(--c, #fff);
+}
+[data-ds="neonglow"] .cf i.on { background: #fff; box-shadow: 0 0 8px 2px var(--c, #fff); }
+
+/* --- Solid gold: polished metal with a light that sweeps over it --- */
+[data-ds="gold"] .die.cube3d { filter: drop-shadow(0 0 6px #ffd34d88); }
+[data-ds="gold"] .cf {
+  background: linear-gradient(125deg, #fff6c8 0%, #ffd34d 22%, #b9801a 48%, #ffe9a0 70%, #d9a032 100%), linear-gradient(#00000000, #00000000), var(--bg);
+  background-blend-mode: normal; box-shadow: inset 0 0 0 2px #fff0b0, inset 0 0 12px #8a5a00aa;
+}
+[data-ds="gold"] .cf::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: 2;
+  background: linear-gradient(110deg, transparent 40%, #ffffffee 49%, transparent 58%) -150% 0 / 260% 100% no-repeat; animation: goldsweep 3.6s ease-in-out infinite;
+}
+@keyframes goldsweep { 0%, 45% { background-position: -150% 0; } 100% { background-position: 150% 0; } }
+[data-ds="gold"] .cf i.on { background: var(--c, #5a3a00); box-shadow: 0 0 0 1px #5a3a0088, inset 0 1px 3px #0008; }
+
+/* --- Obsidian: black volcanic glass with a rim and pips lit in your colour --- */
+[data-ds="obsidian"] .die.cube3d { filter: drop-shadow(0 0 6px color-mix(in srgb, var(--c, #fff) 70%, transparent)); }
+[data-ds="obsidian"] .cf {
+  background: linear-gradient(145deg, #ffffff30, transparent 35%, #ffffff14 70%, transparent), linear-gradient(#050509ee, #050509ee), var(--bg);
+  box-shadow: inset 0 0 0 2px var(--c, #fff), inset 0 0 14px color-mix(in srgb, var(--c, #fff) 60%, transparent);
+}
+[data-ds="obsidian"] .cf::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: 2;
+  background: linear-gradient(120deg, transparent 42%, #ffffff55 50%, transparent 58%) -150% 0 / 260% 100% no-repeat; animation: goldsweep 5s ease-in-out infinite;
+}
+[data-ds="obsidian"] .cf i.on { background: #fff; box-shadow: 0 0 8px 2px var(--c, #fff); animation: pip-breathe 2.2s ease-in-out infinite alternate; }
+@keyframes pip-breathe { from { opacity: .8; } to { opacity: 1; } }
+
+/* --- Galaxy: a drifting starfield and a glowing nebula on every face --- */
+[data-ds="galaxy"] .die.cube3d { filter: drop-shadow(0 0 7px #8f6bffaa); }
+[data-ds="galaxy"] .cf {
+  background: radial-gradient(circle, #fff 0 .9px, transparent 1.5px) 0 0 / 31% 29%, radial-gradient(circle, #cfe3ff 0 .6px, transparent 1.2px) 17% 11% / 23% 27%, radial-gradient(ellipse at 72% 82%, #c24cff88, transparent 60%), radial-gradient(ellipse at 20% 15%, #3d6bff77, transparent 55%), linear-gradient(#0d0626d0, #0d0626d0), var(--bg);
+  animation: starfield 9s linear infinite; box-shadow: inset 0 0 0 1px #b79bff88, inset 0 0 14px #6a3cff88;
+}
+@keyframes starfield { from { background-position: 0 0, 17% 11%, 0 0, 0 0, 0 0, 0 0; } to { background-position: 31% 29%, 40% 38%, 0 0, 0 0, 0 0, 0 0; } }
+[data-ds="galaxy"] .cf i.on { background: #fff; box-shadow: 0 0 7px 1px #cfa8ff; }
+
+/* --- Lightning: storm-dark glass that is struck now and then --- */
+[data-ds="lightning"] .die.cube3d { animation: zap-glow 4.2s linear infinite !important; }
+[data-ds="lightning"] .dice .die.cube3d:nth-child(2n) { animation-delay: -1.3s !important; }
+[data-ds="lightning"] .dice .die.cube3d:nth-child(3n) { animation-delay: -2.6s !important; }
+@keyframes zap-glow { 0%, 85%, 100% { filter: drop-shadow(0 0 4px #5aa8ff88); } 88% { filter: drop-shadow(0 0 16px #d6ecff) brightness(1.5); } 90% { filter: drop-shadow(0 0 5px #5aa8ff88); } 92% { filter: drop-shadow(0 0 14px #d6ecff) brightness(1.4); } }
+[data-ds="lightning"] .cf {
+  background: radial-gradient(circle at 30% 24%, #9fd2ff44, transparent 55%), linear-gradient(#0a1230cc, #0a1230cc), var(--bg);
+  box-shadow: inset 0 0 0 2px #7bbcff, inset 0 0 12px #3b78ffaa;
+}
+[data-ds="lightning"] .cf::after {
+  content: ""; position: absolute; inset: 6%; pointer-events: none; z-index: 2; background: #e8f4ff;
+  clip-path: polygon(58% 0, 30% 52%, 48% 52%, 36% 100%, 74% 42%, 54% 42%, 66% 0); opacity: 0; animation: bolt 4.2s linear infinite;
+}
+@keyframes bolt { 0%, 85%, 100% { opacity: 0; } 88% { opacity: .9; } 90% { opacity: .1; } 92% { opacity: .8; } 95% { opacity: 0; } }
+[data-ds="lightning"] .cf i.on { background: #e8f4ff; box-shadow: 0 0 7px 1px #7bbcff; }
+
+/* --- Your design: shapes, finish and glow come from the Design sheet (attributes on <html>) --- */
+html[data-cd-corners="sharp"] { --cd-r: .06; }
+html[data-cd-corners="soft"] { --cd-r: .2; }
+html[data-cd-corners="round"] { --cd-r: .27; }
+html[data-cd-pip="round"] { --cd-clip: circle(50%); }
+html[data-cd-pip="square"] { --cd-clip: inset(0); }
+html[data-cd-pip="diamond"] { --cd-clip: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); }
+html[data-cd-pip="star"] { --cd-clip: polygon(50% 0, 62% 36%, 100% 38%, 70% 60%, 80% 100%, 50% 76%, 20% 100%, 30% 60%, 0 38%, 38% 36%); }
+html[data-cd-pip="heart"] { --cd-clip: polygon(50% 100%, 8% 55%, 0 30%, 10% 8%, 30% 0, 50% 18%, 70% 0, 90% 8%, 100% 30%, 92% 55%); }
+html[data-cd-pip="hex"] { --cd-clip: polygon(25% 5%, 75% 5%, 100% 50%, 75% 95%, 25% 95%, 0 50%); }
+html[data-cd-pipcolor="white"] { --cd-pip: #fff; }
+html[data-cd-pipcolor="black"] { --cd-pip: #151515; }
+html[data-cd-pipcolor="gold"] { --cd-pip: #ffd34d; }
+html[data-cd-pipcolor="red"] { --cd-pip: #ff4d5e; }
+html[data-cd-pipcolor="cyan"] { --cd-pip: #52e6ff; }
+html[data-cd-pipcolor="lime"] { --cd-pip: #9dff4d; }
+html[data-cd-glow="white"] { --cd-glow: #ffffff; }
+html[data-cd-glow="gold"] { --cd-glow: #ffd34d; }
+html[data-cd-glow="cyan"] { --cd-glow: #52e6ff; }
+html[data-cd-glow="pink"] { --cd-glow: #ff7ad9; }
+html[data-cd-glow="lime"] { --cd-glow: #9dff4d; }
+html[data-cd-finish="matte"] { --cd-fin: linear-gradient(#00000000, #00000000); --cd-ring: #ffffff22; }
+html[data-cd-finish="gloss"] { --cd-fin: radial-gradient(circle at 30% 24%, #ffffff7a, transparent 55%); --cd-ring: #ffffff44; }
+html[data-cd-finish="metal"] { --cd-fin: linear-gradient(120deg, #ffffffaa, #00000044 32%, #ffffff66 52%, #00000055 78%, #ffffff66); --cd-ring: #ffffffaa; }
+html[data-cd-finish="glass"] { --cd-fin: linear-gradient(135deg, #ffffff88, #ffffff14 45%, #00000040); --cd-ring: #ffffffaa; }
+[data-ds="custom"] .die.cube3d { filter: drop-shadow(0 0 7px var(--cd-glow, transparent)); }
+html[data-cd-glow="none"] [data-ds="custom"] .die.cube3d { filter: none; }
+html[data-cd-glow="seat"][data-ds="custom"] .die.cube3d, html[data-cd-glow="seat"] [data-ds="custom"] .die.cube3d { filter: drop-shadow(0 0 8px var(--c, #fff)); }
+[data-ds="custom"] .cf { border-radius: calc(var(--size) * var(--cd-r, .2)); background: var(--cd-fin, none), var(--bg); box-shadow: inset 0 0 0 2px var(--cd-ring, #ffffff44), inset 0 0 12px #0004; }
+[data-ds="custom"] .cf i { margin: 10%; }
+[data-ds="custom"] .cf i.on { background: var(--cd-pip, var(--pip)); clip-path: var(--cd-clip, circle(50%)); box-shadow: none; }
+html[data-cd-sparkle="on"] [data-ds="custom"] .cf::after, [data-ds="custom"][data-sparkle="on"] .cf::after {
+  content: "✦"; position: absolute; top: 6%; right: 12%; font-size: calc(var(--size) * .26); line-height: 1; color: #fff; text-shadow: 0 0 6px #fff; z-index: 2; animation: twinkle-star 1.8s ease-in-out infinite alternate; pointer-events: none;
+}
+/* the same design on a flat die (on cards, or with 3D dice switched off) */
+[data-ds="custom"] :not(.dpv) > .die:not(.cube3d), .themes .dpv[data-ds="custom"] .die:not(.cube3d) { border-radius: calc(var(--size) * var(--cd-r, .2)); background: var(--cd-fin, none), var(--bg); box-shadow: inset 0 0 0 2px var(--cd-ring, #ffffff44), 0 2px 4px #0003; }
+[data-ds="custom"] :not(.dpv) > .die:not(.cube3d) i.on, .themes .dpv[data-ds="custom"] .die:not(.cube3d) i.on { background: var(--cd-pip, var(--pip)); clip-path: var(--cd-clip, circle(50%)); box-shadow: none; }
+
+/* flat dice on cards for the new looks (the cube skins above are for the tray) */
+[data-ds="gold"] :not(.dpv) > .die:not(.cube3d), .themes .dpv[data-ds="gold"] .die:not(.cube3d) { background: linear-gradient(125deg, #fff6c8 0%, #ffd34d 22%, #b9801a 48%, #ffe9a0 70%, #d9a032 100%), var(--bg); box-shadow: inset 0 0 0 2px #fff0b0, 0 0 8px #ffd34d88; }
+[data-ds="gold"] :not(.dpv) > .die:not(.cube3d) i.on, .themes .dpv[data-ds="gold"] .die:not(.cube3d) i.on { background: var(--c, #5a3a00); box-shadow: 0 0 0 1px #5a3a0088; }
+[data-ds="obsidian"] :not(.dpv) > .die:not(.cube3d), .themes .dpv[data-ds="obsidian"] .die:not(.cube3d) { background: linear-gradient(145deg, #ffffff30, transparent 40%), linear-gradient(#050509ee, #050509ee), var(--bg); box-shadow: inset 0 0 0 2px var(--c, #fff), 0 0 8px color-mix(in srgb, var(--c, #fff) 60%, transparent); }
+[data-ds="obsidian"] :not(.dpv) > .die:not(.cube3d) i.on, .themes .dpv[data-ds="obsidian"] .die:not(.cube3d) i.on { background: #fff; box-shadow: 0 0 6px 1px var(--c, #fff); }
+[data-ds="galaxy"] :not(.dpv) > .die:not(.cube3d), .themes .dpv[data-ds="galaxy"] .die:not(.cube3d) { background: radial-gradient(circle, #fff 0 .9px, transparent 1.5px) 0 0 / 31% 29%, radial-gradient(ellipse at 72% 82%, #c24cff88, transparent 60%), radial-gradient(ellipse at 20% 15%, #3d6bff77, transparent 55%), linear-gradient(#0d0626d0, #0d0626d0), var(--bg); box-shadow: inset 0 0 0 1px #b79bff88, 0 0 8px #8f6bff88; }
+[data-ds="galaxy"] :not(.dpv) > .die:not(.cube3d) i.on, .themes .dpv[data-ds="galaxy"] .die:not(.cube3d) i.on { background: #fff; box-shadow: 0 0 5px 1px #cfa8ff; }
+[data-ds="lightning"] :not(.dpv) > .die:not(.cube3d), .themes .dpv[data-ds="lightning"] .die:not(.cube3d) { background: radial-gradient(circle at 30% 24%, #9fd2ff44, transparent 55%), linear-gradient(#0a1230cc, #0a1230cc), var(--bg); box-shadow: inset 0 0 0 2px #7bbcff, 0 0 8px #3b78ffaa; }
+[data-ds="lightning"] :not(.dpv) > .die:not(.cube3d) i.on, .themes .dpv[data-ds="lightning"] .die:not(.cube3d) i.on { background: #e8f4ff; box-shadow: 0 0 5px 1px #7bbcff; }
+
+/* the Design sheet */
+.sheet.design .stage { display: flex; justify-content: center; align-items: center; height: 120px; margin: 4px 0 8px; background: #00000026; border-radius: 14px; }
+.sheet.design .stage .die { --size: 76px; --c: #e5484d; --bg: #e5484d; --pip: #fff; }
+.sheet.design .row { margin: 8px 0 2px; font-weight: 800; font-size: .85rem; }
+.sheet.design .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.sheet.design .chips button { border: 2px solid transparent; background: #ffffff14; color: inherit; border-radius: 999px; padding: 6px 12px; font-size: .8rem; font-weight: 700; }
+.sheet.design .chips button.on { border-color: #ffd34d; background: #ffd34d33; }
+.themes .toggles { display: flex; gap: 8px; margin: 8px 0; }
+
+[data-calm="1"] .cf, [data-calm="1"] .cf::after, [data-calm="1"] .cube-in, [data-calm="1"] .die.cube3d, [data-calm="1"] .cf i { animation: none !important; }
+@media (prefers-reduced-motion: reduce) { .cf, .cf::after, .cube-in, .die.cube3d, .cf i { animation: none !important; } }
+
 body { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
 #app { padding: 12px 0; }
 </style>
@@ -2088,7 +2305,7 @@ const { PREMIUM, skuOf, isPremium, ALL_SKUS, BUNDLE, freeLooks, storeMode, price
 const PREMIUM = {
   table: { aurora: '$1.99', starfield: '$1.99', lava: '$1.49' },
   back: { holo: '$0.99', circuit: '$0.99', ember: '$0.99' },
-  dice: { fire: '$1.99', ice: '$1.99', prism: '$1.99', neonglow: '$1.49' },
+  dice: { fire: '$1.99', ice: '$1.99', prism: '$1.99', neonglow: '$1.49', gold: '$2.49', obsidian: '$1.99', galaxy: '$1.99', lightning: '$1.99' },
   fx: { fireworks: '$1.49', goldrain: '$1.49' },
 };
 const skuOf = (part, id) => `${part}:${id}`;
@@ -2377,7 +2594,7 @@ function buildReport(note, context = {}) {
 
 return { VERSION, installReporter, errorLog, clearErrors, buildReport };
 })();
-const { TABLES, BACKS, DICE, FX, theme, calm, setCalm, restoreTheme, applyTheme, setTheme } = (() => {
+const { TABLES, BACKS, DICE, FX, theme, cube, setCube, DESIGN_OPTIONS, DESIGN_DEFAULT, design, setDesign, calm, setCalm, restoreTheme, applyTheme, setTheme } = (() => {
 
 // Looks: the colour of the table, the back of the deck and the style of the dice. The choice is saved on
 // the device and applied by setting attributes on the page, which the stylesheet reacts to.
@@ -2420,6 +2637,11 @@ const DICE = [
   { id: 'ice', name: 'Ice', fx: true },
   { id: 'prism', name: 'Prism', fx: true },
   { id: 'neonglow', name: 'Neon glow', fx: true },
+  { id: 'gold', name: 'Solid gold', fx: true },
+  { id: 'obsidian', name: 'Obsidian', fx: true },
+  { id: 'galaxy', name: 'Galaxy', fx: true },
+  { id: 'lightning', name: 'Lightning', fx: true },
+  { id: 'custom', name: 'Your design' },
 ];
 /** What happens on screen when somebody wins. */
 const FX = [
@@ -2446,7 +2668,39 @@ const theme = (() => {
   return { table: choose('table', saved.table), back: choose('back', saved.back), dice: choose('dice', saved.dice), fx: choose('fx', saved.fx) };
 })();
 
-/** Put the current look on the page. */
+/** Real 3D dice (a cube that tumbles) or the flat ones. Saved on the device. */
+const cube = { on: (() => { try { return localStorage.getItem('rfi-3d') !== '0'; } catch { return true; } })() };
+function setCube(on) {
+  cube.on = !!on;
+  try { localStorage.setItem('rfi-3d', on ? '1' : '0'); } catch { /* storage unavailable */ }
+  applyTheme();
+}
+
+/** The die you design yourself. Every field is checked, because it comes out of storage. */
+const DESIGN_OPTIONS = {
+  finish: ['matte', 'gloss', 'metal', 'glass'],
+  pip: ['round', 'square', 'diamond', 'star', 'heart', 'hex'],
+  pipColor: ['auto', 'white', 'black', 'gold', 'red', 'cyan', 'lime'],
+  corners: ['sharp', 'soft', 'round'],
+  glow: ['none', 'white', 'gold', 'cyan', 'pink', 'lime', 'seat'],
+  sparkle: ['off', 'on'],
+};
+const DESIGN_DEFAULT = { finish: 'gloss', pip: 'round', pipColor: 'auto', corners: 'soft', glow: 'none', sparkle: 'off' };
+const design = (() => {
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem('rfi-customdie')) || {}; } catch { /* nothing saved */ }
+  const out = { ...DESIGN_DEFAULT };
+  for (const k of Object.keys(DESIGN_DEFAULT)) if (DESIGN_OPTIONS[k].includes(saved[k])) out[k] = saved[k];
+  return out;
+})();
+function setDesign(key, value) {
+  if (!DESIGN_OPTIONS[key]?.includes(value)) return false;
+  design[key] = value;
+  try { localStorage.setItem('rfi-customdie', JSON.stringify(design)); } catch { /* storage unavailable */ }
+  applyTheme();
+  return true;
+}
+
 /** Switch off the moving parts of the looks (battery, or just a quieter table). Saved on the device. */
 const calm = { on: (() => { try { return localStorage.getItem('rfi-calm') === '1'; } catch { return false; } })() };
 function setCalm(on) {
@@ -2468,6 +2722,8 @@ function applyTheme() {
   root.setAttribute('data-tb', theme.table);
   root.setAttribute('data-ds', theme.dice);
   if (calm.on) root.setAttribute('data-calm', '1'); else root.removeAttribute('data-calm');
+  root.setAttribute('data-3d', cube.on ? '1' : '0');
+  for (const k of Object.keys(DESIGN_DEFAULT)) root.setAttribute(`data-cd-${k.toLowerCase()}`, design[k]);
   const meta = document.querySelector('meta[name="theme-color"]');
   if (meta) meta.setAttribute('content', TABLES.find((t) => t.id === theme.table).meta);
 }
@@ -2484,7 +2740,7 @@ function setTheme(part, id) {
 
 applyTheme();
 
-return { TABLES, BACKS, DICE, FX, theme, calm, setCalm, restoreTheme, applyTheme, setTheme };
+return { TABLES, BACKS, DICE, FX, theme, cube, setCube, DESIGN_OPTIONS, DESIGN_DEFAULT, design, setDesign, calm, setCalm, restoreTheme, applyTheme, setTheme };
 })();
 const { dbStore, DEFAULT_ICE, checkConnection, p2pStore } = (() => {
 // Room transports. Both expose the same small "room store" shape to the game:
@@ -3055,6 +3311,38 @@ function die(face, cls = '', attrs = '', tag = 'div') {
   return `<${tag} class="die ${cls}" aria-label="${face}" ${attrs}>${pips}</${tag}>`;
 }
 
+/**
+ * A die that is a real cube: six faces in 3D, turned so the rolled number faces you, with a slight tilt so the top and
+ * side show. The faces are shaded for a light from the top left, worked out from the way this die ends up turned.
+ */
+const TURN = { 1: [0, 0], 2: [-90, 0], 3: [0, -90], 4: [0, 90], 5: [90, 0], 6: [0, 180] };
+const NORMAL = { 1: [0, 0, 1], 6: [0, 0, -1], 3: [1, 0, 0], 4: [-1, 0, 0], 2: [0, -1, 0], 5: [0, 1, 0] };
+const TILT = [-16, 20];
+function shades(face) {
+  const rad = (d) => (d * Math.PI) / 180;
+  const rx = (v, a) => [v[0], v[1] * Math.cos(rad(a)) - v[2] * Math.sin(rad(a)), v[1] * Math.sin(rad(a)) + v[2] * Math.cos(rad(a))];
+  const ry = (v, a) => [v[0] * Math.cos(rad(a)) + v[2] * Math.sin(rad(a)), v[1], -v[0] * Math.sin(rad(a)) + v[2] * Math.cos(rad(a))];
+  const [ax, ay] = TURN[face];
+  const light = [-0.45, -0.65, 0.62];
+  const out = {};
+  for (const f of [1, 2, 3, 4, 5, 6]) {
+    const n = rx(ry(rx(ry(NORMAL[f], ay), ax), TILT[1]), TILT[0]); // the order the transforms stack in CSS
+    const lit = n[0] * light[0] + n[1] * light[1] + n[2] * light[2];
+    out[f] = Math.max(0, Math.min(1, 0.5 - lit * 0.55)).toFixed(2); // 0 = bright, 1 = dark
+  }
+  return out;
+}
+function die3d(face, cls = '', attrs = '', rollSpin = null) {
+  const sh = shades(face);
+  const [ax, ay] = TURN[face];
+  const faces = [1, 2, 3, 4, 5, 6].map((f) => {
+    const pips = Array.from({ length: 9 }, (_, i) => `<i${PIPS[f].includes(i) ? ' class="on"' : ''}></i>`).join('');
+    return `<b class="cf f${f}" style="--sh:${sh[f]}">${pips}</b>`;
+  }).join('');
+  const spin = rollSpin ? `--rx:${rollSpin[0]}deg;--ry:${rollSpin[1]}deg;` : '';
+  return `<div class="die cube3d ${cls}" aria-label="${face}" ${attrs.replace('style="', `style="--ax:${ax}deg;--ay:${ay}deg;${spin}`)}><span class="cube"><span class="cube-in">${faces}</span></span></div>`;
+}
+
 function setFace(el, face) {
   el.querySelectorAll('i').forEach((pip, k) => pip.classList.toggle('on', PIPS[face].includes(k)));
   el.setAttribute('aria-label', String(face));
@@ -3370,7 +3658,7 @@ const LISTS = { table: TABLES, back: BACKS, dice: DICE, fx: FX };
 const nameOf = (part, id) => (LISTS[part].find((x) => x.id === id) || { name: id }).name;
 const previewOf = (part, id) => (part === 'table' ? `<span class="tb" data-tb="${id}"></span>`
   : part === 'back' ? `<span class="bk" data-bk="${id}"></span>`
-  : part === 'dice' ? `<span class="dpv" data-ds="${id}">${die(5, '')}</span>`
+  : part === 'dice' ? `<span class="dpv" data-ds="${id}">${cube.on ? die3d(5, 'spin', 'style="--c:#e5484d"') : die(5, '')}</span>`
   : `<span class="fxp" aria-hidden="true">${{ confetti: '🎉', stars: '⭐', fireworks: '🎆', goldrain: '🪙' }[id] || '✨'}</span>`);
 const PARTS = [['table', 'Tables'], ['back', 'Deck backs'], ['dice', 'Dice'], ['fx', 'Win effects']];
 
@@ -3440,9 +3728,32 @@ function themesView() {
   return `<div class="modal"><div class="sheet themes"><h2>🎨 Themes</h2>
     <p class="statline">${stats.games} games · ${stats.wins} wins · best streak ${stats.bestStreak} · ${stats.claims} cards claimed</p>
     <button class="btn" data-act="shop">${freeLooks() ? '🛍 More looks' : `🛍 Shop <span class="coins">· 🪙 ${stats.coins}</span>`}</button>
+    <div class="calmrow"><span>3D dice <small style="font-weight:400;opacity:.7">(a cube that tumbles)</small></span><button class="btn small" data-act="toggleCube" aria-pressed="${cube.on}">${cube.on ? 'On' : 'Off'}</button></div>
+    <button class="btn" data-act="design">🎲 Design your own die</button>
     ${PARTS.map(([part, title]) => `<h3>${title}</h3><div class="opts">${LISTS[part].map((x) => opt(part, x.id, x.name, previewOf(part, x.id))).join('')}</div>`).join('')}
     <p class="tag">${freeLooks() ? 'Every look is free right now. ✨ marks the animated ones.' : 'Play games to unlock more looks and earn coins for the Shop. ✨ marks premium looks.'}</p>
     <button class="btn primary" data-act="closeModal">Done</button></div></div>`;
+}
+
+/** Design a die: pick the finish, the pips, the corners and the glow, and watch it turn. */
+const DESIGN_LABELS = {
+  finish: ['Finish', { matte: 'Matte', gloss: 'Gloss', metal: 'Metal', glass: 'Glass' }],
+  pip: ['Pips', { round: '● Round', square: '■ Square', diamond: '◆ Diamond', star: '★ Star', heart: '♥ Heart', hex: '⬢ Hex' }],
+  pipColor: ['Pip colour', { auto: 'Auto', white: 'White', black: 'Black', gold: 'Gold', red: 'Red', cyan: 'Cyan', lime: 'Lime' }],
+  corners: ['Corners', { sharp: 'Sharp', soft: 'Soft', round: 'Round' }],
+  glow: ['Glow', { none: 'None', white: 'White', gold: 'Gold', cyan: 'Cyan', pink: 'Pink', lime: 'Lime', seat: 'My colour' }],
+  sparkle: ['Sparkle', { off: 'Off', on: 'On' }],
+};
+function designView() {
+  const rows = Object.keys(DESIGN_LABELS).map((k) => `<div class="row">${DESIGN_LABELS[k][0]}</div>
+    <div class="chips">${DESIGN_OPTIONS[k].map((v) => `<button class="${design[k] === v ? 'on' : ''}" data-act="designSet" data-k="${k}" data-v="${v}" aria-pressed="${design[k] === v}">${DESIGN_LABELS[k][1][v]}</button>`).join('')}</div>`).join('');
+  const stage = cube.on ? die3d(5, 'owned spin', 'style="--c:#e5484d"') : die(5, 'owned', 'style="--c:#e5484d"');
+  return `<div class="modal"><div class="sheet design"><h2>🎲 Design your die</h2>
+    <div class="stage"><span data-ds="custom">${stage}</span></div>
+    ${rows}
+    <p class="tag">Your design is saved on this device as the “Your design” look. It uses your seat colour for the body.</p>
+    <button class="btn primary" data-act="useDesign">Use this die</button>
+    <button class="btn" data-act="themes">Back to Themes</button></div></div>`;
 }
 
 function statusText(s) {
@@ -3532,17 +3843,21 @@ function gameView() {
   let live = 0; // dice shown in the tray; the rest of the six are on cards
   if (s.phase === 'placing') {
     tray = s.rolled.map((f, i) => {
-      const fx = ui.fx[i] || { delay: 0, dur: 0, dx: 0, rot: 0 };
+      const fx = ui.fx[i] || { delay: 0, dur: 0, dx: 0, rot: 0, sx: 0, sy: 0 };
       const spinning = ui.rolling && fx.dur > 0;
       const style = `${diceVars(mine, s.current)};--d:${fx.delay}ms;--dur:${fx.dur}ms;--dx:${fx.dx}px;--rot:${fx.rot}deg`;
-      const face = spinning ? 1 + Math.floor(Math.random() * 6) : f;
+      const face = spinning && !cube.on ? 1 + Math.floor(Math.random() * 6) : f;
+      if (cube.on) {
+        return die3d(face, `owned ${spinning ? 'rolling' : ''} ${ui.selected === i ? 'sel' : ''} ${ui.hint?.rolled === i ? 'hinted' : ''}`,
+          `style="${style}" data-i="${i}" ${human && !ui.rolling ? `data-act="pickRolled" role="button" tabindex="0"` : 'aria-disabled="true"'}`, [fx.sx, fx.sy]);
+      }
       return die(face, `owned ${spinning ? 'rolling' : ''} ${ui.selected === i ? 'sel' : ''} ${ui.hint?.rolled === i ? 'hinted' : ''}`,
         `style="${style}" data-i="${i}" ${human && !ui.rolling ? `data-act="pickRolled" role="button" tabindex="0"` : 'aria-disabled="true"'}`);
     }).join('');
     live = s.rolled.length;
   } else {
     live = E.handSize(s, s.current);
-    tray = Array.from({ length: live }, () => die(1, 'owned hand', `style="${diceVars(mine, s.current)}"`)).join('').replace(/aria-label="1"/g, 'aria-label="die in hand"');
+    tray = Array.from({ length: live }, () => (cube.on ? die3d(1, 'owned hand', `style="${diceVars(mine, s.current)}"`) : die(1, 'owned hand', `style="${diceVars(mine, s.current)}"`))).join('').replace(/aria-label="1"/g, 'aria-label="die in hand"');
   }
   // Always six places, so the tray (and with it the whole table) never changes height from turn to turn.
   tray += Array.from({ length: Math.max(0, E.diceOf(s) - live) }, () => `<div class="die empty" aria-label="die on a card">${'<i></i>'.repeat(9)}</div>`).join('');
@@ -3747,6 +4062,7 @@ function modalView() {
   if (ui.modal === 'powers') return powersView();
   if (ui.modal === 'themes') return themesView();
   if (ui.modal === 'shop') return shopView();
+  if (ui.modal === 'design') return designView();
   if (ui.modal === 'restore') return restoreView();
   if (ui.modal === 'menu') {
     return `<div class="modal" data-act="closeModal"><div class="sheet"><h2>Menu</h2>
@@ -3875,6 +4191,8 @@ function startRoll(count) {
     dur: quick ? 0 : 650 + Math.floor(Math.random() * 350),
     dx: Math.floor(Math.random() * 120) - 60,
     rot: (Math.random() < 0.5 ? -1 : 1) * (720 + 360 * Math.floor(Math.random() * 2)),
+    sx: (Math.random() < 0.5 ? -1 : 1) * 360 * (1 + Math.floor(Math.random() * 2)), // how many turns a cube makes, end over end
+    sy: (Math.random() < 0.5 ? -1 : 1) * 360 * (1 + Math.floor(Math.random() * 3)),
   }));
   const total = quick ? 150 : Math.max(...ui.fx.map((f) => f.delay + f.dur)) + 80;
   ui.rolling = true;
@@ -3886,7 +4204,7 @@ function startRoll(count) {
       const now = performance.now() - t0;
       document.querySelectorAll('.dice .die.rolling').forEach((el) => {
         const fx = ui.fx[+el.dataset.i];
-        if (!fx) return;
+        if (!fx || el.classList.contains('cube3d')) return; // a cube turns by itself
         if (now >= fx.delay + fx.dur) { setFace(el, ui.game.rolled[+el.dataset.i]); el.classList.remove('rolling'); } else if (now >= fx.delay) setFace(el, 1 + Math.floor(Math.random() * 6));
       });
     }, 75);
@@ -4578,6 +4896,10 @@ const actions = {
   themes: () => { ui.modal = 'themes'; render(); },
   shop: () => { ui.modal = 'shop'; render(); },
   toggleCalm: () => { setCalm(!calm.on); render(); },
+  toggleCube: () => { setCube(!cube.on); render(); },
+  design: () => { ui.modal = 'design'; render(); },
+  designSet: ({ k, v }) => { setDesign(k, v); render(); },
+  useDesign: () => { setTheme('dice', 'custom'); ui.modal = 'themes'; render(); },
   buyPremium: async ({ sku }) => {
     const r = await startCheckout(sku);
     if (!r.ok) { sfx.error(); say(r.why, 3000); return; }
