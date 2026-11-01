@@ -331,7 +331,7 @@ function lobbyView() {
     <div class="setup">
       <header class="hero">${LOGO}<p class="tag">Room code</p><h1 class="code">${esc(room.code)}</h1></header>
       ${host ? modePicker(true).replace(/data-act="setMode"/g, 'data-act="setRoomMode"') : `<p class="tag center">Game: <b>${modeLabel(room.mode)}</b></p>`}
-      <button class="btn" data-act="invite">Invite friends</button>
+      <div class="invitebar"><button class="btn" data-act="invite">Invite friends</button>${canShowQr() ? '<button class="btn" data-act="showQr" aria-label="Show QR code" title="Show QR code">▦ QR</button>' : ''}</div>
       ${host && net.store?.kind === 'p2p' ? `<button class="btn togglerow ${room.public ? 'on' : ''}" data-act="togglePublic" aria-pressed="${!!room.public}">
         <span>🌐 Public room</span><small>${room.public ? 'Anyone can find and join this room from the Open rooms list' : 'Only people with the code can join'}</small></button>` : ''}
       ${host ? settingsPanel(E.cleanSettings(room.settings || ui.settings), 'setRoomSetting', true) : `<p class="tag center">Play to <b>${E.cleanSettings(room.settings).target}</b> · <b>${E.cleanSettings(room.settings).dice}</b> dice each</p>`}
@@ -638,6 +638,27 @@ function reportView() {
     <button class="btn" data-act="about">Back</button></div></div>`;
 }
 
+/** The room as a QR code: a friend points their camera at it and the app opens with the code filled in. */
+const canShowQr = () => net.store?.kind === 'p2p' && typeof window.qrcode === 'function' && !!net.room?.code;
+
+function qrView() {
+  if (!canShowQr()) return '';
+  const code = net.room.code;
+  const url = `${location.origin}${location.pathname}#${code}`;
+  let svg = '';
+  try {
+    const q = window.qrcode(0, 'M'); // the smallest size that holds the address, with some error correction
+    q.addData(url);
+    q.make();
+    svg = q.createSvgTag({ cellSize: 6, margin: 3, scalable: true });
+  } catch { return ''; }
+  return `<div class="modal"><div class="sheet qr"><h2>Scan to join</h2>
+    <div class="qrbox" role="img" aria-label="QR code for room ${esc(code)}">${svg}</div>
+    <p class="qrcode">${esc(code)}</p>
+    <p class="tag">Point a phone's camera at this. It opens Rollick with the room code filled in.</p>
+    <button class="btn primary" data-act="closeModal">Done</button></div></div>`;
+}
+
 function modalView() {
   if (ui.ed) return editorView();
   if (ui.screen === 'game' && ui.game?.phase === 'over') {
@@ -697,6 +718,7 @@ function modalView() {
       <button class="btn primary" data-act="closeModal">Close</button></div></div>`;
   }
   if (ui.modal === 'report') return reportView();
+  if (ui.modal === 'qr') return qrView();
   if (ui.modal === 'powers') return powersView();
   if (ui.modal === 'themes') return themesView();
   if (ui.modal === 'menu') {
@@ -1534,6 +1556,7 @@ const actions = {
     store.set('rfi-settings', JSON.stringify(ui.settings));
     return room;
   }),
+  showQr: () => { if (canShowQr()) { ui.modal = 'qr'; render(); } },
   reportOpen: () => { ui.modal = 'report'; render(); },
   reportShare: async () => {
     try { await navigator.share({ title: 'Rollick problem report', text: buildReport(ui.reportNote, reportContext()) }); } catch { /* cancelled */ }
