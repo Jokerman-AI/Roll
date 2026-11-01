@@ -617,3 +617,12 @@ test('the shop sells looks for coins, once, and only when you can afford them', 
   assert.equal(requirementText('dice', 'glass'), `In the Shop for ${priceOf('dice', 'glass')} coins`);
   for (const part of Object.keys(SHOP)) for (const id of Object.keys(SHOP[part])) assert.ok(priceOf(part, id) > 0);
 });
+
+test('bought looks of every kind survive being saved and loaded', async () => {
+  const store = new Map();
+  globalThis.localStorage = { getItem: (k) => store.get(k) ?? null, setItem: (k, v) => store.set(k, String(v)), removeItem: (k) => store.delete(k) };
+  store.set('rfi-stats', JSON.stringify({ games: 1, coins: 0, owned: ['table:neon', 'back:galaxy', 'dice:glass', 'fx:stars', 'bad:thing', 'table:x'] }));
+  const fresh2 = await import(`../src/stats.js?reload=${Date.now()}`);
+  assert.deepEqual(fresh2.stats.owned, ['table:neon', 'back:galaxy', 'dice:glass', 'fx:stars'], 'every kind is kept and junk is dropped');
+  delete globalThis.localStorage;
+});

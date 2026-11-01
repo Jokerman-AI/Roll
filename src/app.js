@@ -10,7 +10,8 @@ const levelLabel = (l) => (E.LEVEL_NAMES.includes(l) ? l : 'normal').replace(/^.
 import { dbStore, p2pStore, checkConnection } from './transport.js';
 import { checkFallback, DEFAULT_BROKERS, lobbyList, lobbyAnnouncer } from './relay.js';
 import { sfx, soundPrefs, setSound, setHaptics, canVibrate } from './sound.js';
-import { theme, TABLES, BACKS, DICE, setTheme } from './theme.js';
+import { theme, TABLES, BACKS, DICE, FX, setTheme, calm, setCalm, restoreTheme } from './theme.js';
+import { PREMIUM, BUNDLE, hasBundle, isPremium, skuOf, storeMode, priceLabel, bundleLabel, loadLicenses, redeem, savedLicenses, startCheckout, claimOrder } from './premium.js';
 import { stats, isUnlocked, requirementText, recordGame, SHOP, isShopItem, priceOf, buy } from './stats.js';
 import { installReporter, errorLog, clearErrors, buildReport, VERSION } from './report.js';
 import {
@@ -408,39 +409,71 @@ function powersView() {
 }
 
 /** Pick the table colour, the back of the deck and the dice. Changes show straight away. */
-const shopItems = (part) => Object.keys(SHOP[part]).map((id) => ({ part, id, name: ({ table: TABLES, back: BACKS, dice: DICE }[part].find((x) => x.id === id) || { name: id }).name }));
+const LISTS = { table: TABLES, back: BACKS, dice: DICE, fx: FX };
+const nameOf = (part, id) => (LISTS[part].find((x) => x.id === id) || { name: id }).name;
+const previewOf = (part, id) => (part === 'table' ? `<span class="tb" data-tb="${id}"></span>`
+  : part === 'back' ? `<span class="bk" data-bk="${id}"></span>`
+  : part === 'dice' ? `<span class="dpv" data-ds="${id}">${die(5, '')}</span>`
+  : `<span class="fxp" aria-hidden="true">${{ confetti: '🎉', stars: '⭐', fireworks: '🎆', goldrain: '🪙' }[id] || '✨'}</span>`);
+const PARTS = [['table', 'Tables'], ['back', 'Deck backs'], ['dice', 'Dice'], ['fx', 'Win effects']];
 
-/** The Shop: looks bought with coins earned by playing. No real money. */
+/** The Shop: coin looks, earned by playing, and premium looks bought with real money. */
 function shopView() {
-  const preview = (part, id) => (part === 'table' ? `<span class="tb" data-tb="${id}"></span>` : part === 'back' ? `<span class="bk" data-bk="${id}"></span>` : `<span class="dpv" data-ds="${id}">${die(5, '')}</span>`);
-  const group = (title, part) => `<h3>${title}</h3>${shopItems(part).map((it) => {
-    const owned = isUnlocked(it.part, it.id);
-    const price = priceOf(it.part, it.id);
-    return `<div class="item"><span class="pv">${preview(it.part, it.id)}</span>
-      <span class="nm"><b>${it.name}</b><small>${owned ? 'You own this' : `🪙 ${price}`}</small></span>
-      ${owned ? `<button class="btn" data-act="setTheme" data-part="${it.part}" data-id="${it.id}">Use</button>` : `<button class="btn primary" data-act="buyItem" data-part="${it.part}" data-id="${it.id}" ${stats.coins >= price ? '' : 'disabled'}>Buy</button>`}</div>`;
+  const mode = storeMode();
+  const coinGroup = (title, part) => `<h3>${title}</h3>${Object.keys(SHOP[part] || {}).map((id) => {
+    const owned = isUnlocked(part, id);
+    const price = priceOf(part, id);
+    return `<div class="item"><span class="pv">${previewOf(part, id)}</span>
+      <span class="nm"><b>${nameOf(part, id)}</b><small>${owned ? 'You own this' : `🪙 ${price}`}</small></span>
+      ${owned ? `<button class="btn" data-act="setTheme" data-part="${part}" data-id="${id}">Use</button>` : `<button class="btn primary" data-act="buyItem" data-part="${part}" data-id="${id}" ${stats.coins >= price ? '' : 'disabled'}>Buy</button>`}</div>`;
   }).join('')}`;
+  const premiumGroup = (title, part) => `<h3>${title}</h3>${Object.keys(PREMIUM[part]).map((id) => {
+    const owned = isUnlocked(part, id);
+    return `<div class="item"><span class="pv">${previewOf(part, id)}</span>
+      <span class="nm"><b>${nameOf(part, id)}<span class="badge-premium">Premium</span></b><small>${owned ? 'You own this' : mode === 'off' ? 'Coming soon' : priceLabel(part, id)}</small></span>
+      ${owned ? `<button class="btn" data-act="setTheme" data-part="${part}" data-id="${id}">Use</button>` : `<button class="btn primary" data-act="buyPremium" data-sku="${skuOf(part, id)}" ${mode === 'off' ? 'disabled' : ''}>${mode === 'demo' ? 'Try it' : 'Buy'}</button>`}</div>`;
+  }).join('')}`;
+  const bundle = hasBundle() ? '' : `<div class="item"><span class="pv" aria-hidden="true" style="font-size:2rem">🎁</span>
+      <span class="nm"><b>${BUNDLE.name}<span class="badge-premium">Best value</span></b><small>${mode === 'off' ? 'Coming soon' : `Every premium look · ${bundleLabel()}`}</small></span>
+      <button class="btn primary" data-act="buyPremium" data-sku="${BUNDLE.sku}" ${mode === 'off' ? 'disabled' : ''}>${mode === 'demo' ? 'Try it' : 'Buy'}</button></div>`;
   return `<div class="modal"><div class="sheet shop themes"><h2>🛍 Shop</h2>
     <p class="wallet coins">🪙 ${stats.coins} coins</p>
-    <p class="tag">Earn coins by playing: 10 for each game, 20 more for a win, and 2 for every card you claim. Looks only: nothing here makes you stronger.</p>
-    ${group('Tables', 'table')}${group('Deck backs', 'back')}${group('Dice', 'dice')}
+    ${mode === 'demo' ? '<p class="note"><b>Test mode:</b> nothing is charged and nothing is saved as a purchase.</p>' : ''}
+    <h3>✨ Premium looks</h3>
+    <p class="note">${mode === 'off' ? 'Animated skins and effects, bought once and kept. The store is not open yet.' : 'Animated skins and effects, bought once and kept. Paid on a secure checkout page; looks only, nothing makes you stronger.'}</p>
+    ${bundle}${PARTS.filter(([part]) => PREMIUM[part]).map(([part, title]) => premiumGroup(title, part)).join('')}
+    ${mode === 'live' ? '<button class="btn" data-act="restoreOpen">Restore a purchase</button>' : ''}
+    <h3>🪙 Coin looks</h3>
+    <p class="note">Earn coins by playing: 10 for each game, 20 more for a win, and 2 for every card you claim.</p>
+    ${PARTS.filter(([part]) => SHOP[part]).map(([part, title]) => coinGroup(title, part)).join('')}
+    <div class="calmrow"><span>Calm table <small style="font-weight:400;opacity:.7">(stops the moving looks)</small></span><button class="btn small" data-act="toggleCalm" aria-pressed="${calm.on}">${calm.on ? 'On' : 'Off'}</button></div>
     <button class="btn" data-act="themes">Back to Themes</button>
     <button class="btn primary" data-act="closeModal">Done</button></div></div>`;
+}
+
+/** Restoring or moving a purchase: the codes on this device, and a place to paste one. */
+function restoreView() {
+  const codes = savedLicenses();
+  return `<div class="modal"><div class="sheet shop"><h2>Restore a purchase</h2>
+    <p class="note">Paste the purchase code you were given, to get your looks back on this device. Purchases are kept on the device you bought them on.</p>
+    <textarea id="restorecode" rows="3" placeholder="Paste a purchase code" aria-label="Purchase code" style="width:100%;border:0;border-radius:12px;padding:10px;background:#0001;font:inherit;color:inherit"></textarea>
+    <button class="btn primary" data-act="restoreGo">Restore</button>
+    ${codes.length ? `<h3>Your codes</h3><p class="note">Keep these safe. They let you restore your looks on another device.</p>${codes.map((c, i) => `<button class="btn" data-act="copyCode" data-i="${i}">Copy code ${i + 1}</button>`).join('')}` : ''}
+    <button class="btn" data-act="shop">Back to the Shop</button></div></div>`;
 }
 
 function themesView() {
   const opt = (part, id, label, preview) => {
     const open = isUnlocked(part, id);
+    const fancy = isPremium(part, id);
     return `<button class="opt ${theme[part] === id ? 'on' : ''} ${open ? '' : 'locked'}" data-act="setTheme" data-part="${part}" data-id="${id}" aria-pressed="${theme[part] === id}" ${open ? '' : `aria-label="${label}, locked. ${requirementText(part, id)}"`}>
-      ${preview}<span>${label}</span>${open ? '' : `<small class="need">🔒 ${requirementText(part, id)}</small>`}</button>`;
+      ${preview}<span>${label}${fancy ? ' ✨' : ''}</span>${open ? '' : `<small class="need">🔒 ${requirementText(part, id)}</small>`}</button>`;
   };
   return `<div class="modal"><div class="sheet themes"><h2>🎨 Themes</h2>
     <p class="statline">${stats.games} games · ${stats.wins} wins · best streak ${stats.bestStreak} · ${stats.claims} cards claimed</p>
     <button class="btn" data-act="shop">🛍 Shop <span class="coins">· 🪙 ${stats.coins}</span></button>
-    <h3>Table</h3><div class="opts">${TABLES.map((x) => opt('table', x.id, x.name, `<span class="tb" data-tb="${x.id}"></span>`)).join('')}</div>
-    <h3>Deck back</h3><div class="opts">${BACKS.map((x) => opt('back', x.id, x.name, `<span class="bk" data-bk="${x.id}"></span>`)).join('')}</div>
-    <h3>Dice</h3><div class="opts">${DICE.map((x) => opt('dice', x.id, x.name, `<span class="dpv" data-ds="${x.id}">${die(5, '')}</span>`)).join('')}</div>
-    <p class="tag">Play games to unlock more looks and earn coins for the Shop.</p>
+    ${PARTS.map(([part, title]) => `<h3>${title}</h3><div class="opts">${LISTS[part].map((x) => opt(part, x.id, x.name, previewOf(part, x.id))).join('')}</div>`).join('')}
+    <p class="tag">Play games to unlock more looks and earn coins for the Shop. ✨ marks premium looks.</p>
     <button class="btn primary" data-act="closeModal">Done</button></div></div>`;
 }
 
@@ -731,6 +764,7 @@ function modalView() {
         <li>Rollick has no accounts, ads or analytics. Your name, icon, colour and settings are saved only on your device.</li>
         <li>Online games connect players directly (peer to peer) when they can. Your name, icon and moves are sent to the other players in your room. A signalling server and relay servers help devices find each other, and they can see network addresses and connection details while you play. The host also keeps a connection open to free public message servers, so players whose network blocks direct connections can still join. When that backup route is used, moves pass through those servers. Anyone who knows your room code could see that traffic, so don't share the code publicly and don't put private information in your name or icon. Opening the Play online screen connects to those servers to show the Open rooms list. If you switch on <b>Public room</b>, the room code, your name, the game and the player count are published on those servers so other people can find the room; switch it off and the listing is removed.</li>
         <li>If something breaks, Rollick keeps a short log of error messages on your device. Nothing is sent anywhere unless you choose Share, Copy or Email in <b>Report a problem</b>, and reports never include names, room codes or drawings.</li>
+        <li>Premium looks are optional digital items that only change how the game looks. If the store is open, payment happens on a secure page run by the payment provider, which keeps your card details; Rollick never sees them. A purchase is kept on your device as a licence code. Refunds, tax and your rights are set out in the store's terms, which the seller must add before selling.</li>
         <li>Clear the site data or remove the app to delete everything stored on your device.</li>
       </ul>
       <h3>Open-source notices</h3>
@@ -745,6 +779,7 @@ function modalView() {
   if (ui.modal === 'powers') return powersView();
   if (ui.modal === 'themes') return themesView();
   if (ui.modal === 'shop') return shopView();
+  if (ui.modal === 'restore') return restoreView();
   if (ui.modal === 'menu') {
     return `<div class="modal" data-act="closeModal"><div class="sheet"><h2>Menu</h2>
       <button class="btn" data-act="rules">How to play</button>
@@ -924,7 +959,7 @@ function receive(next) {
   if (sameGame && prev.phase === 'start' && next.phase === 'placing') startRoll(next.rolled.length);
   const justWon = sameGame && next.phase === 'over' && prev.phase !== 'over';
   if (sameGame && prev.rev !== next.rev) {
-    if (next.lastClaim) sfx.claim();
+    if (next.lastClaim) { sfx.claim(); claimBurst(next.lastClaim.player); }
     else if ((next.events || []).some((e) => e.type === 'power' || e.type === 'chaos' || e.type === 'lucky')) sfx.power();
     if (next.current !== prev.current && next.phase !== 'over' && isMine(next) && !next.players[next.current].cpu && !justWon) setTimeout(sfx.turn, 400);
   }
@@ -975,17 +1010,51 @@ function flyCard({ html, rect, player, from, to }) {
 
 /** Confetti in the winner's colour and the rest of the palette. */
 function confetti(winner) {
-  if (reducedMotion()) return;
+  if (reducedMotion() || calm.on) return;
   const layer = document.createElement('div');
   layer.className = 'confetti';
   const colors = [hexOf(winner), hexOf(winner), ...PALETTE.map((c) => c.hex)];
-  layer.innerHTML = Array.from({ length: 80 }, () => {
-    const c = colors[Math.floor(Math.random() * colors.length)];
-    const style = `left:${Math.random() * 100}%;background:${c};--dx:${Math.round(Math.random() * 160 - 80)}px;--spin:${Math.round(Math.random() * 900 - 450)}deg;animation-delay:${Math.round(Math.random() * 700)}ms;animation-duration:${2200 + Math.round(Math.random() * 1800)}ms`;
-    return `<i style="${style}"></i>`;
+  const R = Math.random;
+  const kind = theme.fx;
+  if (kind === 'fireworks') {
+    // a few bursts, each a ring of sparks flying out from one point
+    const bursts = Array.from({ length: 5 }, (_, b) => ({ x: 15 + R() * 70, y: 15 + R() * 40, delay: b * 0.45, color: colors[Math.floor(R() * colors.length)] }));
+    layer.innerHTML = bursts.map((b) => Array.from({ length: 26 }, (_, k) => {
+      const a = (k / 26) * Math.PI * 2;
+      const d = 70 + R() * 50;
+      return `<i class="spark" style="left:${b.x}%;top:${b.y}%;background:${b.color};--dx:${Math.round(Math.cos(a) * d)}px;--dy:${Math.round(Math.sin(a) * d)}px;animation-delay:${(b.delay + R() * 0.1).toFixed(2)}s"></i>`;
+    }).join('')).join('');
+  } else if (kind === 'goldrain') {
+    layer.innerHTML = Array.from({ length: 60 }, () => `<i class="coin" style="left:${(R() * 100).toFixed(1)}%;animation-delay:${(R() * 1.6).toFixed(2)}s;--dx:${Math.round(R() * 60 - 30)}px;--spin:${Math.round(R() * 720 - 360)}deg"></i>`).join('');
+  } else if (kind === 'stars') {
+    layer.innerHTML = Array.from({ length: 36 }, () => `<i class="star" style="left:${(R() * 100).toFixed(1)}%;color:${colors[Math.floor(R() * colors.length)]};font-size:${14 + Math.round(R() * 18)}px;--dx:${Math.round(R() * 140 - 70)}px;--spin:${Math.round(R() * 600 - 300)}deg;animation-delay:${(R() * 1.2).toFixed(2)}s">★</i>`).join('');
+  } else {
+    layer.innerHTML = Array.from({ length: 80 }, () => {
+      const c = colors[Math.floor(R() * colors.length)];
+      const style = `left:${R() * 100}%;background:${c};--dx:${Math.round(R() * 160 - 80)}px;--spin:${Math.round(R() * 900 - 450)}deg;animation-delay:${R() * 1.2}s`;
+      return `<i style="${style}"></i>`;
+    }).join('');
+  }
+  document.body.appendChild(layer);
+  setTimeout(() => layer.remove(), 5200);
+}
+
+/** A small burst from a player's score chip when they claim a card, for the non-default win effects. */
+function claimBurst(player) {
+  if (reducedMotion() || calm.on || theme.fx === 'confetti') return;
+  const chip = app.querySelector(`.chip[data-p="${player}"]`);
+  if (!chip) return;
+  const r = chip.getBoundingClientRect();
+  const layer = document.createElement('div');
+  layer.className = 'confetti';
+  const color = hexOf(player);
+  layer.innerHTML = Array.from({ length: 14 }, (_, k) => {
+    const a = (k / 14) * Math.PI * 2;
+    const d = 28 + Math.random() * 26;
+    return `<i class="spark small" style="left:${r.left + r.width / 2}px;top:${r.top + r.height / 2}px;background:${theme.fx === 'goldrain' ? '#ffd34d' : color};--dx:${Math.round(Math.cos(a) * d)}px;--dy:${Math.round(Math.sin(a) * d)}px"></i>`;
   }).join('');
   document.body.appendChild(layer);
-  setTimeout(() => layer.remove(), 5000);
+  setTimeout(() => layer.remove(), 1200);
 }
 
 /** A move made on this device: show it now and, online, share it. */
@@ -1540,6 +1609,29 @@ const actions = {
   tutSkip: () => endTutorial(false),
   themes: () => { ui.modal = 'themes'; render(); },
   shop: () => { ui.modal = 'shop'; render(); },
+  toggleCalm: () => { setCalm(!calm.on); render(); },
+  buyPremium: async ({ sku }) => {
+    const r = await startCheckout(sku);
+    if (!r.ok) { sfx.error(); say(r.why, 3000); return; }
+    if (r.demo) { sfx.claim(); say('Test purchase: switched on for trying out.', 2600); render(); }
+    // otherwise the browser is on its way to the checkout page
+  },
+  restoreOpen: () => { ui.modal = 'restore'; render(); },
+  restoreGo: async () => {
+    const box = document.getElementById('restorecode');
+    const r = await redeem(box?.value || '');
+    if (!r.ok) { sfx.error(); say(r.why, 2600); return; }
+    restoreTheme();
+    sfx.claim();
+    say(`Restored ${r.count} look${r.count === 1 ? '' : 's'}.`, 2600);
+    ui.modal = 'shop';
+    render();
+  },
+  copyCode: async ({ i }) => {
+    const code = savedLicenses()[+i];
+    if (!code) return;
+    try { await navigator.clipboard.writeText(code); say('Code copied', 1600); } catch { say('Could not copy. Long-press to copy by hand.', 2600); }
+  },
   buyItem: ({ part, id }) => {
     const r = buy(part, id);
     if (!r.ok) { sfx.error(); say(r.why, 2200); return; }
@@ -1550,6 +1642,7 @@ const actions = {
   },
   setTheme: ({ part, id }) => {
     if (setTheme(part, id)) { sfx.tap(); render(); return; }
+    if (isPremium(part, id)) { ui.modal = 'shop'; render(); return; } // a premium look: show where to get it
     sfx.error();
     say(isShopItem(part, id) ? `🔒 ${requirementText(part, id)}` : `🔒 ${requirementText(part, id)} to unlock this`, 2800);
   },
@@ -1727,6 +1820,20 @@ installReporter(() => {
   warned = true;
   try { say('Something went wrong. Open ⓘ, then Report a problem.', 4500); } catch { /* the screen is not ready */ }
 });
+/* Premium looks: check the licences kept on this device, and finish a purchase if we have just come back from the checkout page. */
+(async () => {
+  try {
+    const before = await loadLicenses();
+    const paid = /[?&]paid=([A-Za-z0-9_]{8,200})/.exec(location.search);
+    if (paid) {
+      history.replaceState(null, '', location.pathname + location.hash); // so a refresh does not claim it twice
+      const r = await claimOrder(paid[1]);
+      say(r.ok ? `Thank you! ${r.count} premium look${r.count === 1 ? '' : 's'} unlocked.` : r.why, 4200);
+      if (r.ok) { sfx.claim(); ui.modal = 'shop'; }
+    }
+    if (before || paid) { restoreTheme(); render(); }
+  } catch { /* the store is optional */ }
+})();
 initNet();
 
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {

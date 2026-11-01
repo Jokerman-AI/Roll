@@ -13,3 +13,15 @@
 
 // Where "Report a problem" can email reports to. Leave it out and people can still Share or Copy a report.
 // window.RFI_FEEDBACK_EMAIL = 'you@example.com';
+
+// The premium Shop. Premium looks are paid for with real money, so they need a payment provider and a small server
+// (see docs/PURCHASES.md and server/worker.js). Until you fill this in, premium looks show "Coming soon".
+//
+// window.RFI_STORE = {
+//   api: 'https://rollick-store.YOURNAME.workers.dev',          // the address of your purchase server
+//   publicKey: { kty: 'EC', crv: 'P-256', x: '...', y: '...' }, // printed by: node tools/make-license-keys.mjs
+//   prices: { 'table:aurora': '$1.99' },                        // optional: change the prices shown (what is charged is set at Stripe)
+// };
+//
+// To click through the Shop screens without paying anything (for trying them out only, never for the live site):
+// window.RFI_STORE = { mode: 'demo' };

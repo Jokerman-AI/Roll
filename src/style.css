@@ -715,3 +715,90 @@ h1, .big, .code, .qrcode, .chip .num, .deckback b, .coins { font-family: ui-roun
 .coach { background: linear-gradient(180deg, #ffe589, #ffc83a); box-shadow: inset 0 1px 0 #fff9, 0 8px 18px #0005; }
 
 @media (prefers-reduced-motion: reduce) { .chip.active, .gcard[data-tier="3"]::before, .gcard[data-tier="4"]::before { animation: none; } }
+
+/* ======================================================================================================
+   More looks, some of them animated. Every moving part stops when the person asks for a calmer table
+   (Themes, "Calm table") or the device asks for reduced motion.
+   ====================================================================================================== */
+
+/* tables */
+[data-tb="forest"] { --felt: #0d2b1a; --felt-2: #1f5a37; --muted: #a9d1b6; }
+[data-tb="ocean"] { --felt: #062a3f; --felt-2: #0f6b8f; --muted: #a8d4e6; }
+[data-tb="aurora"] { --felt: #061a2b; --felt-2: #0d3a4d; --muted: #b4e8dc; }
+[data-tb="starfield"] { --felt: #070b1f; --felt-2: #141b45; --muted: #b6bde8; }
+[data-tb="lava"] { --felt: #2a0a05; --felt-2: #6b1f0a; --muted: #f0c0a4; }
+[data-tb="aurora"] body::after, [data-tb="starfield"] body::after, [data-tb="lava"] body::after { content: ""; position: fixed; z-index: 0; pointer-events: none; }
+[data-tb="aurora"] body::after {
+  inset: -25%;
+  background: radial-gradient(35% 28% at 25% 25%, #35f0a266, transparent 70%), radial-gradient(40% 30% at 72% 22%, #7b5cff59, transparent 70%), radial-gradient(35% 25% at 50% 62%, #2ec8ff40, transparent 70%);
+  animation: aurora 16s ease-in-out infinite alternate;
+}
+@keyframes aurora { from { transform: translate3d(-4%, -2%, 0) scale(1); } to { transform: translate3d(4%, 3%, 0) scale(1.12); } }
+[data-tb="starfield"] body::after {
+  inset: -130px 0 0 0;
+  background: radial-gradient(circle at 20% 30%, #fff 0 1px, transparent 2px) 0 0 / 130px 130px, radial-gradient(circle at 70% 60%, #cfd6ff 0 1px, transparent 2px) 0 0 / 65px 65px, radial-gradient(circle at 40% 80%, #fff 0 1.5px, transparent 2.5px) 0 0 / 130px 130px;
+  animation: drift 70s linear infinite, twinkle 3.6s ease-in-out infinite alternate;
+}
+@keyframes drift { to { transform: translateY(130px); } }
+@keyframes twinkle { from { opacity: .5; } to { opacity: 1; } }
+[data-tb="lava"] body::after {
+  inset: -20%;
+  background: radial-gradient(40% 30% at 20% 90%, #ff6a1a66, transparent 70%), radial-gradient(35% 28% at 75% 80%, #ffb02e55, transparent 70%), radial-gradient(30% 22% at 50% 100%, #ff3b1a66, transparent 70%);
+  animation: lava 11s ease-in-out infinite alternate;
+}
+@keyframes lava { from { transform: translate3d(-3%, 2%, 0) scale(1); } to { transform: translate3d(3%, -4%, 0) scale(1.15); } }
+
+/* deck backs */
+[data-bk="retro"] { background: linear-gradient(180deg, #2b0a4d 0 55%, #ff4fa0 55% 56%, transparent 56%), repeating-linear-gradient(0deg, #ff4fa055 0 1px, transparent 1px 10px), repeating-linear-gradient(90deg, #ff4fa055 0 1px, transparent 1px 14px), #1a0633; }
+[data-bk="holo"] { background: linear-gradient(115deg, #ff7ad9, #9a7bff, #4fd8ff, #5bff9a, #ffe45c, #ff7ad9) 0 0 / 200% 200%; animation: holo 6s linear infinite; }
+@keyframes holo { to { background-position: 200% 200%; } }
+[data-bk="circuit"] { background: linear-gradient(90deg, #19e6c633 1px, transparent 1px) 0 0 / 14px 14px, linear-gradient(0deg, #19e6c633 1px, transparent 1px) 0 0 / 14px 14px, radial-gradient(circle at 30% 40%, #19e6c688 0 2px, transparent 3px) 0 0 / 42px 42px, #04222a; animation: pulse-glow 2.4s ease-in-out infinite alternate; }
+@keyframes pulse-glow { from { filter: brightness(.9); } to { filter: brightness(1.3); } }
+[data-bk="ember"] { background: radial-gradient(circle at 50% 100%, #ff6a1acc 0, transparent 60%), radial-gradient(circle, #ffd27a 0 1px, transparent 2px) 0 0 / 18px 24px, linear-gradient(180deg, #1b0505, #4a0f08); animation: ember 4s linear infinite; }
+@keyframes ember { from { background-position: 0 0, 0 0, 0 0; } to { background-position: 0 0, 0 -24px, 0 0; } }
+
+/* dice: previews first (a neutral base, so one style never leaks into another), then the real dice */
+.themes .dpv .die { border-radius: calc(var(--size) * .22); box-shadow: inset 0 -3px 0 #0003, 0 2px 4px #0003, 0 0 0 1px #ffffff26; animation: none; background: radial-gradient(circle at 30% 24%, #ffffff5c, transparent 55%), var(--bg); }
+.themes .dpv .die i { border-radius: 50%; margin: 12%; }
+[data-ds="pixel"] :not(.dpv) > .die, .themes .dpv[data-ds="pixel"] .die { border-radius: 2px; box-shadow: 0 0 0 2px #0007, 3px 3px 0 #0006; background: var(--bg); }
+[data-ds="pixel"] :not(.dpv) > .die i, .themes .dpv[data-ds="pixel"] .die i { border-radius: 0; margin: 14%; }
+[data-ds="fire"] :not(.dpv) > .die, .themes .dpv[data-ds="fire"] .die {
+  background: radial-gradient(circle at 30% 24%, #ffffff44, transparent 50%), linear-gradient(0deg, #ff5a00bb 0%, #ffb02e77 30%, transparent 62%), var(--bg);
+  box-shadow: inset 0 -3px 0 #0003, 0 0 12px #ff6a0099, 0 2px 4px #0004; animation: flicker 1.3s ease-in-out infinite alternate;
+}
+@keyframes flicker { from { filter: brightness(1) saturate(1); } to { filter: brightness(1.18) saturate(1.25); } }
+[data-ds="ice"] :not(.dpv) > .die, .themes .dpv[data-ds="ice"] .die {
+  position: relative; background: linear-gradient(160deg, #ffffffaa, #bdeaff33 45%, #ffffff22), var(--bg);
+  box-shadow: inset 0 0 0 2px #e8fbffaa, 0 0 12px #8fdcff88, 0 2px 4px #0003;
+}
+[data-ds="ice"] :not(.dpv) > .die::after, .themes .dpv[data-ds="ice"] .die::after { content: "✦"; position: absolute; top: 4%; right: 10%; font-size: calc(var(--size) * .24); line-height: 1; color: #fff; text-shadow: 0 0 6px #bdeaff; animation: twinkle-star 2.4s ease-in-out infinite alternate; }
+@keyframes twinkle-star { from { opacity: .25; transform: scale(.7); } to { opacity: 1; transform: scale(1.15); } }
+[data-ds="prism"] :not(.dpv) > .die, .themes .dpv[data-ds="prism"] .die {
+  background: radial-gradient(circle at 30% 24%, #ffffff55, transparent 50%), linear-gradient(115deg, transparent 30%, #ffffffaa 44%, #ff9de2aa 50%, #9dd7ffaa 56%, transparent 70%) -160% 0 / 260% 100% no-repeat, var(--bg);
+  box-shadow: inset 0 0 0 1px #ffffff55, inset 0 -3px 0 #0003, 0 2px 4px #0003; animation: prism 3.2s ease-in-out infinite;
+}
+@keyframes prism { 0%, 35% { background-position: 0 0, -160% 0, 0 0; } 100% { background-position: 0 0, 160% 0, 0 0; } }
+[data-ds="neonglow"] :not(.dpv) > .die, .themes .dpv[data-ds="neonglow"] .die {
+  background: radial-gradient(circle at 30% 24%, #ffffff40, transparent 50%), linear-gradient(#00000055, #00000055), var(--bg);
+  box-shadow: 0 0 0 2px #fffd, 0 0 14px var(--c, #fff), inset 0 0 8px #ffffff55; animation: pulse-glow 2s ease-in-out infinite alternate;
+}
+
+/* calmer table: nothing moves */
+[data-calm="1"] body::after, [data-calm="1"] .die, [data-calm="1"] .die::after, [data-calm="1"] .deckback, [data-calm="1"] .opt .bk, [data-calm="1"] .chip.active { animation: none !important; }
+@media (prefers-reduced-motion: reduce) { body::after, .die, .die::after, .deckback, .opt .bk { animation: none !important; } }
+
+/* preview tiles for effects and the shop's sections */
+.themes .opt .fxp { display: grid; place-items: center; width: 52px; height: 36px; font-size: 1.5rem; }
+.themes .opt .tb[data-tb="aurora"] { background: linear-gradient(135deg, #061a2b, #1f9f74 55%, #5b3df5); }
+.themes .opt .tb[data-tb="starfield"] { background: radial-gradient(circle at 25% 35%, #fff 0 1px, transparent 2px), radial-gradient(circle at 70% 60%, #cfd6ff 0 1px, transparent 2px), linear-gradient(135deg, #070b1f, #1a2260); }
+.themes .opt .tb[data-tb="lava"] { background: linear-gradient(0deg, #ff6a1a, #6b1f0a 55%, #2a0a05); }
+.sheet.shop .badge-premium { font-size: .62rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; background: linear-gradient(90deg, #ff7ad9, #7a5cff, #3de0ff); color: #fff; border-radius: 999px; padding: 1px 8px; margin-left: 6px; vertical-align: middle; }
+.sheet.shop .note { font-size: .78rem; opacity: .75; margin: 6px 0; }
+.sheet.shop .calmrow { display: flex; align-items: center; justify-content: space-between; margin: 10px 0 0; font-weight: 700; }
+
+/* win effects */
+.confetti i.spark { top: 40%; width: 6px; height: 6px; border-radius: 50%; box-shadow: 0 0 8px currentColor; animation: spark 1.3s ease-out both; opacity: 0; }
+.confetti i.spark.small { width: 5px; height: 5px; animation-duration: .8s; animation-delay: 0s; }
+@keyframes spark { 0% { opacity: 1; transform: translate(0, 0) scale(1); } 100% { opacity: 0; transform: translate(var(--dx), calc(var(--dy) + 40px)) scale(.3); } }
+.confetti i.star { top: -30px; width: auto; height: auto; background: none !important; line-height: 1; text-shadow: 0 0 8px #fff8; animation: confetti-fall 3.6s cubic-bezier(.3, .6, .5, 1) both; }
+.confetti i.coin { top: -30px; width: 16px; height: 16px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff3b0, #f2b705 55%, #b07d00); box-shadow: 0 0 8px #ffd34daa; animation: confetti-fall 3.4s cubic-bezier(.3, .6, .5, 1) both; }
