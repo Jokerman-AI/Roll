@@ -487,7 +487,7 @@ function cardView(s, card, ci) {
     return `<button type="button" class="slot${peeked}" data-act="peek" data-card="${ci}" data-slot="${si}" data-o="${owners.length}" aria-label="Die ${face}, ${esc(who)}">
       <span class="dwrap">${die(face, ownedClass(owners), `style="${ownedStyle(owners, s)}"`)}${badge}</span></button>`;
   }).join('');
-  return `<div class="gcard ${accepts ? 'accepts' : ''} ${ui.hint?.card === ci ? 'hinted' : ''}" data-tier="${tierOf(card.points)}" data-act="pickCard" data-card="${ci}" role="group" aria-label="${card.points} point card">
+  return `<div class="gcard ${accepts ? 'accepts' : ''} ${ui.hint?.card === ci ? 'hinted' : ''}" data-tier="${tierOf(card.points)}" data-act="pickCard" data-card="${ci}" data-key="${String.fromCharCode(65 + ci)}" role="group" aria-label="${card.points} point card">
     <div class="corner tl"><b>${card.points}</b></div>
     <div class="face" style="--fc:${cols};--dz:${dz}">${slots}</div>
     <div class="corner br"><b>${card.points}</b></div>
@@ -682,6 +682,7 @@ function modalView() {
       </ol>
       <p>A die on a card is filled with the colour of the player covering it. If two or more players cover the same number, the die is split into slices of their colours and a number shows how many. <b>Tap any die on a card</b> to see who has it and how far along each player is on that card. Other players' dice can't score cards for you, but they can beat you to them!</p>
       <p>Play starts with a two-dice roll-off; 5+ players use two sets (60 cards) and four face-up cards.</p>
+      <p class="keys">Keyboard: <kbd>R</kbd> roll · <kbd>T</kbd> take back · <kbd>1</kbd>–<kbd>6</kbd> pick a die · <kbd>A</kbd>–<kbd>D</kbd> put it on that card · <kbd>E</kbd> end turn · <kbd>U</kbd> undo · <kbd>H</kbd> hint · <kbd>P</kbd> power cards · <kbd>M</kbd> menu · <kbd>Esc</kbd> close</p>
       <h3>⚡ Rollick Extreme</h3>
       <p>The same game with extra rules:</p>
       <ul>
@@ -1631,12 +1632,43 @@ const actions = {
   },
 };
 
+/** Run an action, unless the tutorial is holding it back. Taps and keys both come through here. */
+function dispatch(act, data, el) {
+  if (ui.tut && TUT_ACTS.has(act) && !tutAllows(act, data)) { tutNudge(); return; }
+  actions[act]?.({ ...data }, el);
+}
+
 app.addEventListener('click', (e) => {
   if (ui.peek && !e.target.closest('.peek') && !e.target.closest('[data-act="peek"]')) { ui.peek = null; clearTimeout(peekTimer); render(); }
   const el = e.target.closest('[data-act]');
   if (!el || (el.classList.contains('modal') && e.target !== el)) return;
-  if (ui.tut && TUT_ACTS.has(el.dataset.act) && !tutAllows(el.dataset.act, el.dataset)) { tutNudge(); return; }
-  actions[el.dataset.act]?.({ ...el.dataset }, el);
+  dispatch(el.dataset.act, el.dataset, el);
+});
+
+/* Keyboard play, for desktops and tablets with a keyboard. */
+document.addEventListener('keydown', (e) => {
+  if (e.metaKey || e.ctrlKey || e.altKey || e.target?.matches?.('input, textarea, select, [contenteditable]')) return;
+  const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+  if (k === 'Escape') { if (ui.modal || ui.react) { e.preventDefault(); dispatch(ui.react ? 'closeReact' : 'closeModal', {}); } return; }
+  if (ui.screen !== 'game' || !ui.game || ui.modal || ui.ed || e.repeat) return;
+  const s = ui.game;
+  const map = { r: 'roll', t: 'takeBack', e: 'end', Enter: 'end', u: 'undo', h: 'hint', p: 'powers', m: 'menu' };
+  if (map[k]) {
+    if (k === 'Enter' && e.target?.matches?.('button, [role="button"]')) return; // let a focused button handle its own Enter
+    e.preventDefault();
+    dispatch(map[k], {});
+    return;
+  }
+  if (/^[1-6]$/.test(k) && s.phase === 'placing') { // pick a die by its number
+    const at = s.rolled.map((f, n) => [f, n]).filter(([f]) => f === +k).map(([, n]) => n);
+    const next = at.length ? at[(at.indexOf(ui.selected) + 1) % at.length] : -1; // pressing again moves to the next die with that number
+    if (next >= 0) { e.preventDefault(); dispatch('pickRolled', { i: String(next) }); }
+    return;
+  }
+  if (/^[a-d]$/.test(k) && ui.selected !== null) { // put the chosen die on card A to D
+    const c = k.charCodeAt(0) - 97;
+    if (s.cards[c]) { e.preventDefault(); dispatch('pickCard', { card: String(c) }); }
+  }
 });
 app.addEventListener('input', (e) => {
   if (e.target.id === 'myname') { profile.name = e.target.value; saveProfile(); return; }

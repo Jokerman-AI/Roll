@@ -8,8 +8,9 @@
   --p0: #e5484d; --p1: #3b82f6; --p2: #2fb36d; --p3: #f5a524;
   --radius: 16px;
   /* dice scale with the screen: width on phones, height when it is short (landscape, folded) */
-  --cd: clamp(30px, min(10.5vw, 5.8dvh), 56px);
-  --td: clamp(38px, min(13vw, 7dvh), 68px);
+  --cd-max: 56px; --td-max: 68px; --card-max: 200px; /* larger on tablets and desktops, below */
+  --cd: clamp(30px, min(10.5vw, 5.8dvh), var(--cd-max));
+  --td: clamp(38px, min(13vw, 7dvh), var(--td-max));
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html { background: #0f3d2e; }
@@ -91,7 +92,7 @@ h1 { font-size: 2.4rem; margin: 0; letter-spacing: -.02em; }
 @media (orientation: portrait) and (min-height: 540px) { .cardgrid[data-n="4"] { --cols: 2; --rows: 2; } }
 
 .gcard, .deckback {
-  width: min(calc((100cqw - (var(--cols) - 1) * var(--gap)) / var(--cols)), calc((100cqh - (var(--rows) - 1) * var(--gap)) * 5 / (7 * var(--rows))), 200px);
+  width: min(calc((100cqw - (var(--cols) - 1) * var(--gap)) / var(--cols)), calc((100cqh - (var(--rows) - 1) * var(--gap)) * 5 / (7 * var(--rows))), var(--card-max));
   aspect-ratio: 5 / 7; border-radius: clamp(8px, 1.2vw + 4px, 14px);
 }
 .gcard {
@@ -575,3 +576,44 @@ html { background: var(--felt); }
 .qrbox { background: #fff; border-radius: 12px; padding: 6px; width: min(78vw, 300px); margin: 0 auto; }
 .qrbox svg { display: block; width: 100%; height: auto; }
 .qrcode { font-size: 2rem; font-weight: 900; letter-spacing: .25em; margin: 8px 0 0; padding-left: .25em; }
+
+/* ---- tablets and desktops: everything a step bigger, and the menus kept to a readable width ---- */
+@media (min-width: 700px) and (min-height: 600px) {
+  :root { --cd-max: 68px; --td-max: 84px; --card-max: 260px; }
+  html { font-size: 112.5%; }
+  body { font-size: 1rem; }
+  .setup { max-width: 640px; width: 100%; margin-inline: auto; }
+  .sheet { max-width: 540px; }
+}
+@media (min-width: 1100px) and (min-height: 760px) {
+  :root { --cd-max: 84px; --td-max: 104px; --card-max: 340px; }
+  html { font-size: 125%; }
+  #app { max-width: 1500px; }
+  .setup { max-width: 720px; }
+  .sheet { max-width: 620px; }
+}
+/* letters on the cards are only useful with a keyboard, so they show on mouse devices only */
+.gcard[data-key]::after { content: none; }
+@media (hover: hover) and (pointer: fine) {
+  .gcard[data-key]::after {
+    content: attr(data-key); position: absolute; right: 6px; top: 6px; width: 20px; height: 20px; border-radius: 6px;
+    background: #0000001f; color: var(--card-ink); font-size: .7rem; font-weight: 800; display: grid; place-items: center; pointer-events: none;
+  }
+}
+.keys { font-size: .8rem; opacity: .8; }
+.keys kbd { background: #0001; border-radius: 5px; padding: 0 5px; font: inherit; font-weight: 700; }
+@media (hover: none) { .keys { display: none; } }
+
+/* wide screens: the table across the full width, the controls under it, instead of cards and controls side by side */
+@media (min-width: 900px) and (min-height: 600px) {
+  #app { max-width: 1200px; }
+  .game {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
+    grid-template-areas: "score" "status" "cards" "tray";
+    column-gap: 0;
+  }
+  .tray { align-self: center; justify-self: center; width: min(680px, 100%); }
+  .score, .status { margin-inline: auto; width: min(900px, 100%); }
+}
+@media (min-width: 1100px) and (min-height: 760px) { #app { max-width: 1500px; } .tray { width: min(780px, 100%); } }
