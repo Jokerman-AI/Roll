@@ -33,7 +33,6 @@ are done and tested; the accounts and keys are yours to create.
   |---|---|
   | Tables | `table:aurora`, `table:starfield`, `table:lava` |
   | Deck backs | `back:holo`, `back:circuit`, `back:ember` |
-  | Dice | `dice:fire`, `dice:ice`, `dice:prism`, `dice:neonglow`, `dice:gold`, `dice:obsidian`, `dice:galaxy`, `dice:lightning` |
   | Win effects | `fx:fireworks`, `fx:goldrain` |
   | Everything pack | `bundle:all` |
 
@@ -51,7 +50,7 @@ It prints a **private** key (for the server, secret) and a **public** key (for `
 - Make a free Cloudflare account and create a Worker. Paste in `server/worker.js`.
 - Under the Worker's settings, add these as **secrets / variables** (never put them in git or in `config.js`):
   - `STRIPE_SECRET_KEY`: your `sk_test_...` key
-  - `PRICES`: a JSON object like `{"table:aurora":"price_123","dice:fire":"price_456","bundle:all":"price_789"}`
+  - `PRICES`: a JSON object like `{"table:aurora":"price_123","back:holo":"price_456","bundle:all":"price_789"}`
   - `LICENSE_PRIVATE_JWK`: the private key from step 2
   - `ALLOWED_ORIGIN`: where the game lives, e.g. `https://jokerman-ai.github.io`
 - Note the Worker's address, e.g. `https://rollick-store.yourname.workers.dev`.

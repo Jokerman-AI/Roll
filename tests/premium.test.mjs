@@ -12,7 +12,7 @@ async function makeKeys() {
 }
 
 const ORIGIN = 'https://game.example';
-const PRICES = JSON.stringify({ 'table:aurora': 'price_a', 'dice:fire': 'price_f', 'bundle:all': 'price_b' });
+const PRICES = JSON.stringify({ 'table:aurora': 'price_a', 'back:holo': 'price_f', 'bundle:all': 'price_b' });
 
 // A pretend Stripe: remembers the sessions it was asked to create, and whether each has been paid.
 function fakeStripe() {
@@ -38,9 +38,9 @@ const call = (env, fetchImpl, method, path, body) => handle(new Request(`https:/
 test('a licence signed by the server is accepted, and tampering or the wrong key is refused', async () => {
   const { priv, pub } = await makeKeys();
   const other = await makeKeys();
-  const token = await signLicense({ LICENSE_PRIVATE_JWK: priv }, ['table:aurora', 'dice:fire'], 'cs_test_x');
+  const token = await signLicense({ LICENSE_PRIVATE_JWK: priv }, ['table:aurora', 'back:holo'], 'cs_test_x');
   const ok = await P.verifyLicense(token, pub);
-  assert.deepEqual(ok.items, ['table:aurora', 'dice:fire']);
+  assert.deepEqual(ok.items, ['table:aurora', 'back:holo']);
   assert.equal(await P.verifyLicense(token, other.pub), null, 'a different key does not match');
   const [v, body, sig] = token.split('.');
   const forged = Buffer.from(JSON.stringify({ v: 1, items: ['bundle:all'], order: 'x', iat: 1 })).toString('base64url');
@@ -71,14 +71,14 @@ test('after payment the order becomes a licence the app accepts; an unpaid or un
   const { priv, pub } = await makeKeys();
   const env = { STRIPE_SECRET_KEY: 'sk_test_1', PRICES, LICENSE_PRIVATE_JWK: priv, ALLOWED_ORIGIN: ORIGIN };
   const stripe = fakeStripe();
-  await call(env, stripe.fetchImpl, 'POST', '/checkout', { items: ['dice:fire'], returnUrl: `${ORIGIN}/` });
+  await call(env, stripe.fetchImpl, 'POST', '/checkout', { items: ['back:holo'], returnUrl: `${ORIGIN}/` });
   const [id, session] = [...stripe.sessions.entries()][0];
   assert.equal((await call(env, stripe.fetchImpl, 'GET', `/claim?order=${id}`)).status, 402, 'not paid yet');
   session.payment_status = 'paid';
   const res = await call(env, stripe.fetchImpl, 'GET', `/claim?order=${id}`);
   assert.equal(res.status, 200);
   const { license } = await res.json();
-  assert.deepEqual((await P.verifyLicense(license, pub)).items, ['dice:fire']);
+  assert.deepEqual((await P.verifyLicense(license, pub)).items, ['back:holo']);
   assert.equal((await call(env, stripe.fetchImpl, 'GET', '/claim?order=cs_test_missing1234')).status, 404);
   assert.equal((await call(env, stripe.fetchImpl, 'GET', '/claim?order=not-an-order')).status, 400);
   // a bundle collapses to one entry
@@ -100,12 +100,12 @@ test('the app: nothing is for sale until a store is set up; a redeemed licence u
   globalThis.window = { RFI_FREE_LOOKS: false, RFI_STORE: { api: 'https://api.example', publicKey: pub, prices: { 'table:aurora': '€2.49' } } };
   assert.equal(P.storeMode(), 'live');
   assert.equal(P.priceLabel('table', 'aurora'), '€2.49');
-  assert.equal(P.priceLabel('dice', 'fire'), '$1.99', 'falls back to the built-in label');
+  assert.equal(P.priceLabel('back', 'holo'), '$0.99', 'falls back to the built-in label');
   assert.equal((await P.redeem('v1.bad.token')).ok, false);
-  const token = await signLicense({ LICENSE_PRIVATE_JWK: priv }, ['table:aurora', 'dice:fire'], 'cs_test_y');
+  const token = await signLicense({ LICENSE_PRIVATE_JWK: priv }, ['table:aurora', 'back:holo'], 'cs_test_y');
   const r = await P.redeem(token);
   assert.deepEqual([r.ok, r.count], [true, 2]);
-  assert.ok(isUnlocked('table', 'aurora') && isUnlocked('dice', 'fire'));
+  assert.ok(isUnlocked('table', 'aurora') && isUnlocked('back', 'holo'));
   assert.ok(!isUnlocked('table', 'lava'), 'only what the licence covers');
   const bundle = await P.redeem(await signLicense({ LICENSE_PRIVATE_JWK: priv }, ['bundle:all'], 'cs_test_z'));
   assert.equal(bundle.ok, true);
@@ -132,16 +132,16 @@ test('every premium look exists in the theme lists, with a price', () => {
       assert.match(price, /^\$\d+\.\d\d$/);
     }
   }
-  assert.equal(P.ALL_SKUS.length, 16);
+  assert.equal(P.ALL_SKUS.length, 8);
 });
 
 test('while looks are free, every look is open to everybody; turning it off brings the locks back', () => {
   globalThis.window = {}; // free unless config.js says otherwise
   assert.equal(P.freeLooks(), true);
-  assert.ok(isUnlocked('table', 'aurora') && isUnlocked('dice', 'fire') && isUnlocked('table', 'midnight') && isUnlocked('fx', 'stars'));
+  assert.ok(isUnlocked('table', 'aurora') && isUnlocked('back', 'holo') && isUnlocked('table', 'midnight') && isUnlocked('fx', 'stars'));
   globalThis.window = { RFI_FREE_LOOKS: false };
   assert.equal(P.freeLooks(), false);
-  assert.ok(!isUnlocked('table', 'midnight') && !isUnlocked('fx', 'stars') && !isUnlocked('dice', 'pixel'));
+  assert.ok(!isUnlocked('table', 'midnight') && !isUnlocked('fx', 'stars') && !isUnlocked('back', 'retro'));
   delete globalThis.window;
   assert.equal(P.freeLooks(), false, 'outside a page nothing is free by default, so tests of the locks stay meaningful');
 });

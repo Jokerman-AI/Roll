@@ -43,10 +43,7 @@ up again. Moves are paused until it is back.
 
 ## 3D dice
 
-The dice in your tray are real 3D cubes (CSS 3D, no library): they tumble end over end, land with the rolled number facing you, and are shaded for a light from the top left. Themes has a **3D dice** switch (off gives the flat dice) and Calm table stops the motion. The animated looks have richer effects: Fire (flames and rising embers), Ice (frost and glints), Prism (rainbow sheen and shifting edges), Neon glow (a pulsing tube), plus new **Solid gold**, **Obsidian**, **Galaxy** and **Lightning**.
-
-**Studio quality.** On devices that can draw WebGL, the tray dice are rendered with a real 3D engine (three.js): bevelled bodies, reflections, pips pressed into the faces, soft shadows, and per-look materials and particles (molten flames and embers for Fire, frosted glass for Ice, thin-film rainbow for Prism, polished metal for Solid gold, and so on). The page keeps invisible dice for taps and screen readers; there is a **Studio quality** switch in Themes, and devices without WebGL fall back to the CSS cubes. The engine lives in `tools/dice3d/dice3d.js` and is built into `vendor/dice3d.js` (`tools/build-dice3d.mjs`).
-
+The dice in your tray are real 3D. On devices that can draw WebGL they are rendered with a 3D engine (three.js): bevelled bodies, reflections, pips pressed into the faces, soft shadows and a tumbling roll. The page keeps invisible dice for taps and screen readers. Themes has a **Studio quality** switch (devices without WebGL fall back to CSS cubes), a **3D dice** switch (off gives flat dice), and Calm table stops the motion. There is one dice look; the extra dice skins and the die designer were removed. The engine lives in `tools/dice3d/dice3d.js` and is built into `vendor/dice3d.js` (`tools/build-dice3d.mjs`).
 
 ## Settings, unlocks and problem reports
 

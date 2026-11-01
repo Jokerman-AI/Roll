@@ -30,22 +30,7 @@ export const BACKS = [
   { id: 'circuit', name: 'Circuit', fx: true },
   { id: 'ember', name: 'Ember', fx: true },
 ];
-export const DICE = [
-  { id: 'classic', name: 'Classic' },
-  { id: 'sharp', name: 'Sharp' },
-  { id: 'bubble', name: 'Bubble' },
-  { id: 'glass', name: 'Glass' },
-  { id: 'gem', name: 'Gem' },
-  { id: 'pixel', name: 'Pixel' },
-  { id: 'fire', name: 'Fire', fx: true },
-  { id: 'ice', name: 'Ice', fx: true },
-  { id: 'prism', name: 'Prism', fx: true },
-  { id: 'neonglow', name: 'Neon glow', fx: true },
-  { id: 'gold', name: 'Solid gold', fx: true },
-  { id: 'obsidian', name: 'Obsidian', fx: true },
-  { id: 'galaxy', name: 'Galaxy', fx: true },
-  { id: 'lightning', name: 'Lightning', fx: true },
-];
+export const DICE = [{ id: 'classic', name: 'Classic' }];
 /** What happens on screen when somebody wins. */
 export const FX = [
   { id: 'confetti', name: 'Confetti' },
