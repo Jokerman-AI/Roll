@@ -485,7 +485,7 @@ const LISTS = { table: TABLES, back: BACKS, dice: DICE, fx: FX };
 const nameOf = (part, id) => (LISTS[part].find((x) => x.id === id) || { name: id }).name;
 const previewOf = (part, id) => (part === 'table' ? `<span class="tb" data-tb="${id}"></span>`
   : part === 'back' ? `<span class="bk" data-bk="${id}"></span>`
-  : part === 'dice' ? `<span class="dpv" data-ds="${id}">${cube.on ? die3d(5, 'spin', 'style="--c:#e5484d"') : die(5, '')}</span>`
+  : part === 'dice' ? `<span class="dpv" data-ds="${id}">${cube.on ? die3d(5, 'spin pv', 'style="--c:#e5484d"') : die(5, '')}</span>`
   : `<span class="fxp" aria-hidden="true">${{ confetti: '🎉', stars: '⭐', fireworks: '🎆', goldrain: '🪙' }[id] || '✨'}</span>`);
 const PARTS = [['table', 'Tables'], ['back', 'Deck backs'], ['dice', 'Dice'], ['fx', 'Win effects']];
 
@@ -575,9 +575,9 @@ const DESIGN_LABELS = {
 function designView() {
   const rows = Object.keys(DESIGN_LABELS).map((k) => `<div class="row">${DESIGN_LABELS[k][0]}</div>
     <div class="chips">${DESIGN_OPTIONS[k].map((v) => `<button class="${design[k] === v ? 'on' : ''}" data-act="designSet" data-k="${k}" data-v="${v}" aria-pressed="${design[k] === v}">${DESIGN_LABELS[k][1][v]}</button>`).join('')}</div>`).join('');
-  const stage = cube.on ? die3d(5, 'owned spin', 'style="--c:#e5484d"') : die(5, 'owned', 'style="--c:#e5484d"');
+  const stage = cube.on ? die3d(5, 'owned spin pv', 'style="--c:#e5484d"') : die(5, 'owned', 'style="--c:#e5484d"');
   return `<div class="modal"><div class="sheet design"><h2>🎲 Design your die</h2>
-    <div class="stage"><span data-ds="custom">${stage}</span></div>
+    <div class="stage"><span class="dpv" data-ds="custom">${stage}</span></div>
     ${rows}
     <p class="tag">Your design is saved on this device as the “Your design” look. It uses your seat colour for the body.</p>
     <button class="btn primary" data-act="useDesign">Use this die</button>
