@@ -617,3 +617,28 @@ html { background: var(--felt); }
   .score, .status { margin-inline: auto; width: min(900px, 100%); }
 }
 @media (min-width: 1100px) and (min-height: 760px) { #app { max-width: 1500px; } .tray { width: min(780px, 100%); } }
+
+/* shop looks */
+[data-tb="neon"] { --felt: #0a0420; --felt-2: #35106b; --muted: #c9b3ff; }
+[data-tb="sunset"] { --felt: #3a0f2a; --felt-2: #8c3b2e; --muted: #f0c4a8; }
+[data-bk="galaxy"] { background: radial-gradient(circle at 20% 30%, #fff 0 1px, transparent 2px) 0 0 / 22px 22px, radial-gradient(circle at 70% 60%, #ffd9ff 0 1px, transparent 2px) 0 0 / 31px 31px, linear-gradient(160deg, #2a0d5e, #0b0a2e); }
+[data-bk="sunburst"] { background: repeating-conic-gradient(from 0deg at 50% 50%, #e8731a 0 10deg, #ffb42e 10deg 20deg); }
+[data-ds="glass"] .die { background: linear-gradient(135deg, #ffffff77, #ffffff14 45%, #00000040), var(--bg); box-shadow: inset 0 0 0 2px #ffffff66, inset 0 -3px 0 #0003, 0 2px 6px #0004; }
+[data-ds="gem"] .die { border-radius: calc(var(--size) * .18); background: linear-gradient(135deg, #ffffff88 0 22%, transparent 22% 50%, #00000033 50% 78%, transparent 78%), var(--bg); box-shadow: inset 0 0 0 2px #ffffff55, inset 0 -3px 0 #0003, 0 2px 4px #0003; }
+.themes .dpv[data-ds="glass"] .die { background: linear-gradient(135deg, #ffffff77, #ffffff14 45%, #00000040), var(--bg); box-shadow: inset 0 0 0 2px #ffffff66, inset 0 -3px 0 #0003, 0 2px 6px #0004; border-radius: calc(var(--size) * .22); }
+.themes .dpv[data-ds="glass"] .die i { border-radius: 50%; margin: 12%; }
+.themes .dpv[data-ds="gem"] .die { border-radius: calc(var(--size) * .18); background: linear-gradient(135deg, #ffffff88 0 22%, transparent 22% 50%, #00000033 50% 78%, transparent 78%), var(--bg); }
+.themes .dpv[data-ds="gem"] .die i { border-radius: 50%; margin: 12%; }
+.sheet.shop h2 { margin: 0 0 4px; }
+.sheet.shop .wallet { font-weight: 800; margin: 0 0 6px; }
+.sheet.shop .item { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-top: 1px solid #0001; }
+.sheet.shop .item .pv { flex: none; width: 56px; display: flex; justify-content: center; }
+.sheet.shop .item .pv .tb { width: 52px; height: 36px; border-radius: 10px; background: radial-gradient(120% 90% at 50% 0%, var(--felt-2), var(--felt)); box-shadow: inset 0 0 0 1px #0004; }
+.sheet.shop .item .pv .bk { width: 34px; height: 48px; border-radius: 6px; border: 2px solid #fffdf4; box-shadow: 0 2px 4px #0004; }
+.sheet.shop .item .pv .dpv { display: flex; align-items: center; justify-content: center; height: 48px; }
+.sheet.shop .item .pv .dpv .die { --size: 38px; --bg: #e5484d; --pip: #fff; }
+.sheet.shop .item .nm { flex: 1; display: flex; flex-direction: column; line-height: 1.2; }
+.sheet.shop .item .nm small { opacity: .7; }
+.sheet.shop .item .btn { width: auto; margin: 0; flex: none; min-height: 40px; padding: 8px 14px; }
+.sheet.shop h3 { margin: 14px 0 2px; font-size: .8rem; letter-spacing: .1em; text-transform: uppercase; opacity: .7; }
+.coins { font-variant-numeric: tabular-nums; }

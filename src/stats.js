@@ -1,13 +1,14 @@
 // What you have done so far, kept on this device, and the looks it unlocks. Nothing here leaves the phone.
 
 const KEY = 'rfi-stats';
-const blank = () => ({ games: 0, wins: 0, claims: 0, streak: 0, bestStreak: 0, extremeWins: 0, online: 0, best: 0 });
+const blank = () => ({ games: 0, wins: 0, claims: 0, streak: 0, bestStreak: 0, extremeWins: 0, online: 0, best: 0, coins: 0, owned: [] });
 
 const load = () => {
   try {
     const saved = JSON.parse(localStorage.getItem(KEY));
     const out = blank();
-    for (const k of Object.keys(out)) if (Number.isFinite(saved?.[k]) && saved[k] >= 0) out[k] = Math.floor(saved[k]);
+    for (const k of Object.keys(out)) if (k !== 'owned' && Number.isFinite(saved?.[k]) && saved[k] >= 0) out[k] = Math.floor(saved[k]);
+    if (Array.isArray(saved?.owned)) out.owned = saved.owned.filter((x) => typeof x === 'string' && /^(table|back|dice):[a-z]{2,12}$/.test(x)).slice(0, 50);
     return out;
   } catch { return blank(); }
 };
@@ -22,6 +23,18 @@ export const UNLOCKS = {
   dice: { sharp: { claims: 10 }, bubble: { wins: 2 } },
 };
 
+/** Looks that are bought with coins instead of earned. Coins come from playing: no real money is involved. */
+export const SHOP = {
+  table: { neon: 200, sunset: 250 },
+  back: { galaxy: 150, sunburst: 200 },
+  dice: { glass: 300, gem: 350 },
+};
+export const isShopItem = (part, id) => !!SHOP[part]?.[id];
+export const priceOf = (part, id) => SHOP[part]?.[id] ?? 0;
+
+/** Coins for a finished game: a little for playing, more for winning and for each card claimed. */
+export const coinsFor = (result) => Math.min(60, 10 + (result.won ? 20 : 0) + 2 * Math.max(0, result.claims | 0));
+
 const NEED = {
   games: (n) => `Play ${n} ${n === 1 ? 'game' : 'games'}`,
   wins: (n) => `Win ${n} ${n === 1 ? 'game' : 'games'}`,
@@ -32,12 +45,14 @@ const NEED = {
 
 /** Does this look's requirement hold for these numbers? Pass `s` to test numbers other than your own. */
 export function isUnlocked(part, id, s = stats) {
+  if (isShopItem(part, id)) return (s.owned || []).includes(`${part}:${id}`);
   const need = UNLOCKS[part]?.[id];
   return !need || Object.entries(need).every(([k, n]) => (s[k] || 0) >= n);
 }
 
 /** "Play 3 games", or '' when the look is free. */
 export function requirementText(part, id) {
+  if (isShopItem(part, id)) return `In the Shop for ${priceOf(part, id)} coins`;
   const need = UNLOCKS[part]?.[id];
   return need ? Object.entries(need).map(([k, n]) => NEED[k](n)).join(' and ') : '';
 }
@@ -53,7 +68,8 @@ export function newlyUnlocked(before, after) {
 
 /** The numbers after one finished game. result: { won, claims, score, mode, online }. */
 export function afterGame(s, result) {
-  const next = { ...s };
+  const next = { ...s, owned: [...(s.owned || [])] };
+  next.coins = (next.coins || 0) + coinsFor(result);
   next.games++;
   next.claims += Math.max(0, result.claims | 0);
   next.best = Math.max(next.best, result.score | 0);
@@ -69,10 +85,22 @@ export function afterGame(s, result) {
   return next;
 }
 
-/** Count a finished game and keep it. Returns the looks it just unlocked. */
+/** Count a finished game and keep it. Returns the looks it just unlocked and the coins it earned. */
 export function recordGame(result) {
   const before = { ...stats };
   Object.assign(stats, afterGame(stats, result));
   save(stats);
-  return newlyUnlocked(before, stats);
+  return { unlocked: newlyUnlocked(before, stats), coins: coinsFor(result) };
+}
+
+/** Spend coins on a Shop look. Returns { ok: true } or { ok: false, why }. Pass `s` to test with other numbers. */
+export function buy(part, id, s = stats) {
+  if (!isShopItem(part, id)) return { ok: false, why: 'Not for sale' };
+  if (isUnlocked(part, id, s)) return { ok: false, why: 'You already have it' };
+  const price = priceOf(part, id);
+  if ((s.coins || 0) < price) return { ok: false, why: `You need ${price - (s.coins || 0)} more coins` };
+  s.coins -= price;
+  s.owned = [...(s.owned || []), `${part}:${id}`];
+  if (s === stats) save(stats);
+  return { ok: true };
 }

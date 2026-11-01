@@ -588,3 +588,32 @@ test('settings from outside are always turned into safe numbers', () => {
   assert.deepEqual(E.cleanSettings(null), { target: E.TARGET_SCORE, dice: E.DICE_PER_PLAYER });
   assert.deepEqual(E.cleanSettings({ target: 31, dice: 3 }), { target: E.TARGET_SCORE, dice: E.DICE_PER_PLAYER });
 });
+
+/* ---------- coins and the shop ---------- */
+
+import { buy, coinsFor, SHOP, isShopItem, priceOf } from '../src/stats.js';
+
+test('coins: ten for playing, twenty more for a win, two a card, at most sixty', () => {
+  assert.equal(coinsFor({ won: false, claims: 0 }), 10);
+  assert.equal(coinsFor({ won: true, claims: 3 }), 36);
+  assert.equal(coinsFor({ won: true, claims: 99 }), 60);
+  const s = afterGame({ ...fresh, coins: 5, owned: [] }, { won: true, claims: 2, score: 41, mode: 'classic', online: false });
+  assert.equal(s.coins, 5 + 34);
+});
+
+test('the shop sells looks for coins, once, and only when you can afford them', () => {
+  assert.ok(isShopItem('table', 'neon') && !isShopItem('table', 'midnight'));
+  assert.ok(!isUnlocked('table', 'neon', { ...fresh, coins: 999, owned: [] }), 'coins alone do not unlock it');
+  const s = { ...fresh, coins: 150, owned: [] };
+  const poor = buy('table', 'neon', s);
+  assert.deepEqual([poor.ok, s.coins, s.owned.length], [false, 150, 0]);
+  assert.match(poor.why, /50 more coins/);
+  s.coins = 260;
+  assert.equal(buy('table', 'neon', s).ok, true);
+  assert.deepEqual([s.coins, s.owned], [60, ['table:neon']]);
+  assert.ok(isUnlocked('table', 'neon', s));
+  assert.equal(buy('table', 'neon', s).ok, false, 'cannot buy it twice');
+  assert.equal(buy('table', 'midnight', s).ok, false, 'earned looks are not for sale');
+  assert.equal(requirementText('dice', 'glass'), `In the Shop for ${priceOf('dice', 'glass')} coins`);
+  for (const part of Object.keys(SHOP)) for (const id of Object.keys(SHOP[part])) assert.ok(priceOf(part, id) > 0);
+});

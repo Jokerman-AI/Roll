@@ -11,7 +11,7 @@ import { dbStore, p2pStore, checkConnection } from './transport.js';
 import { checkFallback, DEFAULT_BROKERS, lobbyList, lobbyAnnouncer } from './relay.js';
 import { sfx, soundPrefs, setSound, setHaptics, canVibrate } from './sound.js';
 import { theme, TABLES, BACKS, DICE, setTheme } from './theme.js';
-import { stats, isUnlocked, requirementText, recordGame } from './stats.js';
+import { stats, isUnlocked, requirementText, recordGame, SHOP, isShopItem, priceOf, buy } from './stats.js';
 import { installReporter, errorLog, clearErrors, buildReport, VERSION } from './report.js';
 import {
   PALETTE, INK, BRUSHES, STAMPS, AVATAR_SIZE, REACTIONS, cpuName, freeColor, safeAvatar, makeSketch, paintCanvas, pointOn, strokeSegment, stampAt, clearSketch, loadAvatar, exportAvatar,
@@ -55,6 +55,7 @@ const ui = {
   reportNote: '', // what the person typed in Report a problem
   recorded: '', // the game whose result is already in the stats
   newUnlocks: [], // looks the last game unlocked
+  coinsEarned: 0, // coins the last game paid
   react: false, // the emoji picker is open
   rooms: { state: 'idle', list: [] }, // the public room list on the online screen
   netTest: '', // result of the connection check on the online screen
@@ -407,6 +408,26 @@ function powersView() {
 }
 
 /** Pick the table colour, the back of the deck and the dice. Changes show straight away. */
+const shopItems = (part) => Object.keys(SHOP[part]).map((id) => ({ part, id, name: ({ table: TABLES, back: BACKS, dice: DICE }[part].find((x) => x.id === id) || { name: id }).name }));
+
+/** The Shop: looks bought with coins earned by playing. No real money. */
+function shopView() {
+  const preview = (part, id) => (part === 'table' ? `<span class="tb" data-tb="${id}"></span>` : part === 'back' ? `<span class="bk" data-bk="${id}"></span>` : `<span class="dpv" data-ds="${id}">${die(5, '')}</span>`);
+  const group = (title, part) => `<h3>${title}</h3>${shopItems(part).map((it) => {
+    const owned = isUnlocked(it.part, it.id);
+    const price = priceOf(it.part, it.id);
+    return `<div class="item"><span class="pv">${preview(it.part, it.id)}</span>
+      <span class="nm"><b>${it.name}</b><small>${owned ? 'You own this' : `🪙 ${price}`}</small></span>
+      ${owned ? `<button class="btn" data-act="setTheme" data-part="${it.part}" data-id="${it.id}">Use</button>` : `<button class="btn primary" data-act="buyItem" data-part="${it.part}" data-id="${it.id}" ${stats.coins >= price ? '' : 'disabled'}>Buy</button>`}</div>`;
+  }).join('')}`;
+  return `<div class="modal"><div class="sheet shop themes"><h2>🛍 Shop</h2>
+    <p class="wallet coins">🪙 ${stats.coins} coins</p>
+    <p class="tag">Earn coins by playing: 10 for each game, 20 more for a win, and 2 for every card you claim. Looks only: nothing here makes you stronger.</p>
+    ${group('Tables', 'table')}${group('Deck backs', 'back')}${group('Dice', 'dice')}
+    <button class="btn" data-act="themes">Back to Themes</button>
+    <button class="btn primary" data-act="closeModal">Done</button></div></div>`;
+}
+
 function themesView() {
   const opt = (part, id, label, preview) => {
     const open = isUnlocked(part, id);
@@ -415,10 +436,11 @@ function themesView() {
   };
   return `<div class="modal"><div class="sheet themes"><h2>🎨 Themes</h2>
     <p class="statline">${stats.games} games · ${stats.wins} wins · best streak ${stats.bestStreak} · ${stats.claims} cards claimed</p>
+    <button class="btn" data-act="shop">🛍 Shop <span class="coins">· 🪙 ${stats.coins}</span></button>
     <h3>Table</h3><div class="opts">${TABLES.map((x) => opt('table', x.id, x.name, `<span class="tb" data-tb="${x.id}"></span>`)).join('')}</div>
     <h3>Deck back</h3><div class="opts">${BACKS.map((x) => opt('back', x.id, x.name, `<span class="bk" data-bk="${x.id}"></span>`)).join('')}</div>
     <h3>Dice</h3><div class="opts">${DICE.map((x) => opt('dice', x.id, x.name, `<span class="dpv" data-ds="${x.id}">${die(5, '')}</span>`)).join('')}</div>
-    <p class="tag">Play games to unlock more looks.</p>
+    <p class="tag">Play games to unlock more looks and earn coins for the Shop.</p>
     <button class="btn primary" data-act="closeModal">Done</button></div></div>`;
 }
 
@@ -614,7 +636,7 @@ function editorView() {
 }
 
 const lookName = ({ part, id }) => `${({ table: TABLES, back: BACKS, dice: DICE }[part].find((x) => x.id === id) || { name: id }).name} ${({ table: 'table', back: 'deck back', dice: 'dice' })[part]}`;
-const unlockedLine = () => (ui.newUnlocks.length ? `<p class="unlock">🔓 Unlocked: ${ui.newUnlocks.map(lookName).join(', ')}. See 🎨 Themes.</p>` : '');
+const unlockedLine = () => (ui.coinsEarned ? `<p class="unlock coins">🪙 +${ui.coinsEarned} coins</p>` : '') + (ui.newUnlocks.length ? `<p class="unlock">🔓 Unlocked: ${ui.newUnlocks.map(lookName).join(', ')}. See 🎨 Themes.</p>` : '');
 
 /** What the app was doing, without anything personal: for a problem report. */
 const reportContext = () => ({
@@ -722,6 +744,7 @@ function modalView() {
   if (ui.modal === 'qr') return qrView();
   if (ui.modal === 'powers') return powersView();
   if (ui.modal === 'themes') return themesView();
+  if (ui.modal === 'shop') return shopView();
   if (ui.modal === 'menu') {
     return `<div class="modal" data-act="closeModal"><div class="sheet"><h2>Menu</h2>
       <button class="btn" data-act="rules">How to play</button>
@@ -836,7 +859,9 @@ function countGame(g) {
   const me = ui.online ? net.mySeat : ui.cfg.findIndex((p) => p.me && !p.cpu); // your own row, unless you made it a computer player
   if (me < 0 || !g.players[me]) return;
   ui.recorded = g.gid;
-  ui.newUnlocks = recordGame({ won: g.winner === me, claims: (g.players[me].pile || []).length, score: g.players[me].score, mode: g.mode, online: ui.online });
+  const result = recordGame({ won: g.winner === me, claims: (g.players[me].pile || []).length, score: g.players[me].score, mode: g.mode, online: ui.online });
+  ui.newUnlocks = result.unlocked;
+  ui.coinsEarned = result.coins;
 }
 
 function startRoll(count) {
@@ -877,7 +902,7 @@ function receive(next) {
   const prev = ui.game;
   if (prev && prev.gid === next.gid && next.rev <= prev.rev) return; // duplicate or stale
   const sameGame = !!prev && prev.gid === next.gid;
-  if (!sameGame) ui.newUnlocks = [];
+  if (!sameGame) { ui.newUnlocks = []; ui.coinsEarned = 0; }
   ui.game = next;
   ui.selected = null;
   ui.hint = null;
@@ -909,7 +934,7 @@ function receive(next) {
     confetti(next.winner);
     setTimeout(sfx.win, 300);
     countGame(next);
-    if (ui.newUnlocks.length) render(); // the winner screen shows what was just unlocked
+    if (ui.newUnlocks.length || ui.coinsEarned) render(); // the winner screen shows what was just unlocked and earned
   }
   settle();
   tutAfterState(next);
@@ -1514,10 +1539,19 @@ const actions = {
   },
   tutSkip: () => endTutorial(false),
   themes: () => { ui.modal = 'themes'; render(); },
+  shop: () => { ui.modal = 'shop'; render(); },
+  buyItem: ({ part, id }) => {
+    const r = buy(part, id);
+    if (!r.ok) { sfx.error(); say(r.why, 2200); return; }
+    setTheme(part, id); // use it straight away
+    sfx.claim();
+    say('Bought! It is switched on.', 2200);
+    render();
+  },
   setTheme: ({ part, id }) => {
     if (setTheme(part, id)) { sfx.tap(); render(); return; }
     sfx.error();
-    say(`🔒 ${requirementText(part, id)} to unlock this`, 2600);
+    say(isShopItem(part, id) ? `🔒 ${requirementText(part, id)}` : `🔒 ${requirementText(part, id)} to unlock this`, 2800);
   },
   reactMenu: () => { if (canReact()) { ui.modal = null; ui.react = !ui.react; render(); } },
   closeReact: () => { ui.react = false; render(); },
