@@ -3062,8 +3062,17 @@ function setFace(el, face) {
 
 /* ---------- rendering ---------- */
 
+let renderedModal = null; // which sheet was on screen at the last render, so a redraw of the same sheet keeps its scroll place
+
 function render() {
+  // Redrawing replaces the whole page, which would throw a long sheet (Themes, Shop, rules) back to the top each
+  // time something in it is tapped. Remember how far it was scrolled and put it back, as long as it is the same sheet.
+  const before = app.querySelector('.modal .sheet');
+  const keep = before && renderedModal === ui.modal ? before.scrollTop : 0;
   app.innerHTML = ({ setup: setupView, online: onlineView, lobby: lobbyView, game: gameView }[ui.screen])() + connBanner() + modalView() + peekView() + reactView();
+  renderedModal = ui.modal;
+  const after = app.querySelector('.modal .sheet');
+  if (after && keep) after.scrollTop = keep;
   const cv = document.getElementById('avcv');
   if (cv && ui.ed) paintCanvas(cv, ui.ed.sk);
   positionPeek();
