@@ -9,6 +9,8 @@ export const TABLES = [
   { id: 'wine', name: 'Wine', meta: '#3a0f1d' },
   { id: 'violet', name: 'Violet', meta: '#26134a' },
   { id: 'charcoal', name: 'Charcoal', meta: '#1b1e25' },
+  { id: 'neon', name: 'Neon', meta: '#0a0420' },
+  { id: 'sunset', name: 'Sunset', meta: '#3a0f2a' },
 ];
 export const BACKS = [
   { id: 'blue', name: 'Blue stripes' },
@@ -16,11 +18,15 @@ export const BACKS = [
   { id: 'gold', name: 'Gold' },
   { id: 'mint', name: 'Mint dots' },
   { id: 'night', name: 'Night' },
+  { id: 'galaxy', name: 'Galaxy' },
+  { id: 'sunburst', name: 'Sunburst' },
 ];
 export const DICE = [
   { id: 'classic', name: 'Classic' },
   { id: 'sharp', name: 'Sharp' },
   { id: 'bubble', name: 'Bubble' },
+  { id: 'glass', name: 'Glass' },
+  { id: 'gem', name: 'Gem' },
 ];
 
 const KEY = 'rfi-theme';

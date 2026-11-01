@@ -11,7 +11,7 @@ import { dbStore, p2pStore, checkConnection } from './transport.js';
 import { checkFallback, DEFAULT_BROKERS, lobbyList, lobbyAnnouncer } from './relay.js';
 import { sfx, soundPrefs, setSound, setHaptics, canVibrate } from './sound.js';
 import { theme, TABLES, BACKS, DICE, setTheme } from './theme.js';
-import { stats, isUnlocked, requirementText, recordGame } from './stats.js';
+import { stats, isUnlocked, requirementText, recordGame, SHOP, isShopItem, priceOf, buy } from './stats.js';
 import { installReporter, errorLog, clearErrors, buildReport, VERSION } from './report.js';
 import {
   PALETTE, INK, BRUSHES, STAMPS, AVATAR_SIZE, REACTIONS, cpuName, freeColor, safeAvatar, makeSketch, paintCanvas, pointOn, strokeSegment, stampAt, clearSketch, loadAvatar, exportAvatar,
@@ -55,6 +55,7 @@ const ui = {
   reportNote: '', // what the person typed in Report a problem
   recorded: '', // the game whose result is already in the stats
   newUnlocks: [], // looks the last game unlocked
+  coinsEarned: 0, // coins the last game paid
   react: false, // the emoji picker is open
   rooms: { state: 'idle', list: [] }, // the public room list on the online screen
   netTest: '', // result of the connection check on the online screen
@@ -331,7 +332,7 @@ function lobbyView() {
     <div class="setup">
       <header class="hero">${LOGO}<p class="tag">Room code</p><h1 class="code">${esc(room.code)}</h1></header>
       ${host ? modePicker(true).replace(/data-act="setMode"/g, 'data-act="setRoomMode"') : `<p class="tag center">Game: <b>${modeLabel(room.mode)}</b></p>`}
-      <button class="btn" data-act="invite">Invite friends</button>
+      <div class="invitebar"><button class="btn" data-act="invite">Invite friends</button>${canShowQr() ? '<button class="btn" data-act="showQr" aria-label="Show QR code" title="Show QR code">▦ QR</button>' : ''}</div>
       ${host && net.store?.kind === 'p2p' ? `<button class="btn togglerow ${room.public ? 'on' : ''}" data-act="togglePublic" aria-pressed="${!!room.public}">
         <span>🌐 Public room</span><small>${room.public ? 'Anyone can find and join this room from the Open rooms list' : 'Only people with the code can join'}</small></button>` : ''}
       ${host ? settingsPanel(E.cleanSettings(room.settings || ui.settings), 'setRoomSetting', true) : `<p class="tag center">Play to <b>${E.cleanSettings(room.settings).target}</b> · <b>${E.cleanSettings(room.settings).dice}</b> dice each</p>`}
@@ -407,6 +408,26 @@ function powersView() {
 }
 
 /** Pick the table colour, the back of the deck and the dice. Changes show straight away. */
+const shopItems = (part) => Object.keys(SHOP[part]).map((id) => ({ part, id, name: ({ table: TABLES, back: BACKS, dice: DICE }[part].find((x) => x.id === id) || { name: id }).name }));
+
+/** The Shop: looks bought with coins earned by playing. No real money. */
+function shopView() {
+  const preview = (part, id) => (part === 'table' ? `<span class="tb" data-tb="${id}"></span>` : part === 'back' ? `<span class="bk" data-bk="${id}"></span>` : `<span class="dpv" data-ds="${id}">${die(5, '')}</span>`);
+  const group = (title, part) => `<h3>${title}</h3>${shopItems(part).map((it) => {
+    const owned = isUnlocked(it.part, it.id);
+    const price = priceOf(it.part, it.id);
+    return `<div class="item"><span class="pv">${preview(it.part, it.id)}</span>
+      <span class="nm"><b>${it.name}</b><small>${owned ? 'You own this' : `🪙 ${price}`}</small></span>
+      ${owned ? `<button class="btn" data-act="setTheme" data-part="${it.part}" data-id="${it.id}">Use</button>` : `<button class="btn primary" data-act="buyItem" data-part="${it.part}" data-id="${it.id}" ${stats.coins >= price ? '' : 'disabled'}>Buy</button>`}</div>`;
+  }).join('')}`;
+  return `<div class="modal"><div class="sheet shop themes"><h2>🛍 Shop</h2>
+    <p class="wallet coins">🪙 ${stats.coins} coins</p>
+    <p class="tag">Earn coins by playing: 10 for each game, 20 more for a win, and 2 for every card you claim. Looks only: nothing here makes you stronger.</p>
+    ${group('Tables', 'table')}${group('Deck backs', 'back')}${group('Dice', 'dice')}
+    <button class="btn" data-act="themes">Back to Themes</button>
+    <button class="btn primary" data-act="closeModal">Done</button></div></div>`;
+}
+
 function themesView() {
   const opt = (part, id, label, preview) => {
     const open = isUnlocked(part, id);
@@ -415,10 +436,11 @@ function themesView() {
   };
   return `<div class="modal"><div class="sheet themes"><h2>🎨 Themes</h2>
     <p class="statline">${stats.games} games · ${stats.wins} wins · best streak ${stats.bestStreak} · ${stats.claims} cards claimed</p>
+    <button class="btn" data-act="shop">🛍 Shop <span class="coins">· 🪙 ${stats.coins}</span></button>
     <h3>Table</h3><div class="opts">${TABLES.map((x) => opt('table', x.id, x.name, `<span class="tb" data-tb="${x.id}"></span>`)).join('')}</div>
     <h3>Deck back</h3><div class="opts">${BACKS.map((x) => opt('back', x.id, x.name, `<span class="bk" data-bk="${x.id}"></span>`)).join('')}</div>
     <h3>Dice</h3><div class="opts">${DICE.map((x) => opt('dice', x.id, x.name, `<span class="dpv" data-ds="${x.id}">${die(5, '')}</span>`)).join('')}</div>
-    <p class="tag">Play games to unlock more looks.</p>
+    <p class="tag">Play games to unlock more looks and earn coins for the Shop.</p>
     <button class="btn primary" data-act="closeModal">Done</button></div></div>`;
 }
 
@@ -487,7 +509,7 @@ function cardView(s, card, ci) {
     return `<button type="button" class="slot${peeked}" data-act="peek" data-card="${ci}" data-slot="${si}" data-o="${owners.length}" aria-label="Die ${face}, ${esc(who)}">
       <span class="dwrap">${die(face, ownedClass(owners), `style="${ownedStyle(owners, s)}"`)}${badge}</span></button>`;
   }).join('');
-  return `<div class="gcard ${accepts ? 'accepts' : ''} ${ui.hint?.card === ci ? 'hinted' : ''}" data-tier="${tierOf(card.points)}" data-act="pickCard" data-card="${ci}" role="group" aria-label="${card.points} point card">
+  return `<div class="gcard ${accepts ? 'accepts' : ''} ${ui.hint?.card === ci ? 'hinted' : ''}" data-tier="${tierOf(card.points)}" data-act="pickCard" data-card="${ci}" data-key="${String.fromCharCode(65 + ci)}" role="group" aria-label="${card.points} point card">
     <div class="corner tl"><b>${card.points}</b></div>
     <div class="face" style="--fc:${cols};--dz:${dz}">${slots}</div>
     <div class="corner br"><b>${card.points}</b></div>
@@ -614,7 +636,7 @@ function editorView() {
 }
 
 const lookName = ({ part, id }) => `${({ table: TABLES, back: BACKS, dice: DICE }[part].find((x) => x.id === id) || { name: id }).name} ${({ table: 'table', back: 'deck back', dice: 'dice' })[part]}`;
-const unlockedLine = () => (ui.newUnlocks.length ? `<p class="unlock">🔓 Unlocked: ${ui.newUnlocks.map(lookName).join(', ')}. See 🎨 Themes.</p>` : '');
+const unlockedLine = () => (ui.coinsEarned ? `<p class="unlock coins">🪙 +${ui.coinsEarned} coins</p>` : '') + (ui.newUnlocks.length ? `<p class="unlock">🔓 Unlocked: ${ui.newUnlocks.map(lookName).join(', ')}. See 🎨 Themes.</p>` : '');
 
 /** What the app was doing, without anything personal: for a problem report. */
 const reportContext = () => ({
@@ -636,6 +658,27 @@ function reportView() {
     ${mail ? '<button class="btn" data-act="reportMail">Email it</button>' : ''}
     ${n ? '<button class="btn" data-act="reportClear">Clear the error log</button>' : ''}
     <button class="btn" data-act="about">Back</button></div></div>`;
+}
+
+/** The room as a QR code: a friend points their camera at it and the app opens with the code filled in. */
+const canShowQr = () => net.store?.kind === 'p2p' && typeof window.qrcode === 'function' && !!net.room?.code;
+
+function qrView() {
+  if (!canShowQr()) return '';
+  const code = net.room.code;
+  const url = `${location.origin}${location.pathname}#${code}`;
+  let svg = '';
+  try {
+    const q = window.qrcode(0, 'M'); // the smallest size that holds the address, with some error correction
+    q.addData(url);
+    q.make();
+    svg = q.createSvgTag({ cellSize: 6, margin: 3, scalable: true });
+  } catch { return ''; }
+  return `<div class="modal"><div class="sheet qr"><h2>Scan to join</h2>
+    <div class="qrbox" role="img" aria-label="QR code for room ${esc(code)}">${svg}</div>
+    <p class="qrcode">${esc(code)}</p>
+    <p class="tag">Point a phone's camera at this. It opens Rollick with the room code filled in.</p>
+    <button class="btn primary" data-act="closeModal">Done</button></div></div>`;
 }
 
 function modalView() {
@@ -661,6 +704,7 @@ function modalView() {
       </ol>
       <p>A die on a card is filled with the colour of the player covering it. If two or more players cover the same number, the die is split into slices of their colours and a number shows how many. <b>Tap any die on a card</b> to see who has it and how far along each player is on that card. Other players' dice can't score cards for you, but they can beat you to them!</p>
       <p>Play starts with a two-dice roll-off; 5+ players use two sets (60 cards) and four face-up cards.</p>
+      <p class="keys">Keyboard: <kbd>R</kbd> roll · <kbd>T</kbd> take back · <kbd>1</kbd>–<kbd>6</kbd> pick a die · <kbd>A</kbd>–<kbd>D</kbd> put it on that card · <kbd>E</kbd> end turn · <kbd>U</kbd> undo · <kbd>H</kbd> hint · <kbd>P</kbd> power cards · <kbd>M</kbd> menu · <kbd>Esc</kbd> close</p>
       <h3>⚡ Rollick Extreme</h3>
       <p>The same game with extra rules:</p>
       <ul>
@@ -697,8 +741,10 @@ function modalView() {
       <button class="btn primary" data-act="closeModal">Close</button></div></div>`;
   }
   if (ui.modal === 'report') return reportView();
+  if (ui.modal === 'qr') return qrView();
   if (ui.modal === 'powers') return powersView();
   if (ui.modal === 'themes') return themesView();
+  if (ui.modal === 'shop') return shopView();
   if (ui.modal === 'menu') {
     return `<div class="modal" data-act="closeModal"><div class="sheet"><h2>Menu</h2>
       <button class="btn" data-act="rules">How to play</button>
@@ -813,7 +859,9 @@ function countGame(g) {
   const me = ui.online ? net.mySeat : ui.cfg.findIndex((p) => p.me && !p.cpu); // your own row, unless you made it a computer player
   if (me < 0 || !g.players[me]) return;
   ui.recorded = g.gid;
-  ui.newUnlocks = recordGame({ won: g.winner === me, claims: (g.players[me].pile || []).length, score: g.players[me].score, mode: g.mode, online: ui.online });
+  const result = recordGame({ won: g.winner === me, claims: (g.players[me].pile || []).length, score: g.players[me].score, mode: g.mode, online: ui.online });
+  ui.newUnlocks = result.unlocked;
+  ui.coinsEarned = result.coins;
 }
 
 function startRoll(count) {
@@ -854,7 +902,7 @@ function receive(next) {
   const prev = ui.game;
   if (prev && prev.gid === next.gid && next.rev <= prev.rev) return; // duplicate or stale
   const sameGame = !!prev && prev.gid === next.gid;
-  if (!sameGame) ui.newUnlocks = [];
+  if (!sameGame) { ui.newUnlocks = []; ui.coinsEarned = 0; }
   ui.game = next;
   ui.selected = null;
   ui.hint = null;
@@ -886,7 +934,7 @@ function receive(next) {
     confetti(next.winner);
     setTimeout(sfx.win, 300);
     countGame(next);
-    if (ui.newUnlocks.length) render(); // the winner screen shows what was just unlocked
+    if (ui.newUnlocks.length || ui.coinsEarned) render(); // the winner screen shows what was just unlocked and earned
   }
   settle();
   tutAfterState(next);
@@ -1491,10 +1539,19 @@ const actions = {
   },
   tutSkip: () => endTutorial(false),
   themes: () => { ui.modal = 'themes'; render(); },
+  shop: () => { ui.modal = 'shop'; render(); },
+  buyItem: ({ part, id }) => {
+    const r = buy(part, id);
+    if (!r.ok) { sfx.error(); say(r.why, 2200); return; }
+    setTheme(part, id); // use it straight away
+    sfx.claim();
+    say('Bought! It is switched on.', 2200);
+    render();
+  },
   setTheme: ({ part, id }) => {
     if (setTheme(part, id)) { sfx.tap(); render(); return; }
     sfx.error();
-    say(`🔒 ${requirementText(part, id)} to unlock this`, 2600);
+    say(isShopItem(part, id) ? `🔒 ${requirementText(part, id)}` : `🔒 ${requirementText(part, id)} to unlock this`, 2800);
   },
   reactMenu: () => { if (canReact()) { ui.modal = null; ui.react = !ui.react; render(); } },
   closeReact: () => { ui.react = false; render(); },
@@ -1534,6 +1591,7 @@ const actions = {
     store.set('rfi-settings', JSON.stringify(ui.settings));
     return room;
   }),
+  showQr: () => { if (canShowQr()) { ui.modal = 'qr'; render(); } },
   reportOpen: () => { ui.modal = 'report'; render(); },
   reportShare: async () => {
     try { await navigator.share({ title: 'Rollick problem report', text: buildReport(ui.reportNote, reportContext()) }); } catch { /* cancelled */ }
@@ -1608,12 +1666,43 @@ const actions = {
   },
 };
 
+/** Run an action, unless the tutorial is holding it back. Taps and keys both come through here. */
+function dispatch(act, data, el) {
+  if (ui.tut && TUT_ACTS.has(act) && !tutAllows(act, data)) { tutNudge(); return; }
+  actions[act]?.({ ...data }, el);
+}
+
 app.addEventListener('click', (e) => {
   if (ui.peek && !e.target.closest('.peek') && !e.target.closest('[data-act="peek"]')) { ui.peek = null; clearTimeout(peekTimer); render(); }
   const el = e.target.closest('[data-act]');
   if (!el || (el.classList.contains('modal') && e.target !== el)) return;
-  if (ui.tut && TUT_ACTS.has(el.dataset.act) && !tutAllows(el.dataset.act, el.dataset)) { tutNudge(); return; }
-  actions[el.dataset.act]?.({ ...el.dataset }, el);
+  dispatch(el.dataset.act, el.dataset, el);
+});
+
+/* Keyboard play, for desktops and tablets with a keyboard. */
+document.addEventListener('keydown', (e) => {
+  if (e.metaKey || e.ctrlKey || e.altKey || e.target?.matches?.('input, textarea, select, [contenteditable]')) return;
+  const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+  if (k === 'Escape') { if (ui.modal || ui.react) { e.preventDefault(); dispatch(ui.react ? 'closeReact' : 'closeModal', {}); } return; }
+  if (ui.screen !== 'game' || !ui.game || ui.modal || ui.ed || e.repeat) return;
+  const s = ui.game;
+  const map = { r: 'roll', t: 'takeBack', e: 'end', Enter: 'end', u: 'undo', h: 'hint', p: 'powers', m: 'menu' };
+  if (map[k]) {
+    if (k === 'Enter' && e.target?.matches?.('button, [role="button"]')) return; // let a focused button handle its own Enter
+    e.preventDefault();
+    dispatch(map[k], {});
+    return;
+  }
+  if (/^[1-6]$/.test(k) && s.phase === 'placing') { // pick a die by its number
+    const at = s.rolled.map((f, n) => [f, n]).filter(([f]) => f === +k).map(([, n]) => n);
+    const next = at.length ? at[(at.indexOf(ui.selected) + 1) % at.length] : -1; // pressing again moves to the next die with that number
+    if (next >= 0) { e.preventDefault(); dispatch('pickRolled', { i: String(next) }); }
+    return;
+  }
+  if (/^[a-d]$/.test(k) && ui.selected !== null) { // put the chosen die on card A to D
+    const c = k.charCodeAt(0) - 97;
+    if (s.cards[c]) { e.preventDefault(); dispatch('pickCard', { card: String(c) }); }
+  }
 });
 app.addEventListener('input', (e) => {
   if (e.target.id === 'myname') { profile.name = e.target.value; saveProfile(); return; }
